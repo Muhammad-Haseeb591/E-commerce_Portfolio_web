@@ -1,0 +1,863 @@
+import { useState, useRef, useEffect } from "react";
+import {
+  Plus, Search, Trash2, AlertCircle, PackageX, X, Pencil,
+  Loader2, ChevronDown,
+} from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchData, deleteProductAsync, editProductAsync } from "../redux_Toolkit/fetcherSlice";
+import FormData from "./FormData";
+import {
+  uploadToCloudinary,
+  CATEGORY_OPTIONS,
+  TYPE_OPTIONS,
+  COLOR_OPTIONS,
+  sizeOptionsFor,
+  swatchStyle,
+  sizesArrayToStocks,
+  stocksToSizesArray,
+} from "./productFormHelpers";
+
+// ── Loading / Error / Empty states (shared, width-safe) ──
+const StateBlock = ({ children }) => (
+  <div className="py-14 flex flex-col items-center gap-3 text-center px-4">{children}</div>
+);
+
+const LoadingState = () => (
+  <StateBlock>
+    <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+    <span className="text-sm text-gray-400">Loading products...</span>
+  </StateBlock>
+);
+
+const ErrorState = ({ message }) => (
+  <StateBlock>
+    <AlertCircle className="w-8 h-8 text-red-400" />
+    <span className="text-sm font-medium text-red-400">Error: {message}</span>
+    <button
+      type="button"
+      onClick={() => window.location.reload()}
+      className="text-sm text-gray-600 border border-gray-300 px-3 py-1 rounded bg-gray-100 hover:bg-gray-200 transition-colors"
+    >
+      Refresh
+    </button>
+  </StateBlock>
+);
+
+const EmptyState = () => (
+  <StateBlock>
+    <PackageX className="w-8 h-8 text-gray-400" />
+    <span className="text-sm text-gray-400">No products found</span>
+  </StateBlock>
+);
+
+// ── Stock Badge ──
+const StockBadge = ({ stock }) => {
+  const qty = Number(stock);
+  let style, label;
+
+  if (!stock && stock !== 0) {
+    style = "bg-gray-100 text-gray-500";
+    label = "—";
+  } else if (qty === 0) {
+    style = "bg-red-100 text-red-700";
+    label = "0 — Out of Stock";
+  } else if (qty <= 10) {
+    style = "bg-yellow-100 text-yellow-700";
+    label = `${qty} — Low Stock`;
+  } else {
+    style = "bg-green-100 text-green-700";
+    label = `${qty} — In Stock`;
+  }
+
+  return (
+    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${style}`}>
+      {label}
+    </span>
+  );
+};
+
+// ── Image Modal ──
+const ImageModal = ({ selectedImage, productName, onClose }) => {
+  if (!selectedImage) return null;
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center px-4" onClick={onClose}>
+      <div className="relative bg-white rounded-2xl p-4 max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-3 right-3 p-1 rounded-full hover:bg-gray-100">
+          <X className="w-5 h-5 text-gray-600" />
+        </button>
+        <h3 className="text-lg font-semibold text-gray-800 mb-3 pr-8 break-words">{productName}</h3>
+        <img src={selectedImage} alt={productName} className="w-full h-[300px] sm:h-[400px] object-contain rounded-xl" />
+      </div>
+    </div>
+  );
+};
+
+// ── Edit Modal — mirrors every field from the Add Product form ──
+const EditModal = ({ product, onClose, onSave }) => {
+  const [form, setForm] = useState({
+    name: product.name || "",
+    price: product.price || "",
+    oldPrice: product.oldPrice || "",
+    description: product.description || "",
+    discount: product.discount || "",
+    category: product.category || "",
+    type: product.type || "",
+    color: product.color || "",
+    status: product.status || "active",
+    stock: product.sizes?.length ? "" : product.stock || "",
+    images: product.images?.length ? product.images : [""],
+  });
+
+  // Toggle-box grid state: { "40": 5, "42": 2, ... }, seeded from the
+  // product's saved `sizes` array (if it has real sizes, not "One Size").
+  const [sizeStocks, setSizeStocks] = useState(() => sizesArrayToStocks(product.sizes));
+
+  const [submitError, setSubmitError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [uploading, setUploading] = useState({});
+  const [uploadErrors, setUploadErrors] = useState({});
+
+  const nameRef = useRef(null);
+  const priceRef = useRef(null);
+  const categoryRef = useRef(null);
+  const typeRef = useRef(null);
+  const colorRef = useRef(null);
+  const fieldRefs = {
+    name: nameRef,
+    price: priceRef,
+    category: categoryRef,
+    type: typeRef,
+    color: colorRef,
+  };
+
+  const sizeOptions = sizeOptionsFor(form.type, form.category);
+
+  const clearFieldError = (field) =>
+    setFieldErrors((prev) => (prev[field] ? { ...prev, [field]: false } : prev));
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    clearFieldError(name);
+  };
+
+  // Category/Type together decide the size scale — changing either resets
+  // any picked sizes, since they may no longer be valid for the new combo.
+  const handleCategoryChange = (e) => {
+    const category = e.target.value;
+    setForm((prev) => ({ ...prev, category }));
+    setSizeStocks({});
+    clearFieldError("category");
+  };
+
+  const handleTypeChange = (e) => {
+    const type = e.target.value;
+    setForm((prev) => ({ ...prev, type }));
+    setSizeStocks({});
+    clearFieldError("type");
+  };
+
+  const handleImageChange = (index, value) => {
+    setForm((prev) => {
+      const images = [...prev.images];
+      images[index] = value;
+      return { ...prev, images };
+    });
+  };
+
+  const handleFileSelect = async (index, file) => {
+    if (!file) return;
+
+    setUploading((prev) => ({ ...prev, [index]: true }));
+    setUploadErrors((prev) => ({ ...prev, [index]: "" }));
+
+    try {
+      const url = await uploadToCloudinary(file);
+      handleImageChange(index, url);
+    } catch (err) {
+      console.error(err);
+      setUploadErrors((prev) => ({
+        ...prev,
+        [index]: err.message || "Upload failed. Please try again.",
+      }));
+    } finally {
+      setUploading((prev) => ({ ...prev, [index]: false }));
+    }
+  };
+
+  const addImageField = () =>
+    setForm((prev) => ({ ...prev, images: [...prev.images, ""] }));
+
+  const removeImageField = (index) =>
+    setForm((prev) => {
+      const images = prev.images.filter((_, i) => i !== index);
+      return { ...prev, images: images.length ? images : [""] };
+    });
+
+  const toggleSize = (size) => {
+    setSizeStocks((prev) => {
+      const next = { ...prev };
+      if (size in next) {
+        delete next[size];
+      } else {
+        next[size] = 1;
+      }
+      return next;
+    });
+  };
+
+  const setSizeQuantity = (size, qty) =>
+    setSizeStocks((prev) => ({ ...prev, [size]: qty }));
+
+  const totalStock = sizeOptions
+    ? Object.values(sizeStocks).reduce((sum, q) => sum + (Number(q) || 0), 0)
+    : Number(form.stock) || 0;
+
+  const validate = () => {
+    const errors = {};
+    if (!form.name.trim()) errors.name = true;
+    if (!form.price) errors.price = true;
+    if (!form.category) errors.category = true;
+    if (!form.type) errors.type = true;
+    if (!form.color) errors.color = true;
+    return errors;
+  };
+
+  const focusFirstError = (errors) => {
+    const order = ["name", "price", "category", "type", "color"];
+    const firstField = order.find((f) => errors[f]);
+    const ref = firstField && fieldRefs[firstField];
+    if (ref?.current) {
+      ref.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      ref.current.focus();
+    }
+  };
+
+  const handleSubmit = () => {
+    setSubmitError("");
+
+    const errors = validate();
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      focusFirstError(errors);
+      setSubmitError("Please fill in the highlighted required fields.");
+      return;
+    }
+
+    if (Object.values(uploading).some(Boolean)) {
+      setSubmitError("An image is still uploading, please wait.");
+      return;
+    }
+
+    const payload = {
+      name: form.name,
+      price: Number(form.price),
+      oldPrice: form.oldPrice ? Number(form.oldPrice) : null,
+      description: form.description,
+      discount: form.discount,
+      category: form.category,
+      type: form.type,
+      color: form.color,
+      status: form.status,
+      images: form.images.filter((img) => img.trim() !== ""),
+      sizes: stocksToSizesArray(sizeStocks, sizeOptions, form.stock),
+      stock: totalStock,
+    };
+
+    onSave(payload);
+  };
+
+  const baseInput =
+    "w-full px-4 py-2.5 rounded-xl border bg-gray-50 text-gray-800 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:bg-white transition";
+
+  const fieldClass = (name) =>
+    `${baseInput} ${
+      fieldErrors[name]
+        ? "border-red-300 ring-2 ring-red-100 focus:ring-red-100"
+        : "border-gray-200 focus:ring-blue-300 focus:border-gray-300"
+    }`;
+
+  const labelClass = "block text-xs font-medium text-gray-500 mb-1.5";
+  const Required = () => <span className="text-red-500">*</span>;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center px-4 py-6" onClick={onClose}>
+      <div
+        className="relative bg-white rounded-2xl w-full max-w-2xl max-h-[95vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl z-10">
+          <div>
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Edit Product</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Fields marked with * are required</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 shrink-0" aria-label="Close">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="px-4 sm:px-6 py-5 space-y-6">
+
+          {/* Basic info */}
+          <section className="space-y-4">
+            <div>
+              <label className={labelClass}>Product Name <Required /></label>
+              <input
+                ref={nameRef}
+                name="name"
+                placeholder="e.g. Classic Leather Jacket"
+                value={form.name}
+                onChange={handleChange}
+                className={fieldClass("name")}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>Price <Required /></label>
+                <input
+                  ref={priceRef}
+                  name="price"
+                  type="number"
+                  placeholder="0.00"
+                  value={form.price}
+                  onChange={handleChange}
+                  className={fieldClass("price")}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Old Price (optional)</label>
+                <input
+                  name="oldPrice"
+                  type="number"
+                  placeholder="0.00"
+                  value={form.oldPrice}
+                  onChange={handleChange}
+                  className={fieldClass("oldPrice")}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>Category <Required /></label>
+                <div className="relative">
+                  <select
+                    ref={categoryRef}
+                    name="category"
+                    value={form.category}
+                    onChange={handleCategoryChange}
+                    className={`${fieldClass("category")} appearance-none pr-9`}
+                  >
+                    <option value="">select category</option>
+                    {CATEGORY_OPTIONS.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelClass}>Type <Required /></label>
+                <div className="relative">
+                  <select
+                    ref={typeRef}
+                    name="type"
+                    value={form.type}
+                    onChange={handleTypeChange}
+                    className={`${fieldClass("type")} appearance-none pr-9`}
+                  >
+                    <option value="">select type</option>
+                    {TYPE_OPTIONS.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>Status</label>
+                <div className="relative">
+                  <select
+                    name="status"
+                    value={form.status}
+                    onChange={handleChange}
+                    className={`${fieldClass("status")} appearance-none pr-9`}
+                  >
+                    <option value="active">active</option>
+                    <option value="inactive">inactive</option>
+                    <option value="pending">pending</option>
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>Discount (optional)</label>
+                <input
+                  name="discount"
+                  placeholder="e.g. 20%"
+                  value={form.discount}
+                  onChange={handleChange}
+                  className={fieldClass("discount")}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className={labelClass}>Description</label>
+              <textarea
+                name="description"
+                placeholder="Short description of the product"
+                value={form.description}
+                onChange={handleChange}
+                className={`${fieldClass("description")} h-24 resize-none`}
+              />
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-500">Stock preview:</span>
+              <StockBadge stock={totalStock} />
+            </div>
+          </section>
+
+          {/* Images */}
+          <section>
+            <label className={labelClass}>Images</label>
+            <div className="space-y-3">
+              {form.images.map((img, i) => (
+                <div key={i} className="border border-gray-100 rounded-xl p-3">
+                  <div className="flex items-center gap-3">
+                    {uploading[i] ? (
+                      <div className="w-16 h-16 flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 shrink-0">
+                        <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+                      </div>
+                    ) : img ? (
+                      <img
+                        src={img}
+                        alt={`preview-${i}`}
+                        className="w-16 h-16 object-cover rounded-lg border border-gray-200 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 flex items-center justify-center rounded-lg border border-dashed border-gray-300 text-[10px] text-gray-400 text-center shrink-0">
+                        No image
+                      </div>
+                    )}
+
+                    <div className="flex-1 space-y-1 min-w-0">
+                      <label className="inline-block text-xs text-gray-600 hover:text-gray-900 cursor-pointer bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg">
+                        {img ? "Change Image" : "Upload Image"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleFileSelect(i, e.target.files[0])}
+                        />
+                      </label>
+                      {uploadErrors[i] && (
+                        <p className="text-[11px] text-red-500">{uploadErrors[i]}</p>
+                      )}
+                    </div>
+
+                    {form.images.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeImageField(i)}
+                        className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-500 shrink-0"
+                        aria-label="Remove image"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="...or paste an image URL directly"
+                    value={img}
+                    onChange={(e) => handleImageChange(i, e.target.value)}
+                    className={`${fieldClass("images")} mt-2`}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={addImageField}
+              className="mt-2 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 hover:underline"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Image
+            </button>
+          </section>
+
+          {/* Color */}
+          <section>
+            <label className={labelClass}>Color <Required /></label>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <select
+                  ref={colorRef}
+                  name="color"
+                  value={form.color}
+                  onChange={handleChange}
+                  className={`${fieldClass("color")} appearance-none pr-9`}
+                >
+                  <option value="">select color</option>
+                  {COLOR_OPTIONS.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              </div>
+              {form.color && (
+                <span
+                  className="w-9 h-9 rounded-full border border-gray-300 shrink-0"
+                  style={swatchStyle(form.color)}
+                  title={form.color}
+                />
+              )}
+            </div>
+          </section>
+
+          {/* Sizes & stock — optional, only real for type = shoes */}
+          <section>
+            <label className={labelClass}>Sizes & Stock (optional)</label>
+
+            {sizeOptions ? (
+              <>
+                <p className="text-xs text-gray-400 mb-3">
+                  Tap a size to add it, then set the quantity for that size.
+                </p>
+
+                <div className="grid grid-cols-4 xs:grid-cols-5 sm:grid-cols-6 gap-2 mb-3">
+                  {sizeOptions.map((size) => {
+                    const active = size in sizeStocks;
+                    return (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => toggleSize(size)}
+                        className={`h-11 rounded-lg text-sm font-medium border transition ${
+                          active
+                            ? "bg-gray-900 border-gray-900 text-white"
+                            : "bg-white border-gray-200 text-gray-600 hover:border-gray-400"
+                        }`}
+                      >
+                        {size}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {Object.keys(sizeStocks).length > 0 && (
+                  <div className="space-y-2">
+                    {Object.entries(sizeStocks)
+                      .sort((a, b) => Number(a[0]) - Number(b[0]))
+                      .map(([size, qty]) => (
+                        <div
+                          key={size}
+                          className="flex items-center gap-3 border border-gray-100 rounded-xl px-3 py-2"
+                        >
+                          <span className="w-12 shrink-0 text-sm font-medium text-gray-700">
+                            Size {size}
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="Quantity"
+                            value={qty}
+                            onChange={(e) => setSizeQuantity(size, e.target.value)}
+                            className={`${fieldClass("sizeQty")} flex-1`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleSize(size)}
+                            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-500 shrink-0"
+                            aria-label={`Remove size ${size}`}
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-400 mt-2">Total stock: {totalStock}</p>
+              </>
+            ) : (
+              <div>
+                <p className="text-xs text-gray-400 mb-2">
+                  {form.type === "shoes"
+                    ? form.category
+                      ? `"${form.category}" doesn't have a shoe size scale — just set a stock quantity.`
+                      : "Select a category above first."
+                    : "Sizes only apply to the \"shoes\" type — just set a stock quantity."}
+                </p>
+                <input
+                  name="stock"
+                  type="number"
+                  min="0"
+                  placeholder="Stock quantity"
+                  value={form.stock}
+                  onChange={handleChange}
+                  className={fieldClass("stock")}
+                />
+              </div>
+            )}
+          </section>
+
+          {submitError && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+              {submitError}
+            </p>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition text-sm font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition text-sm font-medium"
+            >
+              Save Changes
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Product Card (mobile — replaces table row on small screens) ──
+const ProductCard = ({ product, onDelete, onImageClick, onEdit }) => (
+  <div className="flex items-center gap-3 p-3 border-b border-gray-100 last:border-0">
+    {product.images?.[0] ? (
+      <img
+        src={product.images[0]}
+        alt={product.name}
+        onClick={() => onImageClick(product.images[0], product.name)}
+        className="w-12 h-12 object-cover rounded-lg border border-gray-200 cursor-pointer shrink-0"
+      />
+    ) : (
+      <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 text-[10px] shrink-0">
+        No img
+      </div>
+    )}
+
+    <div className="min-w-0 flex-1">
+      <p className="font-medium text-gray-900 truncate">{product.name || "—"}</p>
+      <p className="text-xs text-gray-400 truncate">{product.category || "—"}</p>
+      <div className="flex items-center gap-2 mt-1 flex-wrap">
+        <span className="text-sm text-gray-700 font-semibold">
+          {product.price ? `Rs. ${Number(product.price).toFixed(2)}` : "—"}
+        </span>
+        <StockBadge stock={product.stock} />
+      </div>
+    </div>
+
+    <div className="flex flex-col gap-1 shrink-0">
+      <button
+        onClick={() => onEdit(product)}
+        className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+      >
+        <Pencil className="w-4 h-4" />
+      </button>
+      <button
+        onClick={() => onDelete(product._id)}
+        className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </div>
+  </div>
+);
+
+// ── Product Row (desktop — table row, sm+ only) ──
+const ProductRow = ({ product, onDelete, onImageClick, onEdit }) => (
+  <tr className="border-t border-gray-100 hover:bg-blue-50 transition-colors">
+    <td className="px-6 py-4">
+      <div className="flex items-center gap-3">
+        {product.images?.[0] ? (
+          <img
+            src={product.images[0]}
+            alt={product.name}
+            onClick={() => onImageClick(product.images[0], product.name)}
+            className="w-10 h-10 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity shrink-0"
+          />
+        ) : (
+          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 text-xs shrink-0">
+            No img
+          </div>
+        )}
+        <span className="font-medium text-gray-900">{product.name || "—"}</span>
+      </div>
+    </td>
+    <td className="px-6 py-4 text-gray-500">{product.category || "—"}</td>
+    <td className="px-6 py-4 text-gray-700">
+      {product.price ? `Rs. ${Number(product.price).toFixed(2)}` : "—"}
+    </td>
+    <td className="px-6 py-4">
+      <StockBadge stock={product.stock} />
+    </td>
+    <td className="px-6 py-4">
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onEdit(product)}
+          className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+        >
+          <Pencil className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => onDelete(product._id)}
+          className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    </td>
+  </tr>
+);
+
+// ── Main Products Component ──
+const Products = () => {
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedName, setSelectedName] = useState("");
+  const [editingProduct, setEditingProduct] = useState(null);
+
+  const dispatch = useDispatch();
+  const { products = [], loading, error } = useSelector((state) => state.FetchPrducts);
+
+  useEffect(() => { dispatch(fetchData()); }, [dispatch]);
+
+  if (showAddProduct) return <FormData onClose={() => setShowAddProduct(false)} />;
+
+  const filteredProducts = products.filter((p) => {
+    const q = searchQuery.toLowerCase();
+    return p.name?.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q);
+  });
+
+  const handleDelete = (id) => {
+    if (window.confirm("Delete this product?")) dispatch(deleteProductAsync(id));
+  };
+  const handleImageClick = (img, name) => { setSelectedImage(img); setSelectedName(name); };
+  const handleEdit = (product) => setEditingProduct(product);
+
+  const renderContent = () => {
+    if (loading) return <LoadingState />;
+    if (error) return <ErrorState message={error} />;
+    if (filteredProducts.length === 0) return <EmptyState />;
+    return null;
+  };
+
+  const emptyOrStateContent = renderContent();
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-3 sm:p-6 overflow-x-hidden">
+
+      <ImageModal
+        selectedImage={selectedImage}
+        productName={selectedName}
+        onClose={() => { setSelectedImage(null); setSelectedName(""); }}
+      />
+
+      {editingProduct && (
+        <EditModal
+          product={editingProduct}
+          onClose={() => setEditingProduct(null)}
+          onSave={(updatedData) => {
+            dispatch(editProductAsync({ id: editingProduct._id, updatedData }));
+            setEditingProduct(null);
+          }}
+        />
+      )}
+
+      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
+
+        {/* Header bar */}
+        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Product Management</h1>
+          <button
+            onClick={() => setShowAddProduct(true)}
+            className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-all text-sm sm:text-base w-full sm:w-auto"
+          >
+            <Plus className="w-4 h-4" />
+            Add Product
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="p-3 sm:p-4 bg-white rounded-xl border border-gray-100">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search by name or category..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-12 pr-4 py-2.5 sm:py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+            />
+          </div>
+        </div>
+
+        {/* ── Mobile: card list (< sm) ── */}
+        <div className="sm:hidden bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          {emptyOrStateContent || filteredProducts.map((product) => (
+            <ProductCard
+              key={product._id}
+              product={product}
+              onDelete={handleDelete}
+              onImageClick={handleImageClick}
+              onEdit={handleEdit}
+            />
+          ))}
+        </div>
+
+        {/* ── Desktop: table (sm and up) ── */}
+        <div className="hidden sm:block bg-white rounded-2xl shadow-lg border border-gray-100 overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                {["Product", "Category", "Price", "Stock", "Actions"].map((col) => (
+                  <th key={col} className="px-6 py-4 text-left text-sm font-semibold text-gray-600">
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading || error || filteredProducts.length === 0 ? (
+                <tr><td colSpan={5}>{emptyOrStateContent}</td></tr>
+              ) : (
+                filteredProducts.map((product) => (
+                  <ProductRow
+                    key={product._id}
+                    product={product}
+                    onDelete={handleDelete}
+                    onImageClick={handleImageClick}
+                    onEdit={handleEdit}
+                  />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+export default Products;
