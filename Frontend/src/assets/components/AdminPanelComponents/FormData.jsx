@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { X, Loader2, Plus, ChevronDown } from "lucide-react";
-import { API_URL } from "../config/api";
+import { API_URL } from "../../../config/api";
 
 // Backend already handles Cloudinary upload (signed, via multer-storage-cloudinary)
 // so we hit OUR server route, not Cloudinary directly — no upload_preset needed.
