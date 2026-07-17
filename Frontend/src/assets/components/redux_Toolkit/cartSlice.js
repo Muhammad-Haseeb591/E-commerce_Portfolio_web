@@ -1,10 +1,12 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
+import { API_URL } from "../config/api";
+
 
 const getItemId = (item) => item?._id ?? item?.id;
 
 // ← apna actual backend cart endpoint confirm kar lena
-const CART_API_URL = "http://localhost:3000/cart";
+const CART_API_URL = `${API_URL}/cart`;
 
 // ─────────────────────────────────────────────────────
 // 🔑 CART ITEM SHAPE (this is the important part of this file)

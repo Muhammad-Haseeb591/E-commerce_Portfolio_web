@@ -1,7 +1,9 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
+import { API_URL } from "../config/api";
 
-const BASE = "http://localhost:3000/auth";
+
+const BASE = `${API_URL}/auth`;
 
 // 🔑 Ek hi axios instance banao jisme withCredentials default true ho.
 const api = axios.create({

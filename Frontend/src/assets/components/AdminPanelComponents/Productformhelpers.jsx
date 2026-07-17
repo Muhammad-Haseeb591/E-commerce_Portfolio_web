@@ -2,9 +2,11 @@
 // so we hit OUR server route, not Cloudinary directly — no upload_preset needed.
 export const uploadToCloudinary = async (file) => {
   const uploadData = new window.FormData();
-  uploadData.append("file", file); // field name MUST match multer's upload.single('file')
+  uploadData.append("file", file);
+  import { API_URL } from "../config/api";
 
-  const res = await fetch("http://localhost:3000/api/upload", {
+
+  const res = await fetch(`${API_URL}/api/upload`, {
     method: "POST",
     credentials: "include",
     body: uploadData,

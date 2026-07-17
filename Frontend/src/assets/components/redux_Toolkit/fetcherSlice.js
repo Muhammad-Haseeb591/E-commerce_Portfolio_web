@@ -1,6 +1,8 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { API_URL } from "../config/api";
 
-const BASE_URL = "http://localhost:3000/admin";
+
+const BASE_URL = `${API_URL}/admin`;
 
 // ─────────────────────────────────────────────
 // 1. Fetch Products (category, color, price, search, sort, pagination)

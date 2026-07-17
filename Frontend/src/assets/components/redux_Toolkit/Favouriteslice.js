@@ -1,7 +1,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
+import { API_URL } from "../config/api";
 
-const BASE_URL = 'http://localhost:3000/favourites';
+
+const BASE_URL = `${API_URL}/favourites`;
 
 const getConfig = () => ({
   withCredentials: true,

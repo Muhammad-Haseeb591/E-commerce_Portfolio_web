@@ -2,8 +2,10 @@ import { useEffect, useState, useCallback } from "react";
 import { useSelector } from "react-redux";
 import axios from "axios";
 import { Star, ImagePlus, Pencil, Trash2, BadgeCheck } from "lucide-react";
+import { API_URL } from "../config/api";
 
-const API_BASE = "http://localhost:3000/reviews";
+
+const API_BASE = `${API_URL}/reviews`;
 
 const StarRow = ({ value, size = 16 }) => (
   <div className="flex items-center gap-0.5" aria-label={`${value} out of 5 stars`}>

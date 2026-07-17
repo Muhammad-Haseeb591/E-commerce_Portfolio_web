@@ -1,7 +1,9 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
+import { API_URL } from "../config/api";
 
-const BASE_URL = "http://localhost:3000/reviews";
+
+const BASE_URL = `${API_URL}reviews`;
 
 const config = {
   withCredentials: true, // sends the auth cookie on every request
