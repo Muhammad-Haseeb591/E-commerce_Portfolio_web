@@ -10,7 +10,7 @@ import {
   StatePanel,
   SkeletonRows,
   ViewableThumb,
-} from "./ActivityShared";
+} from "./Activityshared";
 
 const ReviewEditForm = ({ review, onCancel, onSaved, saving }) => {
   const [rating, setRating] = useState(review.rating);

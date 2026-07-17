@@ -10,7 +10,7 @@ import {
   StatePanel,
   SkeletonRows,
   ViewableThumb,
-} from "./activityShared";
+} from "./Activityshared";
 
 /**
  * OrderTracking.jsx
