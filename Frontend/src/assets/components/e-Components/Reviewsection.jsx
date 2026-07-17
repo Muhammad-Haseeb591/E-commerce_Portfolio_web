@@ -3,7 +3,7 @@ import { useSelector } from "react-redux";
 import axios from "axios";
 import { Star, ImagePlus, Pencil, Trash2, BadgeCheck } from "lucide-react";
 
-const API_BASE = "http://localhost:3000/api/reviews";
+const API_BASE = "http://localhost:3000/reviews";
 
 const StarRow = ({ value, size = 16 }) => (
   <div className="flex items-center gap-0.5" aria-label={`${value} out of 5 stars`}>
@@ -352,8 +352,7 @@ export default function ReviewSection({ productId }) {
         {reviews.map((review) => {
           const isMine =
             review.userId?._id === user?._id || review.userId === user?._id;
-          const authorName = review.userId?.name || "Anonymous";
-
+          const authorName = review.userId?.fullName || "Anonymous";
           return (
             <div key={review._id} className="py-5">
               <div className="flex items-start justify-between gap-3">

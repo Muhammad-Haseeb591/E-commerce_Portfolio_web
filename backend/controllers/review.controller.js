@@ -94,21 +94,38 @@ exports.getProductReviews = async (req, res) => {
     const limit = Math.min(Number(req.query.limit) || 10, 50);
     const skip = (page - 1) * limit;
 
-    const [reviews, totalCount] = await Promise.all([
+    const [reviews, totalCount, ratingStats] = await Promise.all([
       Review.find({ productId })
-        .populate("userId", "name avatar")
+        .populate("userId", "fullName avatar") 
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
       Review.countDocuments({ productId }),
+      Review.aggregate([
+        { $match: { productId: new mongoose.Types.ObjectId(productId) } },
+        { $group: { _id: "$rating", count: { $sum: 1 } } },
+      ]),
     ]);
+
+    const ratingBreakdown = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    ratingStats.forEach((r) => { ratingBreakdown[r._id] = r.count; });
+
+    const average = totalCount
+      ? Number(
+          (Object.entries(ratingBreakdown).reduce(
+            (sum, [star, count]) => sum + Number(star) * count, 0
+          ) / totalCount).toFixed(1)
+        )
+      : 0;
 
     return res.status(200).json({
       success: true,
       reviews,
-      totalCount,
-      totalPages: Math.ceil(totalCount / limit),
-      currentPage: page,
+      total: totalCount,
+      pages: Math.ceil(totalCount / limit),
+      page,
+      average,
+      ratingBreakdown,
     });
   } catch (error) {
     console.error("Get Product Reviews Error:", error);

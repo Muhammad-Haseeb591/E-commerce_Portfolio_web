@@ -99,17 +99,20 @@ const Header = () => {
 
 </div>
 {/* logo */}
-<div className='max-w-[200px] relative left-[15px]'>
-<Link to="/">
-  <img
-    className="logo-responsive relative md:left-[45px]"
-    src="//insignia.com.pk/cdn/shop/files/final_logo_insignia-01_2847a8f6-7ff7-4e81-ab09-44d3d3fe386e.png?v=1686553684&width=600"
-    alt="Insignia PK"
-    srcSet="//insignia.com.pk/cdn/shop/files/final_logo_insignia-01_2847a8f6-7ff7-4e81-ab09-44d3d3fe386e.png?v=1686553684&width=200 200w, //insignia.com.pk/cdn/shop/files/final_logo_insignia-01_2847a8f6-7ff7-4e81-ab09-44d3d3fe386e.png?v=1686553684&width=300 300w"
-    loading="eager"
-  />
-</Link>
-          </div>
+
+<div className="w-[140px] sm:w-[160px] md:w-[180px] max-w-[200px] relative left-[15px]">
+  <Link to="/">
+    <img
+      className="logo-responsive relative md:left-[45px] w-full h-auto object-contain"
+      src="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784261644/ChatGPT_Image_Jul_17_2026_09_12_54_AM_hijqtl.png"
+      alt="Portfolio Website"
+      width={200}
+      height={60}
+      loading="eager"
+    />
+  </Link>
+</div>
+      
 {/* user image + cart */}
 <div className='flex justify-between '>
   {/* Location + Sign In */}

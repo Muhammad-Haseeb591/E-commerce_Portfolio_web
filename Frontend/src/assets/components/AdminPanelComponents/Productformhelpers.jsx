@@ -75,10 +75,6 @@ export const sizesArrayToStocks = (sizes = []) =>
     if (size && size !== "One Size") acc[size] = stock;
     return acc;
   }, {});
-
-// Converts the toggle-box shape back into the `sizes: [{ size, stock }]`
-// array the backend expects, falling back to a single "One Size" entry
-// when the product's type/category has no shoe size scale.
 export const stocksToSizesArray = (sizeStocks, sizeOptions, plainStock) =>
   sizeOptions
     ? Object.entries(sizeStocks).map(([size, stock]) => ({
