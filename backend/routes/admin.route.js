@@ -32,4 +32,4 @@ adminRoute.put(
 // koi bhi visitor products dekh sake bina login kiye.
 adminRoute.use("/products", productRouter);
 
-exports.adminRoute = adminRoute;
+module.exports = adminRoute;
