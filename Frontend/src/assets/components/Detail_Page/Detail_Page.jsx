@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchData } from "../redux_Toolkit/fetcherSlice";
 import { addToCart } from "../redux_Toolkit/cartSlice";
-import { fetchFavourites, toggleFavourite } from "../redux_Toolkit/favouriteSlice";
+import { fetchFavourites, toggleFavourite } from "../redux_Toolkit/FavouriteSlice";
 import { IoArrowBack, IoStar, IoStarHalf, IoStarOutline } from "react-icons/io5";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
 import ReviewSection from "../e-Components/Reviewsection";

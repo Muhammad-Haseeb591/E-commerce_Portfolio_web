@@ -1,9 +1,8 @@
-// Backend already handles Cloudinary upload (signed, via multer-storage-cloudinary)
-// so we hit OUR server route, not Cloudinary directly — no upload_preset needed.
+
+import { API_URL } from "../../../config/api";
 export const uploadToCloudinary = async (file) => {
   const uploadData = new window.FormData();
   uploadData.append("file", file);
-  import { API_URL } from "../../../config/api";
 
 
   const res = await fetch(`${API_URL}/api/upload`, {
