@@ -20,13 +20,15 @@ const generateToken = (id) => {
 // Send Cookie + User
 // ==============================
 const sendToken = (user, res) => {
-  const token = generateToken(user._id);
+const token = generateToken(user._id);
+
+  const isProduction = process.env.NODE_ENV === "production";
 
   res.cookie("token", token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production", // true only in production
-    sameSite: "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 Days
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
   return res.status(200).json({
@@ -36,7 +38,7 @@ const sendToken = (user, res) => {
       id: user._id,
       fullName: user.fullName,
       email: user.email,
-      role: user.role, // 🔑 role frontend ko batana zaroori — isi se UI decide karega admin panel dikhana hai ya nahi
+      role: user.role,
     },
   });
 };
