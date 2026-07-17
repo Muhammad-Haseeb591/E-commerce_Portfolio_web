@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
-import { API_URL } from "../config/api";
+import { API_URL } from "../../../config/api";
 
 
 const BASE_URL = `${API_URL}/admin`;
