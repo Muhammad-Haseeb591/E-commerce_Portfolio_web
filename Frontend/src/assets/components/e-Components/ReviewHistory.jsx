@@ -10,25 +10,7 @@ import {
   StatePanel,
   SkeletonRows,
   ViewableThumb,
-} from "./activityShared";
-
-/**
- * ReviewHistory.jsx
- * -----------------
- * Child component of AccountActivity. Renders the "Reviews" tab: the list
- * of reviews the signed-in customer has left, each editable in place or
- * deletable.
- *
- * Props:
- *  - reviews: array of review objects
- *  - loading: bool
- *  - error: string | null
- *  - saving: bool (true while a review update is being submitted)
- *  - deleting: bool (true while a delete request is in flight)
- *  - onUpdate: (updates) => Promise<{ error: string | null }>
- *  - onDelete: (reviewId) => void
- *  - onView: (src, alt) => void   // opens the shared image lightbox
- */
+} from "./ActivityShared";
 
 const ReviewEditForm = ({ review, onCancel, onSaved, saving }) => {
   const [rating, setRating] = useState(review.rating);
