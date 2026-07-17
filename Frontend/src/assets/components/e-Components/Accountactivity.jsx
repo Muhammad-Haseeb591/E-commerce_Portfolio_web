@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useParams, useNavigate } from "react-router-dom";
 
-import { fetchOrders, cancelOrder } from "../redux_Toolkit/orderSlice";
+import { fetchOrders, cancelOrder } from "../redux_Toolkit/OrderSlice";
 import { fetchMyReviews, updateReview, deleteReview } from "../redux_Toolkit/reviewSlice";
 
 import { FontImports, ImageLightbox, GLASS } from "./activityShared";

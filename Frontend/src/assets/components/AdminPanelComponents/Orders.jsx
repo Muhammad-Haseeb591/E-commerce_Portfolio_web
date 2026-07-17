@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Search, AlertCircle, PackageX, X, Pencil, Trash2, Eye, ChevronDown } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchAllOrders, updateOrder, deleteOrder } from "../redux_Toolkit/orderSlice";
+import { fetchAllOrders, updateOrder, deleteOrder } from "../redux_Toolkit/OrderSlice";
 
 // ── Shared state blocks (same pattern as Products.jsx) ──
 const StateBlock = ({ children }) => (
