@@ -7,6 +7,8 @@ import { formatAmount, getCurrencyForCountry, getAllowedPaymentMethods } from ".
 import { getShippingFee } from "../utils/shipping";
 import { getCouponDiscount } from "../utils/coupons";
 import { clearCart } from "../assets/components/redux_Toolkit/cartSlice";
+import { API_URL } from "../config/api";
+
 
 const inputClass =
   "w-full bg-white border border-[#333333] rounded-lg px-4 py-3 text-[#333333] placeholder-gray-400 focus:outline-none focus:border-[#333333] focus:ring-1 focus:ring-[#333333] transition text-sm";
@@ -20,7 +22,7 @@ const CITY_OPTIONS = [
   "Multan", "Gujranwala", "Sialkot", "Peshawar", "Quetta", "Other city",
 ];
 
-const ORDERS_API_URL = "http://localhost:3000/orders";
+const ORDERS_API_URL = `${API_URL}/orders`;
 
 const CustomToast = ({ toast, onClose }) => {
   if (!toast) return null;

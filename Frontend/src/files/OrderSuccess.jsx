@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import axios from "axios";
+import { API_URL } from "../config/api";
+
 
 const OrderSuccess = () => {
   const [searchParams] = useSearchParams();
@@ -16,7 +18,7 @@ const OrderSuccess = () => {
     const verify = async () => {
       try {
         const res = await axios.get(
-          `http://localhost:3000/api/payments/verify-session/${sessionId}`,
+          `${API_URL}/api/payments/verify-session/${sessionId}`,
           { withCredentials: true }
         );
 

@@ -3,6 +3,8 @@ import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { Eye, EyeOff, Mail, Lock, ArrowRight, CheckCircle2 } from "lucide-react";
 import { loginUser, clearError } from "../assets/components/redux_Toolkit/authSlice";
+import { API_URL } from "../config/api";
+
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -54,7 +56,7 @@ const Login = () => {
 
   const handleGoogleLogin = () => {
     const state = encodeURIComponent(redirectTo);
-    window.location.href = `http://localhost:3000/auth/google?state=${state}`;
+    window.location.href = `${API_URL}/auth/google?state=${state}`;
   };
 
   const displayError = localError || (typeof error === "string" ? error : error?.message);

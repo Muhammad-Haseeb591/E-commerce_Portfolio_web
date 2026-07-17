@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { X, Loader2, Plus, ChevronDown } from "lucide-react";
+import { API_URL } from "../config/api";
 
 // Backend already handles Cloudinary upload (signed, via multer-storage-cloudinary)
 // so we hit OUR server route, not Cloudinary directly — no upload_preset needed.
@@ -7,7 +8,7 @@ const uploadToCloudinary = async (file) => {
   const uploadData = new FormData();
   uploadData.append("file", file); // field name MUST match multer's upload.single('file')
 
-  const res = await fetch("http://localhost:3000/api/upload", {
+  const res = await fetch(`${API_URL}/api/upload`, {
     method: "POST",
     body: uploadData,
   });
@@ -255,7 +256,7 @@ const ProductForm = ({ onClose }) => {
     };
 
     try {
-      const res = await fetch("http://localhost:3000/admin/addproducts", {
+      const res = await fetch(`${API_URL}/admin/addproducts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
