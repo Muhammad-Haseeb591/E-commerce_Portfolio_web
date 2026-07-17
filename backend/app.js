@@ -8,7 +8,7 @@ const passport = require("passport");
 
 const connectDB = require("./config/db");
 const authRoutes = require("../backend/routes/auth.routes");
-const { adminRoute } = require("./routes/admin.route");
+const adminRoute  = require("./routes/admin.route.js");
 const favouriteRoutes = require("./routes/wishlist.routes");
 const cartRoutes = require("./routes/cart.routes.js");
 const orderRoutes = require("./routes/order.routes");
