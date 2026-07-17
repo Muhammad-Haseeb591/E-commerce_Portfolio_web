@@ -15,7 +15,7 @@ import {
   swatchStyle,
   sizesArrayToStocks,
   stocksToSizesArray,
-} from "./productFormHelpers";
+} from "./Productformhelpers";
 
 // ── Loading / Error / Empty states (shared, width-safe) ──
 const StateBlock = ({ children }) => (
