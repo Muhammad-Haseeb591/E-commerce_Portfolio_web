@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const Review = require("../models/Review");
+const Review = require("../models/review");
 const Product = require("../models/Product"); // adjust path to your actual Product model
 
 // ==========================

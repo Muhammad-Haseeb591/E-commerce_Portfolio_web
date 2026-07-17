@@ -26,10 +26,6 @@ adminRoute.put(
   authorize("admin"),
   productController.updateProduct
 );
-
-// ⚠️ FIX: yahan se protect aur authorize HATA diya.
-// productRouter sirf GET (read) routes hai — public hona chahiye,
-// koi bhi visitor products dekh sake bina login kiye.
 adminRoute.use("/products", productRouter);
 
 module.exports = adminRoute;
