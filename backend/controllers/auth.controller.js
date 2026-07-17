@@ -5,7 +5,7 @@ const { sendOtpEmail, sendResetPasswordEmail } = require("../utils/sendEmail");
 
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
-// ==============================
+// =============================
 // Generate JWT Token
 // ==============================
 const generateToken = (id) => {

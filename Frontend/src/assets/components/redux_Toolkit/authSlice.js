@@ -122,11 +122,22 @@ export const resetPassword = createAsyncThunk(
   }
 );
 
+// ── Helper: safely read a JSON value out of localStorage ──────────
+const safeParseUser = () => {
+  const raw = localStorage.getItem("user");
+  if (!raw || raw === "undefined") return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
 // ── Slice ────────────────────────────────────────────────
 const authSlice = createSlice({
   name: "auth",
   initialState: {
-    user: localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")) : null,
+    user: safeParseUser(),
     loading: false,
     authChecked: false,
     error: null,
