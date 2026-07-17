@@ -3,7 +3,7 @@
 export const uploadToCloudinary = async (file) => {
   const uploadData = new window.FormData();
   uploadData.append("file", file);
-  import { API_URL } from "../config/api";
+  import { API_URL } from "../../../config/api";
 
 
   const res = await fetch(`${API_URL}/api/upload`, {
