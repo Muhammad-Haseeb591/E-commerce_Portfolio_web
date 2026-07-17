@@ -1,17 +1,7 @@
 import { useEffect, useState } from "react";
 import { Star, ImageOff, Expand, X } from "lucide-react";
 
-/**
- * activityShared.jsx
- * -------------------
- * Common presentational building blocks shared between OrderTracking.jsx
- * and ReviewHistory.jsx. Keeping these in one place ensures both children
- * render with the exact same frosted-glass visual language.
- */
 
-// One frosted-glass surface, reused everywhere so every panel reads as the
-// same material: a translucent white pane, blurred, with a light-catching
-// top edge and a gently lifted shadow.
 export const GLASS =
   "bg-white/40 backdrop-blur-2xl border border-white/60 shadow-[0_12px_40px_-10px_rgba(30,27,20,0.18),inset_0_1px_0_0_rgba(255,255,255,0.75)]";
 
