@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import ReviewHistory from "./ReviewHistory";
-import { fetchMyReviews, updateReview, deleteReview } from "../../../features/reviews/reviewSlice";
+import { fetchMyReviews, updateReview, deleteReview } from "../redux_Toolkit/reviewSlice";
 
 export default function ReviewHistoryContainer() {
   const dispatch = useDispatch();
