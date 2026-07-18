@@ -25,11 +25,12 @@ router.get(
   passport.authenticate("google", { session: false, failureRedirect: `${CLIENT_URL}/login?error=google` }),
   (req, res) => {
     const token = generateToken(req.user._id);
+    const isProduction = process.env.NODE_ENV === "production";
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
