@@ -2,7 +2,7 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 import { API_URL } from "../../../config/api";
 
-const BASE_URL = `${API_URL}/reviews`;
+const BASE_URL = `${API_URL}/reviews`; // ✅ matches ReviewSection.jsx now
 
 const config = {
   withCredentials: true,
@@ -21,20 +21,12 @@ const buildReviewFormData = ({ productId, rating, title, comment, images }) => {
 export const fetchProductReviews = createAsyncThunk(
   "reviews/fetchProductReviews",
   async ({ productId, page = 1, limit = 10 }, thunkAPI) => {
-    const state = thunkAPI.getState();
-    const cache = state.reviews.productReviewsCache[productId];
-
-    // ✅ Agar same product + same page pehle se fresh cached hai, network call skip
-    if (cache && cache.page === page && !cache.stale) {
-      return thunkAPI.fulfillWithValue(cache.data);
-    }
-
     try {
       const res = await axios.get(`${BASE_URL}/product/${productId}`, {
         ...config,
         params: { page, limit },
       });
-      return { ...res.data, productId, page };
+      return res.data;
     } catch (error) {
       return thunkAPI.rejectWithValue(
         error.response?.data?.message || "Failed to load reviews."
@@ -47,6 +39,7 @@ export const fetchMyReviews = createAsyncThunk(
   "reviews/fetchMyReviews",
   async (_, thunkAPI) => {
     const state = thunkAPI.getState();
+    // guard: don't refetch if we already have data and it's not stale
     if (state.reviews.myReviews.length > 0 && !state.reviews.myReviewsStale) {
       return thunkAPI.fulfillWithValue(state.reviews.myReviews);
     }
@@ -114,13 +107,9 @@ const reviewSlice = createSlice({
     currentPage: 1,
     loading: false,
 
-    // ✅ productId ke against cache: { data, page, stale }
-    productReviewsCache: {},
-    currentProductId: null,
-
     myReviews: [],
     myReviewsLoading: false,
-    myReviewsStale: true,
+    myReviewsStale: true, // ✅ controls whether fetchMyReviews should hit the network
 
     submitting: false,
     deleting: false,
@@ -140,40 +129,20 @@ const reviewSlice = createSlice({
     markMyReviewsStale: (state) => {
       state.myReviewsStale = true;
     },
-    markProductReviewsStale: (state, action) => {
-      const productId = action.payload;
-      if (state.productReviewsCache[productId]) {
-        state.productReviewsCache[productId].stale = true;
-      }
-    },
   },
 
   extraReducers: (builder) => {
     builder
-      .addCase(fetchProductReviews.pending, (state, action) => {
+      .addCase(fetchProductReviews.pending, (state) => {
         state.loading = true;
         state.error = null;
-        state.currentProductId = action.meta.arg.productId;
       })
       .addCase(fetchProductReviews.fulfilled, (state, action) => {
         state.loading = false;
-
-        // Cached response ka shape "data" wala hai (already {reviews, totalCount,...})
-        const payload = action.payload.productId ? action.payload : action.payload;
-        const productId = payload.productId ?? action.meta.arg.productId;
-        const page = payload.page ?? action.meta.arg.page ?? 1;
-
-        state.productReviews = payload.reviews;
-        state.totalCount = payload.totalCount;
-        state.totalPages = payload.totalPages;
-        state.currentPage = payload.currentPage;
-
-        // ✅ Cache save — agli baar same tab/product pe dobara fetch nahi hoga
-        state.productReviewsCache[productId] = {
-          data: payload,
-          page,
-          stale: false,
-        };
+        state.productReviews = action.payload.reviews;
+        state.totalCount = action.payload.totalCount;
+        state.totalPages = action.payload.totalPages;
+        state.currentPage = action.payload.currentPage;
       })
       .addCase(fetchProductReviews.rejected, (state, action) => {
         state.loading = false;
@@ -187,7 +156,7 @@ const reviewSlice = createSlice({
       .addCase(fetchMyReviews.fulfilled, (state, action) => {
         state.myReviewsLoading = false;
         state.myReviews = action.payload;
-        state.myReviewsStale = false;
+        state.myReviewsStale = false; // ✅ mark fresh, no refetch until invalidated
       })
       .addCase(fetchMyReviews.rejected, (state, action) => {
         state.myReviewsLoading = false;
@@ -202,13 +171,7 @@ const reviewSlice = createSlice({
         state.submitting = false;
         state.productReviews.unshift(action.payload);
         state.totalCount += 1;
-        state.myReviews.unshift(action.payload);
-
-        // ✅ Naya review add hua — is product ka cache invalidate karo
-        const pid = action.payload.productId ?? action.payload.product;
-        if (pid && state.productReviewsCache[pid]) {
-          state.productReviewsCache[pid].stale = true;
-        }
+        state.myReviews.unshift(action.payload); // ✅ keep "my reviews" in sync too
       })
       .addCase(createReview.rejected, (state, action) => {
         state.submitting = false;
@@ -227,11 +190,6 @@ const reviewSlice = createSlice({
         };
         updateInList(state.productReviews);
         updateInList(state.myReviews);
-
-        const pid = action.payload.productId ?? action.payload.product;
-        if (pid && state.productReviewsCache[pid]) {
-          state.productReviewsCache[pid].stale = true;
-        }
       })
       .addCase(updateReview.rejected, (state, action) => {
         state.submitting = false;
@@ -247,11 +205,6 @@ const reviewSlice = createSlice({
         state.productReviews = state.productReviews.filter((r) => r._id !== action.payload);
         state.myReviews = state.myReviews.filter((r) => r._id !== action.payload);
         state.totalCount = Math.max(state.totalCount - 1, 0);
-
-        // ✅ Delete ke baad related product cache bhi stale mark karo (safe fallback: sab clear)
-        Object.keys(state.productReviewsCache).forEach((pid) => {
-          state.productReviewsCache[pid].stale = true;
-        });
       })
       .addCase(deleteReview.rejected, (state, action) => {
         state.deleting = false;
@@ -260,11 +213,5 @@ const reviewSlice = createSlice({
   },
 });
 
-export const {
-  clearReviewError,
-  resetProductReviews,
-  markMyReviewsStale,
-  markProductReviewsStale,
-} = reviewSlice.actions;
-
+export const { clearReviewError, resetProductReviews, markMyReviewsStale } = reviewSlice.actions;
 export default reviewSlice.reducer;
