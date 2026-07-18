@@ -4,7 +4,7 @@ import axios from "axios";
 import { API_URL } from "../../../config/api";
 
 
-const BASE_URL = `${API_URL}orders`;
+const BASE_URL = `${API_URL}/orders`;
 
 const config = {
   withCredentials: true,
