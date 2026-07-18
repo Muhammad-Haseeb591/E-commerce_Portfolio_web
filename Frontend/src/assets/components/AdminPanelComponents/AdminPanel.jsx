@@ -49,9 +49,7 @@ const AdminPanel = () => {
         {/* Logo */}
         <div className="px-5 py-5 border-b border-gray-100 flex items-center gap-3">
   <div className="min-w-0">
-    <h1 className="text-sm font-bold text-gray-900 tracking-widest uppercase truncate">
-      PORTFOLIO
-    </h1>
+  https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784261644/ChatGPT_Image_Jul_17_2026_09_12_54_AM_hijqtl.png
     <p className="text-xs text-gray-400 truncate">Manage your store</p>
   </div>
 </div>
