@@ -18,6 +18,7 @@ const Header = () => {
   const navigate = useNavigate();
   const { user, isLoggedIn, isAdmin } = useAuth();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [avatarError, setAvatarError] = useState(false); // ✅ naya
   const profileRef = useRef(null);
 
   const handleLogout = async () => {
@@ -42,6 +43,12 @@ const Header = () => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // ✅ Agar user badal jaye (naya login) to error state reset karo,
+  // taake naye user ki image dobara try ho
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.avatar]);
 
   return (
     <div className='w-full bg-white lg:shadow-md lg:shadow-gray-100 sx:h-[95px] px-[17px] pt-[4px] relative md:top-[40px] lg:h-[106px] overflow-x-clip overflow-y-visible'>
@@ -117,7 +124,6 @@ const Header = () => {
             </Link>
           </div>
 
-          {/* ✅ Sirf EK block render hota hai: ya to logged-in profile, ya "Sign in" — kabhi dono nahi */}
           <div className="relative" ref={profileRef}>
             {isLoggedIn ? (
               <>
@@ -127,7 +133,7 @@ const Header = () => {
                   className="header__icon--account full-unstyled-link focus-inset flex items-center gap-2 cursor-pointer"
                 >
                   <span>
-                    {user.avatar ? (
+                    {user.avatar && !avatarError ? (
                       <img
                         src={user.avatar}
                         alt={user.fullName}
@@ -135,7 +141,7 @@ const Header = () => {
                         height="27"
                         className="rounded-full object-cover"
                         style={{ width: "27px", height: "27px" }}
-                        referrerPolicy="no-referrer"
+                        onError={() => setAvatarError(true)}
                       />
                     ) : (
                       <span
@@ -210,7 +216,6 @@ const Header = () => {
                 )}
               </>
             ) : (
-              // 🔒 Ye block sirf tab render hoga jab isLoggedIn === false — profile ke sath kabhi ek sath nahi dikhega
               <Link to="/login" className="header__icon--account full-unstyled-link focus-inset">
                 <span>
                   <svg className="icon header_login-icon" viewBox="0 0 22 22" id="profile-picture" width="27" height="27" xmlns="http://www.w3.org/2000/svg">
