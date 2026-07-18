@@ -22,7 +22,6 @@ const generateToken = (id) => {
 // ==============================
 const sendToken = (user, res) => {
   const token = generateToken(user._id);
-
   const isProduction = process.env.NODE_ENV === "production";
 
   res.cookie("token", token, {
@@ -58,7 +57,7 @@ exports.register = async (req, res) => {
       });
     }
 
-    email = email.toLowerCase().trim(); // 🔑 normalize before any DB lookup
+    email = email.toLowerCase().trim();
 
     const existing = await User.findOne({ email });
 
@@ -70,14 +69,11 @@ exports.register = async (req, res) => {
         });
       }
 
-      // Unverified account already exists — resend a fresh OTP instead of blocking
       existing.fullName = fullName;
       existing.password = password;
       const otp = existing.generateOtp();
       await existing.save();
 
-      // Fire-and-forget — don't make the client wait on Gmail's SMTP round trip.
-      // If it fails, the user can hit "Resend OTP" (which retries the same way).
       sendOtpEmail(existing.email, otp)
         .then(() => console.log("✅ OTP email accepted by SMTP for:", existing.email))
         .catch((err) => console.error("❌ OTP email failed (register/existing):", err));
@@ -89,7 +85,6 @@ exports.register = async (req, res) => {
       });
     }
 
-    // ⚠️ STRICT RULE: role kabhi bhi req.body se mat lena.
     const user = await User.create({
       fullName,
       email,
@@ -245,7 +240,7 @@ exports.login = async (req, res) => {
       });
     }
 
-    email = email.toLowerCase().trim(); // 🔑 normalize before query
+    email = email.toLowerCase().trim();
 
     const user = await User.findOne({ email });
 
@@ -256,7 +251,6 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Google-only accounts have no password — block a normal login attempt cleanly
     if (!user.password) {
       return res.status(400).json({
         success: false,
@@ -297,10 +291,12 @@ exports.login = async (req, res) => {
 // LOGOUT
 // ==============================
 exports.logout = (req, res) => {
+  const isProduction = process.env.NODE_ENV === "production";
+
   res.clearCookie("token", {
     httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
   });
 
   return res.status(200).json({
@@ -327,7 +323,6 @@ exports.forgotPassword = async (req, res) => {
 
     const user = await User.findOne({ email });
 
-    // Same response whether user exists or not — avoids leaking which emails are registered
     if (!user) {
       return res.status(200).json({
         success: true,
@@ -343,7 +338,6 @@ exports.forgotPassword = async (req, res) => {
     try {
       await sendResetPasswordEmail(user.email, resetUrl);
     } catch (emailError) {
-      // Rollback token if email fails to send
       user.resetPasswordToken = undefined;
       user.resetPasswordExpiry = undefined;
       await user.save();
@@ -399,7 +393,7 @@ exports.resetPassword = async (req, res) => {
       });
     }
 
-    user.password = password; // pre-save hook will hash it
+    user.password = password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpiry = undefined;
     await user.save();
@@ -442,7 +436,7 @@ exports.getMe = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      user, // role already included kyunke sirf password exclude kiya hai
+      user,
     });
 
   } catch (error) {
@@ -456,3 +450,4 @@ exports.getMe = async (req, res) => {
 };
 
 exports.generateToken = generateToken;
+exports.sendToken = sendToken;
