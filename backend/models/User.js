@@ -67,6 +67,7 @@ userSchema.pre("save", async function () {
 
 userSchema.methods.comparePassword = async function (enteredPassword) {
   return bcrypt.compare(enteredPassword, this.password);
+   console.log("Entered password:", enteredPassword);
 };
 
 // ==============================

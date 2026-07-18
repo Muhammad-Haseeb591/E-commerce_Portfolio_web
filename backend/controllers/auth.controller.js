@@ -1,3 +1,4 @@
+const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const User = require("../models/User");
@@ -58,12 +59,12 @@ exports.register = async (req, res) => {
     }
 
     const existing = await User.findOne({ email });
-
     if (existing) {
       if (existing.isVerified) {
         return res.status(400).json({
           success: false,
           message: "Email already exists.",
+
         });
       }
 
@@ -76,7 +77,7 @@ exports.register = async (req, res) => {
       // Fire-and-forget — don't make the client wait on Gmail's SMTP round trip.
       // If it fails, the user can hit "Resend OTP" (which retries the same way).
       sendOtpEmail(existing.email, otp)
-        .then(() => console.log("✅ OTP email accepted by SMTP for:", existing.email))
+        .then(() => console.log("OTP email accepted by SMTP for:", existing.email))
         .catch((err) => console.error("❌ OTP email failed (register/existing):", err));
 
       return res.status(200).json({
@@ -247,24 +248,24 @@ exports.login = async (req, res) => {
       });
     }
 
-    const isMatch = await user.comparePassword(password);
+ const isMatch = await bcrypt.compare(password, user.password);
 
-    if (!isMatch) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid Credentials",
-      });
-    }
+if (!isMatch) {
+  return res.status(400).json({
+    success: false,
+    message: "Invalid Credentials",
+  });
+}
 
-    if (!user.isVerified) {
-      return res.status(403).json({
-        success: false,
-        message: "Email not verified. Please verify your email with the OTP sent to you.",
-        email: user.email,
-      });
-    }
+if (!user.isVerified) {
+  return res.status(403).json({
+    success: false,
+    message: "Email not verified. Please verify your email with the OTP sent to you.",
+    email: user.email,
+  });
+}
 
-    sendToken(user, res);
+sendToken(user, res);
 
   } catch (error) {
     console.error("Login Error:", error);
