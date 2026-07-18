@@ -13,10 +13,16 @@ const config = {
 
 // ==========================
 // Fetch Orders (logged-in user's own orders — customer-facing)
+// 🔑 MOUNT GUARD: if we already have data (and no error), skip the request.
+// This means switching tabs / remounting the component that dispatches
+// this (e.g. an AccountActivity tab) won't refetch — only a full page
+// refresh (which resets the Redux store) triggers a real fetch again.
+// Pass { force: true } to bypass the guard when you explicitly need
+// fresh data (e.g. after placing a new order).
 // ==========================
 export const fetchOrders = createAsyncThunk(
   "orders/fetchOrders",
-  async (_, thunkAPI) => {
+  async (params = {}, thunkAPI) => {
     try {
       const res = await axios.get(BASE_URL, config);
       return res.data.orders;
@@ -25,30 +31,58 @@ export const fetchOrders = createAsyncThunk(
         error.response?.data?.message || "Orders fetch failed."
       );
     }
+  },
+  {
+    condition: (params = {}, { getState }) => {
+      if (params?.force) return true;
+      const { ordersFetched, error } = getState().orders;
+      if (ordersFetched && !error) return false; // already have data — skip
+      return true;
+    },
   }
 );
 
 // ==========================
 // Fetch ALL Orders (Admin panel — every customer's orders)
-// Accepts { page, limit, search, status } — all optional. Server does the
+// Accepts { page, limit, search, status, force }. Server does the
 // filtering/pagination, so the client only ever downloads one page.
+// 🔑 MOUNT GUARD: skips the request if we already fetched this exact
+// page/search/status combo and there's no error — so remounting the
+// Orders admin page (tab switch) doesn't refetch page 1 with empty
+// filters just because the component's local state reset. Pass
+// { force: true } (used after delete/update) to always bypass this.
 // ==========================
 export const fetchAllOrders = createAsyncThunk(
   "orders/fetchAllOrders",
   async (params = {}, thunkAPI) => {
     try {
-      const res = await axios.get(`${BASE_URL}/all`, { ...config, params });
+      const { force, ...queryParams } = params;
+      const res = await axios.get(`${BASE_URL}/all`, { ...config, params: queryParams });
       return res.data; // { orders, pagination }
     } catch (error) {
       return thunkAPI.rejectWithValue(
         error.response?.data?.message || "Orders fetch failed."
       );
     }
+  },
+  {
+    condition: (params = {}, { getState }) => {
+      if (params?.force) return true;
+      const { allOrdersFetched, allOrdersLastKey, allOrdersError } = getState().orders;
+      const { force, ...queryParams } = params;
+      const key = JSON.stringify(queryParams);
+      if (allOrdersFetched && !allOrdersError && allOrdersLastKey === key) {
+        return false; // same page/search/status already loaded — skip
+      }
+      return true;
+    },
   }
 );
 
 // ==========================
 // Fetch Single Order by ID (admin edit modal opens with fresh data)
+// Always fetches fresh — this is an explicit "open details" action, not
+// a mount-triggered list load, so no cache guard here.
 // ==========================
 export const fetchOrderById = createAsyncThunk(
   "orders/fetchOrderById",
@@ -117,14 +151,13 @@ export const cancelOrder = createAsyncThunk(
 
 // ==========================
 // Fetch Dashboard Stats (admin) — server-computed, cheap payload.
-// Skips the request entirely if we already fetched within CACHE_MS,
-// so switching tabs / re-mounting the Dashboard doesn't hammer the API.
+// 🔑 MOUNT GUARD: skips the request if we already have stats and no
+// error — so switching tabs / re-mounting the Dashboard doesn't refetch.
+// Pass { force: true } to bypass (e.g. a manual "Refresh" button).
 // ==========================
-const CACHE_MS = 60 * 1000; // 60 seconds
-
 export const fetchDashboardStats = createAsyncThunk(
   "orders/fetchDashboardStats",
-  async (_, thunkAPI) => {
+  async (params = {}, thunkAPI) => {
     try {
       const res = await axios.get(`${BASE_URL}/dashboard-stats`, config);
       return res.data.stats;
@@ -135,11 +168,10 @@ export const fetchDashboardStats = createAsyncThunk(
     }
   },
   {
-    condition: (_, { getState }) => {
-      const { lastFetchedAt } = getState().orders;
-      if (lastFetchedAt && Date.now() - lastFetchedAt < CACHE_MS) {
-        return false; // bail out — cached data is still fresh
-      }
+    condition: (params = {}, { getState }) => {
+      if (params?.force) return true;
+      const { dashboardStats, dashboardError } = getState().orders;
+      if (dashboardStats && !dashboardError) return false; // already loaded — skip
       return true;
     },
   }
@@ -149,17 +181,20 @@ const orderSlice = createSlice({
   name: "orders",
 
   initialState: {
-    // ---- customer-facing (fetchOrders / cancelOrder) — UNCHANGED ----
+    // ---- customer-facing (fetchOrders / cancelOrder) ----
     orders: [],
     loading: false,
     error: null,
     cancelling: false,
+    ordersFetched: false, // 🔑 mount-guard flag
 
-    // ---- admin-facing (fetchAllOrders / fetchOrderById / updateOrder / deleteOrder) — NEW ----
+    // ---- admin-facing (fetchAllOrders / fetchOrderById / updateOrder / deleteOrder) ----
     allOrders: [],
     allOrdersLoading: false,
     allOrdersError: null,
     allOrdersPagination: { page: 1, limit: 20, total: 0, pages: 0 },
+    allOrdersFetched: false, // 🔑 mount-guard flag
+    allOrdersLastKey: null,  // 🔑 last page/search/status combo fetched
     detailsLoading: false,
     updating: false,
     deleting: false,
@@ -168,7 +203,6 @@ const orderSlice = createSlice({
     dashboardStats: null,
     dashboardLoading: false,
     dashboardError: null,
-    lastFetchedAt: null,
   },
 
   reducers: {
@@ -176,11 +210,19 @@ const orderSlice = createSlice({
       state.error = null;
       state.allOrdersError = null;
     },
+    // Optional manual escape hatch — call this (e.g. on logout, or a
+    // "Refresh" button) to force the next fetch to actually hit the API.
+    resetOrdersCache: (state) => {
+      state.ordersFetched = false;
+      state.allOrdersFetched = false;
+      state.allOrdersLastKey = null;
+      state.dashboardStats = null;
+    },
   },
 
   extraReducers: (builder) => {
     builder
-      // ---- fetchOrders (own / customer) — UNCHANGED ----
+      // ---- fetchOrders (own / customer) ----
       .addCase(fetchOrders.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -188,10 +230,15 @@ const orderSlice = createSlice({
       .addCase(fetchOrders.fulfilled, (state, action) => {
         state.loading = false;
         state.orders = action.payload;
+        state.ordersFetched = true;
       })
       .addCase(fetchOrders.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        // `undefined` payload means the mount guard skipped this request —
+        // not a real error, so don't surface it.
+        if (action.payload) {
+          state.error = action.payload;
+        }
       })
 
       // ---- fetchAllOrders (admin) — now writes to allOrders ----
@@ -203,10 +250,14 @@ const orderSlice = createSlice({
         state.allOrdersLoading = false;
         state.allOrders = action.payload.orders;
         state.allOrdersPagination = action.payload.pagination;
+        state.allOrdersFetched = true;
+        state.allOrdersLastKey = JSON.stringify(action.meta.arg || {});
       })
       .addCase(fetchAllOrders.rejected, (state, action) => {
         state.allOrdersLoading = false;
-        state.allOrdersError = action.payload;
+        if (action.payload) {
+          state.allOrdersError = action.payload;
+        }
       })
 
       // ---- fetchOrderById (admin) — updates allOrders ----
@@ -263,18 +314,17 @@ const orderSlice = createSlice({
       .addCase(fetchDashboardStats.fulfilled, (state, action) => {
         state.dashboardLoading = false;
         state.dashboardStats = action.payload;
-        state.lastFetchedAt = Date.now();
       })
       .addCase(fetchDashboardStats.rejected, (state, action) => {
         state.dashboardLoading = false;
-        // `undefined` payload means the request was skipped by the cache guard —
+        // `undefined` payload means the mount guard skipped this request —
         // not a real error, so don't surface it.
         if (action.payload) {
           state.dashboardError = action.payload;
         }
       })
 
-      // ---- cancelOrder (customer) — UNCHANGED, still touches `orders` ----
+      // ---- cancelOrder (customer) — still touches `orders` directly, no refetch needed ----
       .addCase(cancelOrder.pending, (state) => {
         state.cancelling = true;
         state.error = null;
@@ -293,5 +343,5 @@ const orderSlice = createSlice({
   },
 });
 
-export const { clearOrderError } = orderSlice.actions;
+export const { clearOrderError, resetOrdersCache } = orderSlice.actions;
 export default orderSlice.reducer;
