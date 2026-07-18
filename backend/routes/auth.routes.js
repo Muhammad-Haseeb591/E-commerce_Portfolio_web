@@ -21,7 +21,7 @@ router.get(
 );
 
 router.get(
-  "/google/callback",
+  "/auth/google/callback",
   passport.authenticate("google", { session: false, failureRedirect: `${CLIENT_URL}/login?error=google` }),
   (req, res) => {
     const token = generateToken(req.user._id);
