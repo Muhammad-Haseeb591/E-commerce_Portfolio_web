@@ -3,12 +3,22 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { IoArrowBack } from "react-icons/io5";
 import axios from "axios";
+import { loadStripe } from "@stripe/stripe-js";
+import {
+  Elements,
+  CardElement,
+  useStripe,
+  useElements,
+} from "@stripe/react-stripe-js";
 import { formatAmount, getCurrencyForCountry, getAllowedPaymentMethods } from "../utils/formatCurrency";
 import { getShippingFee } from "../utils/shipping";
 import { getCouponDiscount } from "../utils/coupons";
 import { clearCart } from "../assets/components/redux_Toolkit/cartSlice";
 import { API_URL } from "../config/api";
 
+// ── Stripe.js loaded once, outside the component so it isn't
+// re-created on every render ──
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 const inputClass =
   "w-full bg-white border border-[#333333] rounded-lg px-4 py-3 text-[#333333] placeholder-gray-400 focus:outline-none focus:border-[#333333] focus:ring-1 focus:ring-[#333333] transition text-sm";
@@ -23,6 +33,18 @@ const CITY_OPTIONS = [
 ];
 
 const ORDERS_API_URL = `${API_URL}/orders`;
+
+const cardElementOptions = {
+  style: {
+    base: {
+      fontSize: "14px",
+      color: "#333333",
+      fontFamily: "inherit",
+      "::placeholder": { color: "#9ca3af" },
+    },
+    invalid: { color: "#ef4444" },
+  },
+};
 
 const CustomToast = ({ toast, onClose }) => {
   if (!toast) return null;
@@ -63,10 +85,12 @@ const CustomToast = ({ toast, onClose }) => {
   );
 };
 
-export default function CheckoutPage() {
+function CheckoutForm() {
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const stripe = useStripe();
+  const elements = useElements();
 
   const PRODUCTS = location.state?.items || [];
 
@@ -87,9 +111,8 @@ export default function CheckoutPage() {
   const SHIPPING = getShippingFee(SUBTOTAL);
 
   const [paymentMethod, setPaymentMethod] = useState(codAllowed ? "rs" : "us");
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvv, setCvv] = useState("");
+  const [cardComplete, setCardComplete] = useState(false);
+  const [cardError, setCardError] = useState("");
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [form, setForm] = useState({
     firstName: "", lastName: "", email: "", phone: "",
@@ -149,14 +172,6 @@ export default function CheckoutPage() {
 
   const formatPrice = (amountPKR) => formatAmount(amountPKR, currency);
 
-  const formatCard = (val) =>
-    val.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
-
-  const formatExpiry = (val) => {
-    const digits = val.replace(/\D/g, "").slice(0, 4);
-    return digits.length >= 3 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
-  };
-
   const validate = () => {
     const e = {};
     if (!form.firstName.trim()) e.firstName = "Required";
@@ -180,9 +195,8 @@ export default function CheckoutPage() {
     }
 
     if (paymentMethod === "us") {
-      if (cardNumber.replace(/\s/g, "").length < 16) e.cardNumber = "Enter 16-digit card number";
-      if (!expiry.match(/^\d{2}\/\d{2}$/)) e.expiry = "MM/YY required";
-      if (cvv.length < 3) e.cvv = "3 or 4 digits required";
+      if (!stripe || !elements) e.payment = "Payment is still loading, please wait a moment.";
+      else if (!cardComplete) e.card = "Enter complete card details";
     }
     return e;
   };
@@ -202,45 +216,89 @@ export default function CheckoutPage() {
     if (Object.keys(e).length) {
       setErrors(e);
       focusFirstError(e);
-      setOrderError(e.payment || "Please fill in the highlighted required fields.");
+      setOrderError(e.payment || e.card || "Please fill in the highlighted required fields.");
       return;
     }
 
     setOrderError("");
     setPlacingOrder(true);
 
-    const orderPayload = {
-      email: form.email,
-      shippingAddress: {
-        firstName: form.firstName,
-        lastName: form.lastName,
-        phone: form.phone,
-        address: form.address,
-        city: form.city,
-        state: form.state,
-        zip: form.zip,
-        country: form.country,
-      },
-      items: PRODUCTS.map((p) => ({
-        productId: p.productId || p._id,
-        name: p.name,
-        price: p.price,
-        image: p.images?.[0] || p.image || "", // ← FIX: snapshot the image used at purchase time
-        color: p.color || "",
-        size: p.size ?? null,
-        quantity: p.quantity || p.qty || 1,
-      })),
-      currency,
-      paymentMethod,
-      subtotal: SUBTOTAL,
-      shippingFee: SHIPPING,
-      couponCode: appliedCoupon?.code || null,
-      discount,
-      totalAmount: TOTAL, // always in PKR (base) — backend stores/settles in PKR
-    };
+    let paymentMethodId = null;
 
     try {
+      // ── Card payments: tokenize the card via Stripe.js before
+      // hitting our own backend. We NEVER send raw card details ──
+      if (paymentMethod === "us") {
+        const cardElement = elements.getElement(CardElement);
+        const { error, paymentMethod: stripePaymentMethod } = await stripe.createPaymentMethod({
+          type: "card",
+          card: cardElement,
+          billing_details: {
+            name: `${form.firstName} ${form.lastName}`,
+            email: form.email,
+            phone: form.phone,
+            address: {
+              line1: form.address,
+              city: form.city,
+              state: form.state,
+              postal_code: form.zip,
+              country: form.country,
+            },
+          },
+        });
+
+        if (error) {
+          setOrderError(error.message || "Card was declined. Please check the details and try again.");
+          setPlacingOrder(false);
+          return;
+        }
+        paymentMethodId = stripePaymentMethod.id;
+      }
+
+      const orderPayload = {
+        email: form.email,
+        shippingAddress: {
+          firstName: form.firstName,
+          lastName: form.lastName,
+          phone: form.phone,
+          address: form.address,
+          city: form.city,
+          state: form.state,
+          zip: form.zip,
+          country: form.country,
+        },
+        items: PRODUCTS.map((p) => ({
+          productId: p.productId || p._id,
+          name: p.name,
+          price: p.price,
+          image: p.images?.[0] || p.image || "", // ← FIX: snapshot the image used at purchase time
+          color: p.color || "",
+          size: p.size ?? null,
+          quantity: p.quantity || p.qty || 1,
+        })),
+        currency,
+        paymentMethod,
+        paymentMethodId, // ← Stripe PaymentMethod id (null for COD) — backend
+                         //   uses this to create/confirm a PaymentIntent
+        subtotal: SUBTOTAL,
+        shippingFee: SHIPPING,
+        couponCode: appliedCoupon?.code || null,
+        discount,
+        totalAmount: TOTAL, // always in PKR (base) — backend stores/settles in PKR
+      };
+
       const res = await axios.post(ORDERS_API_URL, orderPayload, { withCredentials: true });
+
+      // ── If backend requires 3D Secure / additional authentication,
+      // it should return a clientSecret so we can confirm it here ──
+      if (res.data.requiresAction && res.data.clientSecret) {
+        const { error: confirmError } = await stripe.confirmCardPayment(res.data.clientSecret);
+        if (confirmError) {
+          setOrderError(confirmError.message || "Payment authentication failed.");
+          setPlacingOrder(false);
+          return;
+        }
+      }
 
       // ── Order confirm ho gaya — ab hi cart clear karo (redux + localStorage
       // dono, clearCart reducer ke andar localStorage bhi khud clear kar deta hai) ──
@@ -627,42 +685,23 @@ export default function CheckoutPage() {
               <div className="bg-white border border-[#333333] rounded-xl p-4 sm:p-5 space-y-4">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-sm font-semibold text-[#333333]">Card Details</span>
-                  <span className="text-xs text-gray-500 ml-auto flex items-center gap-1">🔒 256-bit SSL</span>
+                  <span className="text-xs text-gray-500 ml-auto flex items-center gap-1">🔒 Powered by Stripe</span>
                 </div>
                 <div>
-                  <label className={labelClass}>Card Number</label>
-                  <div className="relative">
-                    <input
-                      placeholder="0000 0000 0000 0000"
-                      value={cardNumber}
-                      onChange={(e) => { setCardNumber(formatCard(e.target.value)); setErrors({ ...errors, cardNumber: "" }); }}
-                      className={`${inputClass} pr-12 ${errors.cardNumber ? "border-red-500" : ""}`}
+                  <label className={labelClass}>Card Information</label>
+                  <div className={`${inputClass} ${errors.card ? "border-red-500 ring-1 ring-red-200" : ""}`}>
+                    <CardElement
+                      options={cardElementOptions}
+                      onChange={(e) => {
+                        setCardComplete(e.complete);
+                        setCardError(e.error ? e.error.message : "");
+                        setErrors((er) => ({ ...er, card: "" }));
+                      }}
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-lg">
-                      {cardNumber.startsWith("4") ? "💳" : cardNumber.startsWith("5") ? "🟡" : "💳"}
-                    </span>
                   </div>
-                  {errors.cardNumber && <p className="text-red-500 text-xs mt-1">{errors.cardNumber}</p>}
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className={labelClass}>Expiry</label>
-                    <input
-                      placeholder="MM/YY" value={expiry}
-                      onChange={(e) => { setExpiry(formatExpiry(e.target.value)); setErrors({ ...errors, expiry: "" }); }}
-                      className={`${inputClass} ${errors.expiry ? "border-red-500" : ""}`}
-                    />
-                    {errors.expiry && <p className="text-red-500 text-xs mt-1">{errors.expiry}</p>}
-                  </div>
-                  <div>
-                    <label className={labelClass}>CVV</label>
-                    <input
-                      placeholder="•••" type="password" maxLength={4} value={cvv}
-                      onChange={(e) => { setCvv(e.target.value.replace(/\D/g, "")); setErrors({ ...errors, cvv: "" }); }}
-                      className={`${inputClass} ${errors.cvv ? "border-red-500" : ""}`}
-                    />
-                    {errors.cvv && <p className="text-red-500 text-xs mt-1">{errors.cvv}</p>}
-                  </div>
+                  {(errors.card || cardError) && (
+                    <p className="text-red-500 text-xs mt-1">{cardError || errors.card}</p>
+                  )}
                 </div>
               </div>
             )}
@@ -681,7 +720,7 @@ export default function CheckoutPage() {
           <div className="lg:hidden">
             <button
               onClick={handleSubmit}
-              disabled={placingOrder}
+              disabled={placingOrder || (paymentMethod === "us" && !stripe)}
               className="w-full bg-[#333333] hover:bg-[#333333]/90 active:scale-[0.98] text-white font-bold py-4 rounded-xl transition-all text-sm tracking-wide disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             >
               {placingOrder
@@ -744,7 +783,7 @@ export default function CheckoutPage() {
             <div className="px-6 py-4">
               <button
                 onClick={handleSubmit}
-                disabled={placingOrder}
+                disabled={placingOrder || (paymentMethod === "us" && !stripe)}
                 className="w-full bg-[#333333] hover:bg-[#333333]/90 active:scale-[0.98] text-white font-bold py-3.5 rounded-xl transition-all text-sm tracking-wide disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
               >
                 {placingOrder
@@ -759,5 +798,13 @@ export default function CheckoutPage() {
         </aside>
       </main>
     </div>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Elements stripe={stripePromise}>
+      <CheckoutForm />
+    </Elements>
   );
 }

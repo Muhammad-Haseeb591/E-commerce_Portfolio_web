@@ -1,19 +1,11 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSelector } from "react-redux";
 import axios from "axios";
 import { Star, ImagePlus, Pencil, Trash2, BadgeCheck } from "lucide-react";
 import { API_URL } from "../../../config/api";
 
+
 const API_BASE = `${API_URL}/reviews`;
-
-// ✅ Module-level cache — survives component unmount/remount (e.g. tab
-// switches on the product page). Keyed by `${productId}:${page}`.
-// This means switching away from the Reviews tab and back no longer
-// re-fetches or re-shows the loading spinner unless the cache is
-// explicitly invalidated (after create/update/delete).
-const reviewsCache = new Map();
-
-const cacheKey = (productId, page) => `${productId}:${page}`;
 
 const StarRow = ({ value, size = 16 }) => (
   <div className="flex items-center gap-0.5" aria-label={`${value} out of 5 stars`}>
@@ -76,22 +68,21 @@ const timeAgo = (dateStr) => {
   return `${years} year${years > 1 ? "s" : ""} ago`;
 };
 
+// axios needs to send the httpOnly "token" cookie set by your login route
+// on every request, since protect() reads req.cookies.token.
 axios.defaults.withCredentials = true;
 
 export default function ReviewSection({ productId }) {
   const user = useSelector((state) => state.auth?.user);
 
-  // ✅ Hydrate initial state synchronously from cache if we have it —
-  // avoids the "Loading reviews..." flash on remount entirely.
-  const cached = reviewsCache.get(cacheKey(productId, 1));
-
-  const [reviews, setReviews] = useState(cached?.reviews || []);
-  const [total, setTotal] = useState(cached?.total || 0);
-  const [page, setPage] = useState(cached?.page || 1);
-  const [pages, setPages] = useState(cached?.pages || 1);
-  const [average, setAverage] = useState(cached?.average || 0);
-  const [ratingBreakdown, setRatingBreakdown] = useState(cached?.ratingBreakdown || {});
-  const [status, setStatus] = useState(cached ? "succeeded" : "idle");
+  // review data (previously from redux)
+  const [reviews, setReviews] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [average, setAverage] = useState(0);
+  const [ratingBreakdown, setRatingBreakdown] = useState({});
+  const [status, setStatus] = useState("idle"); // idle | loading | succeeded | failed
 
   // form state
   const [formOpen, setFormOpen] = useState(false);
@@ -100,56 +91,23 @@ export default function ReviewSection({ productId }) {
   const [title, setTitle] = useState("");
   const [comment, setComment] = useState("");
   const [images, setImages] = useState([]);
-  const [submitStatus, setSubmitStatus] = useState("idle");
+  const [submitStatus, setSubmitStatus] = useState("idle"); // idle | loading
   const [submitError, setSubmitError] = useState("");
 
-  // Track which productId we last hydrated from cache for, so switching
-  // to a *different* product (not just remounting the same one) still
-  // fetches fresh data.
-  const lastProductId = useRef(productId);
-
   const fetchReviews = useCallback(
-    async (pageNum = 1, { force = false } = {}) => {
+    async (pageNum = 1) => {
       if (!productId) return;
-
-      const key = cacheKey(productId, pageNum);
-      const hit = reviewsCache.get(key);
-
-      // ✅ Serve from cache, skip the network call entirely
-      if (hit && !force) {
-        setReviews(hit.reviews);
-        setTotal(hit.total);
-        setPage(hit.page);
-        setPages(hit.pages);
-        setAverage(hit.average);
-        setRatingBreakdown(hit.ratingBreakdown);
-        setStatus("succeeded");
-        return;
-      }
-
       setStatus("loading");
       try {
         const { data } = await axios.get(`${API_BASE}/product/${productId}`, {
           params: { page: pageNum },
         });
-
-        const result = {
-          reviews: data.reviews || [],
-          total: data.total || 0,
-          page: data.page || pageNum,
-          pages: data.pages || 1,
-          average: data.average || 0,
-          ratingBreakdown: data.ratingBreakdown || {},
-        };
-
-        reviewsCache.set(key, result);
-
-        setReviews(result.reviews);
-        setTotal(result.total);
-        setPage(result.page);
-        setPages(result.pages);
-        setAverage(result.average);
-        setRatingBreakdown(result.ratingBreakdown);
+        setReviews(data.reviews || []);
+        setTotal(data.total || 0);
+        setPage(data.page || pageNum);
+        setPages(data.pages || 1);
+        setAverage(data.average || 0);
+        setRatingBreakdown(data.ratingBreakdown || {});
         setStatus("succeeded");
       } catch (err) {
         console.error("Failed to fetch reviews:", err);
@@ -160,28 +118,8 @@ export default function ReviewSection({ productId }) {
   );
 
   useEffect(() => {
-    const productChanged = lastProductId.current !== productId;
-    lastProductId.current = productId;
-
-    const key = cacheKey(productId, 1);
-    const hit = reviewsCache.get(key);
-
-    if (hit && !productChanged) {
-      // Same product, remounted (e.g. tab switch) — cache already
-      // hydrated state above, nothing to do.
-      return;
-    }
-
     fetchReviews(1);
-  }, [productId, fetchReviews]);
-
-  // Invalidate the whole cache for this product (all pages) — called
-  // after any write (create/update/delete) so the next read is fresh.
-  const invalidateProductCache = useCallback(() => {
-    [...reviewsCache.keys()]
-      .filter((k) => k.startsWith(`${productId}:`))
-      .forEach((k) => reviewsCache.delete(k));
-  }, [productId]);
+  }, [fetchReviews]);
 
   const myReview = reviews.find(
     (r) => r.userId?._id === user?._id || r.userId === user?._id
@@ -244,8 +182,7 @@ export default function ReviewSection({ productId }) {
 
       setSubmitStatus("idle");
       closeForm();
-      invalidateProductCache();
-      fetchReviews(1, { force: true });
+      fetchReviews(1);
     } catch (err) {
       console.error("Failed to submit review:", err);
       setSubmitStatus("idle");
@@ -259,8 +196,7 @@ export default function ReviewSection({ productId }) {
     if (!window.confirm("Delete this review?")) return;
     try {
       await axios.delete(`${API_BASE}/${id}`);
-      invalidateProductCache();
-      fetchReviews(page, { force: true });
+      fetchReviews(page);
     } catch (err) {
       console.error("Failed to delete review:", err);
     }
