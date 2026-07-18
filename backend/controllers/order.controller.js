@@ -164,13 +164,183 @@ exports.getOrders = asyncHandler(async (req, res) => {
 
 // ==========================
 // Get ALL orders — admin panel
+// Supports server-side search (order number / email), status filter,
+// and pagination — so the client never has to download the entire
+// orders collection just to show one page of a table.
+// Query params: ?page=1&limit=20&search=abc&status=shipped
 // ==========================
 exports.getAllOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find()
-    .populate("userId", "fullName email")
-    .sort({ createdAt: -1 });
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
+  const { search, status } = req.query;
 
-  return res.status(200).json({ success: true, orders });
+  const filter = {};
+
+  if (status) {
+    filter.status = status;
+  }
+
+  if (search) {
+    const orConditions = [{ email: { $regex: search, $options: "i" } }];
+    // orderNumber is a Number field — only add a numeric match if the
+    // search term actually parses as one, otherwise $eq with NaN errors.
+    const numericSearch = Number(search);
+    if (!Number.isNaN(numericSearch)) {
+      orConditions.push({ orderNumber: numericSearch });
+    }
+    filter.$or = orConditions;
+  }
+
+  const [orders, total] = await Promise.all([
+    Order.find(filter)
+      .populate("userId", "fullName email")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit),
+    Order.countDocuments(filter),
+  ]);
+
+  return res.status(200).json({
+    success: true,
+    orders,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit),
+    },
+  });
+});
+
+// ==========================
+// Dashboard Stats — admin only
+// Computed entirely on the DB side via aggregation, so the client never
+// downloads and loops over the full orders collection. Matches the actual
+// schema: totalAmount (Number), email (String), items (array of objects
+// with a `name` field), createdAt (from timestamps), status (String).
+// ==========================
+exports.getDashboardStats = asyncHandler(async (req, res) => {
+  const now = new Date();
+  const currentMonth = now.getMonth(); // 0-indexed
+  const currentYear = now.getFullYear();
+
+  const sixMonthsAgoStart = new Date(currentYear, currentMonth - 5, 1);
+  const sevenDaysAgoStart = new Date();
+  sevenDaysAgoStart.setDate(sevenDaysAgoStart.getDate() - 6);
+  sevenDaysAgoStart.setHours(0, 0, 0, 0);
+
+  const [monthly, daily, facetResult, recentOrders] = await Promise.all([
+    // Monthly revenue, last 6 months
+    Order.aggregate([
+      { $match: { createdAt: { $gte: sixMonthsAgoStart } } },
+      {
+        $group: {
+          _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
+          revenue: { $sum: "$totalAmount" },
+        },
+      },
+      { $sort: { "_id.year": 1, "_id.month": 1 } },
+    ]),
+
+    // Daily revenue, last 7 days
+    Order.aggregate([
+      { $match: { createdAt: { $gte: sevenDaysAgoStart } } },
+      {
+        $group: {
+          _id: {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+            day: { $dayOfMonth: "$createdAt" },
+          },
+          revenue: { $sum: "$totalAmount" },
+        },
+      },
+      { $sort: { "_id.year": 1, "_id.month": 1, "_id.day": 1 } },
+    ]),
+
+    // All-time totals, current vs previous month, unique customers/products
+    Order.aggregate([
+      {
+        $facet: {
+          allTime: [
+            { $group: { _id: null, totalRevenue: { $sum: "$totalAmount" }, totalOrders: { $sum: 1 } } },
+          ],
+          uniqueCustomers: [{ $group: { _id: "$email" } }, { $count: "count" }],
+          uniqueProducts: [
+            { $unwind: "$items" },
+            { $group: { _id: { $toLower: "$items.name" } } },
+            { $count: "count" },
+          ],
+          currentMonth: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: [{ $year: "$createdAt" }, currentYear] },
+                    { $eq: [{ $month: "$createdAt" }, currentMonth + 1] },
+                  ],
+                },
+              },
+            },
+            { $group: { _id: null, revenue: { $sum: "$totalAmount" }, orders: { $sum: 1 } } },
+          ],
+          previousMonth: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: [{ $year: "$createdAt" }, currentMonth === 0 ? currentYear - 1 : currentYear] },
+                    { $eq: [{ $month: "$createdAt" }, currentMonth === 0 ? 12 : currentMonth] },
+                  ],
+                },
+              },
+            },
+            { $group: { _id: null, revenue: { $sum: "$totalAmount" }, orders: { $sum: 1 } } },
+          ],
+        },
+      },
+    ]),
+
+    // 5 most recent orders — already sorted + limited in the DB
+    Order.find().sort({ createdAt: -1 }).limit(5).select(
+      "orderNumber email totalAmount status createdAt"
+    ),
+  ]);
+
+  const facet = facetResult[0];
+  const allTime = facet.allTime[0] || { totalRevenue: 0, totalOrders: 0 };
+  const curr = facet.currentMonth[0] || { revenue: 0, orders: 0 };
+  const prev = facet.previousMonth[0] || { revenue: 0, orders: 0 };
+
+  const pctChange = (current, previous) => {
+    if (!previous) return current > 0 ? "+100%" : "0%";
+    const change = ((current - previous) / previous) * 100;
+    return `${change >= 0 ? "+" : ""}${change.toFixed(1)}%`;
+  };
+
+  return res.status(200).json({
+    success: true,
+    stats: {
+      totalRevenue: allTime.totalRevenue,
+      totalOrders: allTime.totalOrders,
+      totalCustomers: facet.uniqueCustomers[0]?.count || 0,
+      totalProducts: facet.uniqueProducts[0]?.count || 0,
+      revenueChange: pctChange(curr.revenue, prev.revenue),
+      ordersChange: pctChange(curr.orders, prev.orders),
+      salesData: monthly.map((m) => ({
+        month: m._id.month, // 1-indexed
+        year: m._id.year,
+        sales: Math.round(m.revenue),
+      })),
+      revenueData: daily.map((d) => ({
+        day: d._id.day,
+        month: d._id.month, // 1-indexed
+        year: d._id.year,
+        revenue: Math.round(d.revenue),
+      })),
+      recentOrders,
+    },
+  });
 });
 
 // ==========================

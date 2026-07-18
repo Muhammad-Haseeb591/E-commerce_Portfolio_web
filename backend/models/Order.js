@@ -38,6 +38,15 @@ const orderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// 🔑 Speeds up dashboard aggregations (monthly/daily revenue grouping,
+// recent-orders sort) and the createOrder duplicate-request guard, which
+// both filter/sort on createdAt.
+orderSchema.index({ createdAt: -1 });
+
+// 🔑 Speeds up the unique-customer count in dashboard stats and any
+// per-customer order lookups.
+orderSchema.index({ email: 1 });
+
 // Mongoose 7+ async middleware ko `next` callback nahi deta — async function
 // khud Promise resolve/reject se hi kaam chala leta hai. `next` use karna
 // (jab available hi nahi) crash karta hai, isliye yahan bilkul nahi liya.
