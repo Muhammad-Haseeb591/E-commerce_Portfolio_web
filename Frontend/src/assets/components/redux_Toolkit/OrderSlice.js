@@ -30,13 +30,15 @@ export const fetchOrders = createAsyncThunk(
 
 // ==========================
 // Fetch ALL Orders (Admin panel — every customer's orders)
+// Accepts { page, limit, search, status } — all optional. Server does the
+// filtering/pagination, so the client only ever downloads one page.
 // ==========================
 export const fetchAllOrders = createAsyncThunk(
   "orders/fetchAllOrders",
-  async (_, thunkAPI) => {
+  async (params = {}, thunkAPI) => {
     try {
-      const res = await axios.get(`${BASE_URL}/all`, config);
-      return res.data.orders;
+      const res = await axios.get(`${BASE_URL}/all`, { ...config, params });
+      return res.data; // { orders, pagination }
     } catch (error) {
       return thunkAPI.rejectWithValue(
         error.response?.data?.message || "Orders fetch failed."
@@ -113,6 +115,36 @@ export const cancelOrder = createAsyncThunk(
   }
 );
 
+// ==========================
+// Fetch Dashboard Stats (admin) — server-computed, cheap payload.
+// Skips the request entirely if we already fetched within CACHE_MS,
+// so switching tabs / re-mounting the Dashboard doesn't hammer the API.
+// ==========================
+const CACHE_MS = 60 * 1000; // 60 seconds
+
+export const fetchDashboardStats = createAsyncThunk(
+  "orders/fetchDashboardStats",
+  async (_, thunkAPI) => {
+    try {
+      const res = await axios.get(`${BASE_URL}/dashboard-stats`, config);
+      return res.data.stats;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(
+        error.response?.data?.message || "Dashboard stats fetch failed."
+      );
+    }
+  },
+  {
+    condition: (_, { getState }) => {
+      const { lastFetchedAt } = getState().orders;
+      if (lastFetchedAt && Date.now() - lastFetchedAt < CACHE_MS) {
+        return false; // bail out — cached data is still fresh
+      }
+      return true;
+    },
+  }
+);
+
 const orderSlice = createSlice({
   name: "orders",
 
@@ -127,9 +159,16 @@ const orderSlice = createSlice({
     allOrders: [],
     allOrdersLoading: false,
     allOrdersError: null,
+    allOrdersPagination: { page: 1, limit: 20, total: 0, pages: 0 },
     detailsLoading: false,
     updating: false,
     deleting: false,
+
+    // ---- dashboard stats (server-aggregated) ----
+    dashboardStats: null,
+    dashboardLoading: false,
+    dashboardError: null,
+    lastFetchedAt: null,
   },
 
   reducers: {
@@ -162,7 +201,8 @@ const orderSlice = createSlice({
       })
       .addCase(fetchAllOrders.fulfilled, (state, action) => {
         state.allOrdersLoading = false;
-        state.allOrders = action.payload;
+        state.allOrders = action.payload.orders;
+        state.allOrdersPagination = action.payload.pagination;
       })
       .addCase(fetchAllOrders.rejected, (state, action) => {
         state.allOrdersLoading = false;
@@ -213,6 +253,25 @@ const orderSlice = createSlice({
       .addCase(deleteOrder.rejected, (state, action) => {
         state.deleting = false;
         state.allOrdersError = action.payload;
+      })
+
+      // ---- fetchDashboardStats (admin) ----
+      .addCase(fetchDashboardStats.pending, (state) => {
+        state.dashboardLoading = true;
+        state.dashboardError = null;
+      })
+      .addCase(fetchDashboardStats.fulfilled, (state, action) => {
+        state.dashboardLoading = false;
+        state.dashboardStats = action.payload;
+        state.lastFetchedAt = Date.now();
+      })
+      .addCase(fetchDashboardStats.rejected, (state, action) => {
+        state.dashboardLoading = false;
+        // `undefined` payload means the request was skipped by the cache guard —
+        // not a real error, so don't surface it.
+        if (action.payload) {
+          state.dashboardError = action.payload;
+        }
       })
 
       // ---- cancelOrder (customer) — UNCHANGED, still touches `orders` ----

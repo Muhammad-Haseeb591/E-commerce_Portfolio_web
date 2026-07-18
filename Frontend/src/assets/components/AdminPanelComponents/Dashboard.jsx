@@ -2,11 +2,10 @@ import {
   Bar, BarChart, Line, LineChart,
   XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Link } from "react-router-dom";
-import { DollarSign, ShoppingCart, Package, Users, Home } from "lucide-react";
-import { fetchAllOrders } from "../redux_Toolkit/OrderSlice";
+import { DollarSign, ShoppingCart, Package, Users } from "lucide-react";
+import { fetchDashboardStats } from "../redux_Toolkit/OrderSlice";
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
@@ -62,129 +61,27 @@ const tooltipStyle = {
   cursor: { fill: "#f3f4f6" },
 };
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-const pctChange = (current, previous) => {
-  if (!previous) return current > 0 ? "+100%" : "0%";
-  const change = ((current - previous) / previous) * 100;
-  const sign = change >= 0 ? "+" : "";
-  return `${sign}${change.toFixed(1)}%`;
-};
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 const Dashboard = () => {
   const dispatch = useDispatch();
 
-  // 🔑 fetchAllOrders() writes into `allOrders` / `allOrdersLoading` / `allOrdersError`
-  // in orderSlice.js — not `orders` / `loading` / `error` (those belong to the
-  // customer-facing fetchOrders thunk). Reading the wrong keys meant this
-  // dashboard always saw an empty array, no matter what the API returned.
+  // 🔑 stats now come pre-computed from the server (one small JSON payload)
+  // instead of the client downloading every order and looping over it.
   const {
-    allOrders: orders = [],
-    allOrdersLoading: loading,
-    allOrdersError: error,
+    dashboardStats: stats,
+    dashboardLoading: loading,
+    dashboardError: error,
   } = useSelector((state) => state.orders);
 
   useEffect(() => {
-    dispatch(fetchAllOrders());
+    dispatch(fetchDashboardStats());
   }, [dispatch]);
 
-  const stats = useMemo(() => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    const prevMonthDate = new Date(currentYear, currentMonth - 1, 1);
-
-    let totalRevenue = 0;
-    let currentMonthRevenue = 0;
-    let prevMonthRevenue = 0;
-    let currentMonthOrders = 0;
-    let prevMonthOrders = 0;
-
-    const emailSet = new Set();
-    const productSet = new Set();
-
-    const monthMap = new Map();
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(currentYear, currentMonth - i, 1);
-      monthMap.set(`${d.getFullYear()}-${d.getMonth()}`, 0);
-    }
-
-    const dayMap = new Map();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      dayMap.set(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`, 0);
-    }
-
-    orders.forEach((order) => {
-      const amount = Number(order.totalAmount || 0);
-      const createdAt = order.createdAt ? new Date(order.createdAt) : null;
-
-      totalRevenue += amount;
-
-      if (order.email) emailSet.add(order.email.toLowerCase());
-      (order.items || []).forEach((item) => {
-        if (item.name) productSet.add(item.name.toLowerCase());
-      });
-
-      if (createdAt) {
-        const orderMonth = createdAt.getMonth();
-        const orderYear = createdAt.getFullYear();
-
-        if (orderMonth === currentMonth && orderYear === currentYear) {
-          currentMonthRevenue += amount;
-          currentMonthOrders += 1;
-        } else if (orderMonth === prevMonthDate.getMonth() && orderYear === prevMonthDate.getFullYear()) {
-          prevMonthRevenue += amount;
-          prevMonthOrders += 1;
-        }
-
-        const monthKey = `${orderYear}-${orderMonth}`;
-        if (monthMap.has(monthKey)) {
-          monthMap.set(monthKey, monthMap.get(monthKey) + amount);
-        }
-
-        const dayKey = `${orderYear}-${orderMonth}-${createdAt.getDate()}`;
-        if (dayMap.has(dayKey)) {
-          dayMap.set(dayKey, dayMap.get(dayKey) + amount);
-        }
-      }
-    });
-
-    const salesData = Array.from(monthMap.entries()).map(([key, revenue]) => {
-      const [, month] = key.split("-").map(Number);
-      return { month: MONTH_LABELS[month], sales: Math.round(revenue) };
-    });
-
-    const revenueData = Array.from(dayMap.keys()).map((key) => {
-      const [year, month, date] = key.split("-").map(Number);
-      const d = new Date(year, month, date);
-      return { day: DAY_LABELS[d.getDay()], revenue: Math.round(dayMap.get(key)) };
-    });
-
-    const recentOrders = [...orders]
-      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-      .slice(0, 5);
-
-    return {
-      totalRevenue,
-      totalOrders: orders.length,
-      totalCustomers: emailSet.size,
-      totalProducts: productSet.size,
-      revenueChange: pctChange(currentMonthRevenue, prevMonthRevenue),
-      ordersChange: pctChange(currentMonthOrders, prevMonthOrders),
-      salesData,
-      revenueData,
-      recentOrders,
-    };
-  }, [orders]);
-
-  if (loading) {
+  if (loading && !stats) {
     return (
       <div className="flex justify-center items-center h-[300px]">
         <p className="text-sm font-medium text-gray-500">Loading dashboard...</p>
@@ -200,6 +97,14 @@ const Dashboard = () => {
     );
   }
 
+  if (!stats) return null;
+
+  const salesData = stats.salesData.map((m) => ({ month: MONTH_LABELS[m.month - 1], sales: m.sales }));
+  const revenueData = stats.revenueData.map((d) => ({
+    day: DAY_LABELS[new Date(d.year, d.month - 1, d.day).getDay()],
+    revenue: d.revenue,
+  }));
+
   return (
     <div className="min-h-screen bg-gray-50 p-3 sm:p-6 space-y-4 max-w-3xl mx-auto">
       {/* ── Stats — 2 cols on mobile, 4 on desktop ── */}
@@ -213,7 +118,7 @@ const Dashboard = () => {
       {/* ── Charts — full width, stacked ── */}
       <ChartCard title="Sales (Last 6 Months)">
         <ResponsiveContainer width="100%" height={180}>
-          <LineChart data={stats.salesData}>
+          <LineChart data={salesData}>
             <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
             <YAxis hide />
             <Tooltip {...tooltipStyle} />
@@ -231,7 +136,7 @@ const Dashboard = () => {
 
       <ChartCard title="Revenue (Last 7 Days)">
         <ResponsiveContainer width="100%" height={180}>
-          <BarChart data={stats.revenueData} barSize={20}>
+          <BarChart data={revenueData} barSize={20}>
             <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
             <YAxis hide />
             <Tooltip {...tooltipStyle} />

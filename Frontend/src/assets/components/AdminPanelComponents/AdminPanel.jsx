@@ -50,7 +50,7 @@ const AdminPanel = () => {
         <div className="px-5 py-5 border-b border-gray-100 flex items-center gap-3">
   <div className="min-w-0">
     <h1 className="text-sm font-bold text-gray-900 tracking-widest uppercase truncate">
-      INSIGNIA
+      PORTFOLIO
     </h1>
     <p className="text-xs text-gray-400 truncate">Manage your store</p>
   </div>

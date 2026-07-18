@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, AlertCircle, PackageX, X, Pencil, Trash2, Eye, ChevronDown } from "lucide-react";
+import { Search, AlertCircle, PackageX, X, Pencil, Trash2, Eye, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchAllOrders, updateOrder, deleteOrder } from "../redux_Toolkit/OrderSlice";
 
@@ -277,10 +277,42 @@ const OrderRow = ({ order, onView, onEdit, onDelete }) => (
   </tr>
 );
 
+// ── Pagination bar ──
+const PaginationBar = ({ page, pages, total, onPageChange }) => {
+  if (pages <= 1) return null;
+  return (
+    <div className="flex items-center justify-between px-4 py-3 sm:px-6">
+      <span className="text-xs text-gray-400">
+        Page {page} of {pages} · {total} orders
+      </span>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onPageChange(page - 1)}
+          disabled={page <= 1}
+          className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="Previous page"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => onPageChange(page + 1)}
+          disabled={page >= pages}
+          className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="Next page"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ── Main Orders Component (admin) ──
 const Orders = () => {
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");   // raw input, updates every keystroke
+  const [searchQuery, setSearchQuery] = useState("");    // debounced value actually sent to the API
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [viewingOrder, setViewingOrder] = useState(null);
   const [editingOrder, setEditingOrder] = useState(null);
 
@@ -289,27 +321,37 @@ const Orders = () => {
     allOrders = [],
     allOrdersLoading,
     allOrdersError,
+    allOrdersPagination,
     updating,
     deleting,
   } = useSelector((state) => state.orders);
 
+  // Debounce the search box — wait 400ms after the user stops typing
+  // before actually hitting the API, so every keystroke doesn't fire a request.
   useEffect(() => {
-    dispatch(fetchAllOrders());
-  }, [dispatch]);
+    const timeout = setTimeout(() => {
+      setSearchQuery(searchInput);
+      setPage(1); // reset to page 1 whenever the search term changes
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
 
-  const filteredOrders = allOrders.filter((o) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      !q ||
-      o.orderNumber?.toString().toLowerCase().includes(q) ||
-      o.email?.toLowerCase().includes(q);
-    const matchesStatus = !statusFilter || o.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Reset to page 1 whenever the status filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter]);
+
+  // The actual fetch — server does the search/filter/pagination now.
+  useEffect(() => {
+    dispatch(fetchAllOrders({ page, limit: 20, search: searchQuery, status: statusFilter }));
+  }, [dispatch, page, searchQuery, statusFilter]);
 
   const handleDelete = (id) => {
     if (window.confirm("Delete this order? This cannot be undone.")) {
-      dispatch(deleteOrder(id));
+      dispatch(deleteOrder(id)).then(() => {
+        // Re-fetch the current page so the table stays in sync with pagination totals
+        dispatch(fetchAllOrders({ page, limit: 20, search: searchQuery, status: statusFilter }));
+      });
     }
   };
 
@@ -321,13 +363,19 @@ const Orders = () => {
   const renderContent = () => {
     if (allOrdersLoading) return <LoadingState />;
     if (allOrdersError) {
-      return <ErrorState message={allOrdersError} onRetry={() => dispatch(fetchAllOrders())} />;
+      return (
+        <ErrorState
+          message={allOrdersError}
+          onRetry={() => dispatch(fetchAllOrders({ page, limit: 20, search: searchQuery, status: statusFilter }))}
+        />
+      );
     }
-    if (filteredOrders.length === 0) return <EmptyState />;
+    if (allOrders.length === 0) return <EmptyState />;
     return null;
   };
 
   const emptyOrStateContent = renderContent();
+  const { page: currentPage = 1, pages = 0, total = 0 } = allOrdersPagination || {};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-3 sm:p-6 overflow-x-hidden">
@@ -357,8 +405,8 @@ const Orders = () => {
             <input
               type="text"
               placeholder="Search by order # or email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="w-full pl-12 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:py-3 sm:text-base"
             />
           </div>
@@ -380,7 +428,7 @@ const Orders = () => {
 
         {/* Mobile: card list */}
         <div className="sm:hidden bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-          {emptyOrStateContent || filteredOrders.map((order) => (
+          {emptyOrStateContent || allOrders.map((order) => (
             <OrderCard
               key={order._id}
               order={order}
@@ -389,6 +437,9 @@ const Orders = () => {
               onDelete={handleDelete}
             />
           ))}
+          {!emptyOrStateContent && (
+            <PaginationBar page={currentPage} pages={pages} total={total} onPageChange={setPage} />
+          )}
         </div>
 
         {/* Desktop: table */}
@@ -404,10 +455,10 @@ const Orders = () => {
               </tr>
             </thead>
             <tbody>
-              {allOrdersLoading || allOrdersError || filteredOrders.length === 0 ? (
+              {allOrdersLoading || allOrdersError || allOrders.length === 0 ? (
                 <tr><td colSpan={6}>{emptyOrStateContent}</td></tr>
               ) : (
-                filteredOrders.map((order) => (
+                allOrders.map((order) => (
                   <OrderRow
                     key={order._id}
                     order={order}
@@ -419,6 +470,9 @@ const Orders = () => {
               )}
             </tbody>
           </table>
+          {!emptyOrStateContent && (
+            <PaginationBar page={currentPage} pages={pages} total={total} onPageChange={setPage} />
+          )}
         </div>
 
         {deleting && (
