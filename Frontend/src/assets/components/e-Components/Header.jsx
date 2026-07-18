@@ -94,7 +94,7 @@ const Header = () => {
           </Link>
         </div>
 
-        <div className='flex justify-between '>
+        <div className='flex justify-between items-center'>
           <div className='items-center justify-center relative z-10 w-[95.125px] h-[20px] overflow-none box-border hidden md:block top-[-3px] '>
             <svg className=' w-5 h-5 text-gray-800 relative right-[5px] inline-block' aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
               <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
@@ -102,6 +102,8 @@ const Header = () => {
             </svg>
             <Link to='/map' className='font-normal text-[12px] relative leading-[2px] text-black/70 '>Store Locator</Link>
           </div>
+
+          <span className='hidden md:block border-l-[1px] h-[20px] border-gray-400 mx-2'></span>
 
           <div className='inline-block '>
             <Link to="/cart">
@@ -130,7 +132,6 @@ const Header = () => {
                   onClick={toggleProfileMenu}
                   className="header__icon--account full-unstyled-link focus-inset flex items-center cursor-pointer"
                 >
-                  {/* ✅ Sirf avatar/initials — naam text hata diya */}
                   <span>
                     {user.avatar && !avatarError ? (
                       <img
@@ -213,12 +214,13 @@ const Header = () => {
               </>
             ) : (
               <Link to="/login" className="header__icon--account full-unstyled-link focus-inset">
-                <span>
+                {/* ✅ lg screens pe icon hide, sirf "Sign in" text dikhega */}
+                <span className='lg:hidden'>
                   <svg className="icon header_login-icon" viewBox="0 0 22 22" id="profile-picture" width="27" height="27" xmlns="http://www.w3.org/2000/svg">
                     <path className="bspinterest-path-1" d="M21 11a10 10 0 01-10 10A10 10 0 011 11 10 10 0 0111 1a10 10 0 0110 10z"></path><path fill="#fff" fillRule="evenodd" d="M11.01 1A10.014 10.014 0 001 11.01a9.911 9.911 0 002.6 6.707c1.441-.7.921-.12 2.8-.9a22.34 22.34 0 002.4-1.081l.02-1.842a3.532 3.532 0 01-.961-2.282c-.46.14-.6-.521-.641-.941-.02-.4-.26-1.682.3-1.562a10.593 10.593 0 01-.16-2.022 3.69 3.69 0 013.652-3.024c2.5.1 3.483 1.6 3.624 3a10.809 10.809 0 01-.16 2.022c.561-.12.32 1.161.28 1.562-.02.42-.18 1.081-.641.941a3.412 3.412 0 01-.961 2.282l.02 1.822s.46.26 2.4 1.061c1.9.781 1.361.24 2.823.941A9.977 9.977 0 0011.01 1z" className="bspinterest-path-2"></path><path className="bspinterest-path-3" d="M11 .5C5.207.5.5 5.207.5 11S5.207 21.5 11 21.5 21.5 16.793 21.5 11 16.793.5 11 .5zm0 1c5.253 0 9.5 4.247 9.5 9.5s-4.247 9.5-9.5 9.5A9.492 9.492 0 011.5 11c0-5.253 4.247-9.5 9.5-9.5z"></path><path className="bspinterest-path-4" d="M11 1C5.483 1 1 5.483 1 11s4.483 10 10 10 10-4.483 10-10S16.517 1 11 1zm0 1c4.976 0 9 4.024 9 9s-4.024 9-9 9-9-4.024-9-9 4.024-9 9-9z"></path>
                   </svg>
                 </span>
-                <p className='hidden md:block border-l-[1px] h-[20px]  border-gray-400 font-normal text-[12px] pl-[5px] pt-[10px] cursor-pointer leading-[2px] text-black/70'>Sign in</p>
+                <p className='hidden md:block  h-[20px]  border-gray-400 font-normal text-[12px] pl-[5px] pt-[10px] cursor-pointer leading-[2px] text-black/70'>Sign in</p>
               </Link>
             )}
           </div>
