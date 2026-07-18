@@ -78,7 +78,16 @@ const pctChange = (current, previous) => {
 
 const Dashboard = () => {
   const dispatch = useDispatch();
-  const { orders = [], loading, error } = useSelector((state) => state.orders);
+
+  // 🔑 fetchAllOrders() writes into `allOrders` / `allOrdersLoading` / `allOrdersError`
+  // in orderSlice.js — not `orders` / `loading` / `error` (those belong to the
+  // customer-facing fetchOrders thunk). Reading the wrong keys meant this
+  // dashboard always saw an empty array, no matter what the API returned.
+  const {
+    allOrders: orders = [],
+    allOrdersLoading: loading,
+    allOrdersError: error,
+  } = useSelector((state) => state.orders);
 
   useEffect(() => {
     dispatch(fetchAllOrders());
