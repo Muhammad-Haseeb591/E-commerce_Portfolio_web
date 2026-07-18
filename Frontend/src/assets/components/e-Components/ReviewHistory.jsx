@@ -10,7 +10,7 @@ export default function ReviewHistoryContainer() {
 
   useEffect(() => {
     if (myReviewsStale) {
-      dispatch(fetchMyReviews()); // ✅ sirf stale hone par fetch — tab switch pe nahi
+      dispatch(fetchMyReviews()); 
     }
   }, [myReviewsStale, dispatch]);
 
