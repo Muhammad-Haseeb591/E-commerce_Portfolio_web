@@ -18,7 +18,7 @@ const Header = () => {
   const navigate = useNavigate();
   const { user, isLoggedIn, isAdmin } = useAuth();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const [avatarError, setAvatarError] = useState(false); // ✅ naya
+  const [avatarError, setAvatarError] = useState(false);
   const profileRef = useRef(null);
 
   const handleLogout = async () => {
@@ -44,8 +44,6 @@ const Header = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ✅ Agar user badal jaye (naya login) to error state reset karo,
-  // taake naye user ki image dobara try ho
   useEffect(() => {
     setAvatarError(false);
   }, [user?.avatar]);
@@ -130,8 +128,9 @@ const Header = () => {
                 <button
                   type="button"
                   onClick={toggleProfileMenu}
-                  className="header__icon--account full-unstyled-link focus-inset flex items-center gap-2 cursor-pointer"
+                  className="header__icon--account full-unstyled-link focus-inset flex items-center cursor-pointer"
                 >
+                  {/* ✅ Sirf avatar/initials — naam text hata diya */}
                   <span>
                     {user.avatar && !avatarError ? (
                       <img
@@ -152,9 +151,6 @@ const Header = () => {
                       </span>
                     )}
                   </span>
-                  <p className='hidden md:block border-l-[1px] h-[20px] border-gray-400 font-normal text-[12px] pl-[5px] pt-[10px] cursor-pointer leading-[2px] text-black/70'>
-                    {user.fullName}
-                  </p>
                 </button>
 
                 {profileMenuOpen && (
