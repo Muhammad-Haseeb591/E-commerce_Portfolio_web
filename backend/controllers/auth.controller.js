@@ -21,7 +21,7 @@ const generateToken = (id) => {
 // Send Cookie + User
 // ==============================
 const sendToken = (user, res) => {
-const token = generateToken(user._id);
+  const token = generateToken(user._id);
 
   const isProduction = process.env.NODE_ENV === "production";
 
@@ -49,7 +49,7 @@ const token = generateToken(user._id);
 // ==============================
 exports.register = async (req, res) => {
   try {
-    const { fullName, email, password } = req.body;
+    let { fullName, email, password } = req.body;
 
     if (!fullName || !email || !password) {
       return res.status(400).json({
@@ -58,13 +58,15 @@ exports.register = async (req, res) => {
       });
     }
 
+    email = email.toLowerCase().trim(); // 🔑 normalize before any DB lookup
+
     const existing = await User.findOne({ email });
+
     if (existing) {
       if (existing.isVerified) {
         return res.status(400).json({
           success: false,
           message: "Email already exists.",
-
         });
       }
 
@@ -77,7 +79,7 @@ exports.register = async (req, res) => {
       // Fire-and-forget — don't make the client wait on Gmail's SMTP round trip.
       // If it fails, the user can hit "Resend OTP" (which retries the same way).
       sendOtpEmail(existing.email, otp)
-        .then(() => console.log("OTP email accepted by SMTP for:", existing.email))
+        .then(() => console.log("✅ OTP email accepted by SMTP for:", existing.email))
         .catch((err) => console.error("❌ OTP email failed (register/existing):", err));
 
       return res.status(200).json({
@@ -122,7 +124,7 @@ exports.register = async (req, res) => {
 // ==============================
 exports.verifyOtp = async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    let { email, otp } = req.body;
 
     if (!email || !otp) {
       return res.status(400).json({
@@ -130,6 +132,8 @@ exports.verifyOtp = async (req, res) => {
         message: "Email and OTP are required.",
       });
     }
+
+    email = email.toLowerCase().trim();
 
     const user = await User.findOne({ email }).select("+otp +otpExpiry");
 
@@ -178,7 +182,7 @@ exports.verifyOtp = async (req, res) => {
 // ==============================
 exports.resendOtp = async (req, res) => {
   try {
-    const { email } = req.body;
+    let { email } = req.body;
 
     if (!email) {
       return res.status(400).json({
@@ -186,6 +190,8 @@ exports.resendOtp = async (req, res) => {
         message: "Email is required.",
       });
     }
+
+    email = email.toLowerCase().trim();
 
     const user = await User.findOne({ email });
 
@@ -230,7 +236,7 @@ exports.resendOtp = async (req, res) => {
 // ==============================
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -238,6 +244,8 @@ exports.login = async (req, res) => {
         message: "Email and Password are required.",
       });
     }
+
+    email = email.toLowerCase().trim(); // 🔑 normalize before query
 
     const user = await User.findOne({ email });
 
@@ -248,24 +256,32 @@ exports.login = async (req, res) => {
       });
     }
 
- const isMatch = await bcrypt.compare(password, user.password);
+    // Google-only accounts have no password — block a normal login attempt cleanly
+    if (!user.password) {
+      return res.status(400).json({
+        success: false,
+        message: "This account uses Google Sign-In. Please continue with Google.",
+      });
+    }
 
-if (!isMatch) {
-  return res.status(400).json({
-    success: false,
-    message: "Invalid Credentials",
-  });
-}
+    const isMatch = await bcrypt.compare(password, user.password);
 
-if (!user.isVerified) {
-  return res.status(403).json({
-    success: false,
-    message: "Email not verified. Please verify your email with the OTP sent to you.",
-    email: user.email,
-  });
-}
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Credentials",
+      });
+    }
 
-sendToken(user, res);
+    if (!user.isVerified) {
+      return res.status(403).json({
+        success: false,
+        message: "Email not verified. Please verify your email with the OTP sent to you.",
+        email: user.email,
+      });
+    }
+
+    sendToken(user, res);
 
   } catch (error) {
     console.error("Login Error:", error);
@@ -298,7 +314,7 @@ exports.logout = (req, res) => {
 // ==============================
 exports.forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
+    let { email } = req.body;
 
     if (!email) {
       return res.status(400).json({
@@ -306,6 +322,8 @@ exports.forgotPassword = async (req, res) => {
         message: "Email is required.",
       });
     }
+
+    email = email.toLowerCase().trim();
 
     const user = await User.findOne({ email });
 
