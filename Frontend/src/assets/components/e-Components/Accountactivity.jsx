@@ -20,6 +20,15 @@ import ReviewHistory from "./ReviewHistory";
  *
  * Design language: full frosted glass over a white canvas, graphite
  * (#333333) + brushed-brass accent. Mobile-first throughout.
+ *
+ * 🔑 Both tab panels stay mounted at all times (see render section below) —
+ * switching tabs only toggles CSS visibility, it never unmounts/remounts
+ * OrderTracking or ReviewHistory. This preserves their internal UI state
+ * (which order card is expanded, scroll position, etc.) across tab
+ * switches. Data fetching is separately guarded — see the effect below
+ * and the mount-guard `condition` on fetchOrders/fetchMyReviews in their
+ * respective slices — so switching tabs back and forth never re-fires
+ * the network request either; only a real page refresh does.
  */
 
 const VALID_TABS = ["orders", "reviews"];
@@ -177,35 +186,44 @@ export default function AccountActivity() {
           ))}
         </div>
 
-        {/* Orders tab */}
-        {tab === "orders" && (
-          <div className="mt-5 sm:mt-6" role="tabpanel" aria-live="polite">
-            <OrderTracking
-              orders={orders}
-              loading={ordersLoading}
-              error={ordersError}
-              cancelling={cancelling}
-              onCancel={handleCancelOrder}
-              onView={handleView}
-            />
-          </div>
-        )}
+        {/* Orders tab — always mounted, just hidden when inactive. This keeps
+            OrderTracking's internal state (which order cards are expanded,
+            scroll position, etc.) intact across tab switches instead of
+            wiping it out on every unmount/remount. */}
+        <div
+          className={`mt-5 sm:mt-6 ${tab === "orders" ? "block" : "hidden"}`}
+          role="tabpanel"
+          aria-live="polite"
+          hidden={tab !== "orders"}
+        >
+          <OrderTracking
+            orders={orders}
+            loading={ordersLoading}
+            error={ordersError}
+            cancelling={cancelling}
+            onCancel={handleCancelOrder}
+            onView={handleView}
+          />
+        </div>
 
-        {/* Reviews tab */}
-        {tab === "reviews" && (
-          <div className="mt-5 sm:mt-6" role="tabpanel" aria-live="polite">
-            <ReviewHistory
-              reviews={reviews}
-              loading={reviewsLoading}
-              error={reviewsError}
-              saving={savingReview}
-              deleting={deletingReview}
-              onUpdate={handleUpdateReview}
-              onDelete={handleDeleteReview}
-              onView={handleView}
-            />
-          </div>
-        )}
+        {/* Reviews tab — same always-mounted treatment */}
+        <div
+          className={`mt-5 sm:mt-6 ${tab === "reviews" ? "block" : "hidden"}`}
+          role="tabpanel"
+          aria-live="polite"
+          hidden={tab !== "reviews"}
+        >
+          <ReviewHistory
+            reviews={reviews}
+            loading={reviewsLoading}
+            error={reviewsError}
+            saving={savingReview}
+            deleting={deletingReview}
+            onUpdate={handleUpdateReview}
+            onDelete={handleDeleteReview}
+            onView={handleView}
+          />
+        </div>
       </div>
 
       {lightbox && <ImageLightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />}
