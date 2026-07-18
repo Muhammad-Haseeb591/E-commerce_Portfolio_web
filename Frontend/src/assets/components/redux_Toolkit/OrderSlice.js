@@ -3,8 +3,9 @@ import axios from "axios";
 
 import { API_URL } from "../../../config/api";
 
-
-const BASE_URL = `${API_URL}/orders`;
+// 🔑 API_URL ke end mein trailing slash ho ya na ho, dono cases mein
+// URL sahi banega (double slash ya missing slash nahi hoga).
+const BASE_URL = `${API_URL.replace(/\/+$/, "")}/orders`;
 
 const config = {
   withCredentials: true,
