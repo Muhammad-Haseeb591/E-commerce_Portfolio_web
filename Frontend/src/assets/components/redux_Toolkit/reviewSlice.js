@@ -2,31 +2,22 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 import { API_URL } from "../../../config/api";
 
-
-const BASE_URL = `${API_URL}reviews`;
+const BASE_URL = `${API_URL}/reviews`; // ✅ matches ReviewSection.jsx now
 
 const config = {
-  withCredentials: true, // sends the auth cookie on every request
+  withCredentials: true,
 };
 
-// Builds a multipart FormData payload for create/update — needed because
-// reviews can include image files alongside plain text fields.
 const buildReviewFormData = ({ productId, rating, title, comment, images }) => {
   const formData = new FormData();
   if (productId) formData.append("productId", productId);
   if (rating !== undefined) formData.append("rating", rating);
   if (title !== undefined) formData.append("title", title);
   if (comment !== undefined) formData.append("comment", comment);
-
-  // `images` here is expected to be an array of File objects
   (images || []).forEach((file) => formData.append("images", file));
-
   return formData;
 };
 
-// ==========================
-// Fetch Reviews for a single product (public, paginated)
-// ==========================
 export const fetchProductReviews = createAsyncThunk(
   "reviews/fetchProductReviews",
   async ({ productId, page = 1, limit = 10 }, thunkAPI) => {
@@ -35,7 +26,7 @@ export const fetchProductReviews = createAsyncThunk(
         ...config,
         params: { page, limit },
       });
-      return res.data; // { reviews, totalCount, totalPages, currentPage }
+      return res.data;
     } catch (error) {
       return thunkAPI.rejectWithValue(
         error.response?.data?.message || "Failed to load reviews."
@@ -44,12 +35,14 @@ export const fetchProductReviews = createAsyncThunk(
   }
 );
 
-// ==========================
-// Fetch Logged-in User's Own Reviews
-// ==========================
 export const fetchMyReviews = createAsyncThunk(
   "reviews/fetchMyReviews",
   async (_, thunkAPI) => {
+    const state = thunkAPI.getState();
+    // guard: don't refetch if we already have data and it's not stale
+    if (state.reviews.myReviews.length > 0 && !state.reviews.myReviewsStale) {
+      return thunkAPI.fulfillWithValue(state.reviews.myReviews);
+    }
     try {
       const res = await axios.get(`${BASE_URL}/mine`, config);
       return res.data.reviews;
@@ -61,9 +54,6 @@ export const fetchMyReviews = createAsyncThunk(
   }
 );
 
-// ==========================
-// Create Review
-// ==========================
 export const createReview = createAsyncThunk(
   "reviews/createReview",
   async (reviewData, thunkAPI) => {
@@ -79,9 +69,6 @@ export const createReview = createAsyncThunk(
   }
 );
 
-// ==========================
-// Update Own Review
-// ==========================
 export const updateReview = createAsyncThunk(
   "reviews/updateReview",
   async ({ id, ...updates }, thunkAPI) => {
@@ -97,9 +84,6 @@ export const updateReview = createAsyncThunk(
   }
 );
 
-// ==========================
-// Delete Own Review
-// ==========================
 export const deleteReview = createAsyncThunk(
   "reviews/deleteReview",
   async (id, thunkAPI) => {
@@ -116,22 +100,19 @@ export const deleteReview = createAsyncThunk(
 
 const reviewSlice = createSlice({
   name: "reviews",
-
   initialState: {
-    // Reviews for whichever product page is currently open
     productReviews: [],
     totalCount: 0,
     totalPages: 1,
     currentPage: 1,
     loading: false,
 
-    // The logged-in user's own reviews (e.g. "My Reviews" page)
     myReviews: [],
     myReviewsLoading: false,
+    myReviewsStale: true, // ✅ controls whether fetchMyReviews should hit the network
 
-    submitting: false, // create/update in-flight
+    submitting: false,
     deleting: false,
-
     error: null,
   },
 
@@ -145,11 +126,13 @@ const reviewSlice = createSlice({
       state.totalPages = 1;
       state.currentPage = 1;
     },
+    markMyReviewsStale: (state) => {
+      state.myReviewsStale = true;
+    },
   },
 
   extraReducers: (builder) => {
     builder
-      // ---- fetchProductReviews ----
       .addCase(fetchProductReviews.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -166,7 +149,6 @@ const reviewSlice = createSlice({
         state.error = action.payload;
       })
 
-      // ---- fetchMyReviews ----
       .addCase(fetchMyReviews.pending, (state) => {
         state.myReviewsLoading = true;
         state.error = null;
@@ -174,41 +156,38 @@ const reviewSlice = createSlice({
       .addCase(fetchMyReviews.fulfilled, (state, action) => {
         state.myReviewsLoading = false;
         state.myReviews = action.payload;
+        state.myReviewsStale = false; // ✅ mark fresh, no refetch until invalidated
       })
       .addCase(fetchMyReviews.rejected, (state, action) => {
         state.myReviewsLoading = false;
         state.error = action.payload;
       })
 
-      // ---- createReview ----
       .addCase(createReview.pending, (state) => {
         state.submitting = true;
         state.error = null;
       })
       .addCase(createReview.fulfilled, (state, action) => {
         state.submitting = false;
-        // New review goes to the top of the current product's list
         state.productReviews.unshift(action.payload);
         state.totalCount += 1;
+        state.myReviews.unshift(action.payload); // ✅ keep "my reviews" in sync too
       })
       .addCase(createReview.rejected, (state, action) => {
         state.submitting = false;
         state.error = action.payload;
       })
 
-      // ---- updateReview ----
       .addCase(updateReview.pending, (state) => {
         state.submitting = true;
         state.error = null;
       })
       .addCase(updateReview.fulfilled, (state, action) => {
         state.submitting = false;
-
         const updateInList = (list) => {
           const index = list.findIndex((r) => r._id === action.payload._id);
           if (index !== -1) list[index] = action.payload;
         };
-
         updateInList(state.productReviews);
         updateInList(state.myReviews);
       })
@@ -217,7 +196,6 @@ const reviewSlice = createSlice({
         state.error = action.payload;
       })
 
-      // ---- deleteReview ----
       .addCase(deleteReview.pending, (state) => {
         state.deleting = true;
         state.error = null;
@@ -235,5 +213,5 @@ const reviewSlice = createSlice({
   },
 });
 
-export const { clearReviewError, resetProductReviews } = reviewSlice.actions;
+export const { clearReviewError, resetProductReviews, markMyReviewsStale } = reviewSlice.actions;
 export default reviewSlice.reducer;
