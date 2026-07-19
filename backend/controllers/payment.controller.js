@@ -1,6 +1,5 @@
-const Stripe = require("stripe");
+const stripe = require("../config/stripe");
 const Order = require("../models/Order");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 // ==========================
 // Create Stripe Checkout Session
@@ -27,7 +26,7 @@ exports.createCheckoutSession = async (req, res) => {
     // ── Stripe line items banao (har item Rs. ko paisa/cents mein convert hota hai — smallest currency unit) ──
     const line_items = items.map((item) => ({
       price_data: {
-        currency: "usd", 
+        currency: "usd",
         product_data: {
           name: item.name || "Product",
         },
