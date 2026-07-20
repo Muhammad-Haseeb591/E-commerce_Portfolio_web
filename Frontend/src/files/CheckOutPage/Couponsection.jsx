@@ -1,4 +1,4 @@
-import { inputClass } from "./constants";
+import { inputClass } from "./Constants";
 
 export default function CouponSection({
   couponInput, setCouponInput, appliedCoupon, couponError, setCouponError, onApply, onRemove,
