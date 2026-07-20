@@ -80,6 +80,37 @@ exports.createReview = async (req, res) => {
 };
 
 // ==========================
+// Get Featured Reviews (public — homepage "what our customers say")
+// Top-rated reviews across ALL products, not scoped to one productId.
+// Only reviews with a comment (or title) are eligible, so the homepage
+// never shows a bare star rating with no text. Sorted by rating desc,
+// then most recent, capped at a small count since this is a homepage
+// widget, not a paginated list.
+// ==========================
+exports.getFeaturedReviews = async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 8, 20);
+
+    const reviews = await Review.find({
+      rating: { $gte: 4 },
+      $or: [
+        { comment: { $exists: true, $ne: "" } },
+        { title: { $exists: true, $ne: "" } },
+      ],
+    })
+      .populate("userId", "fullName avatar")
+      .populate("productId", "name images")
+      .sort({ rating: -1, createdAt: -1 })
+      .limit(limit);
+
+    return res.status(200).json({ success: true, reviews });
+  } catch (error) {
+    console.error("Get Featured Reviews Error:", error);
+    return res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+// ==========================
 // Get Reviews for a Product (public — paginated)
 // ==========================
 exports.getProductReviews = async (req, res) => {
