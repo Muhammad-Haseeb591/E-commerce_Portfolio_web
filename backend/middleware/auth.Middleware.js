@@ -4,13 +4,16 @@ const User = require("../models/User");
 const TOKEN_COOKIE_NAME = "token";
 
 /**
- * PROTECT — verifies the JWT stored in the "token" cookie and attaches
- * the logged-in user to the request as `req.userId` / `req.user`.
+ * PROTECT — verifies the JWT (from the "token" cookie, or Authorization
+ * header as a fallback) and attaches the logged-in user to the request
+ * as `req.userId` / `req.user`.
  *
  * Usage: router.post("/order", protect, createOrder);
  */
 exports.protect = async (req, res, next) => {
-  const token = req.cookies?.[TOKEN_COOKIE_NAME];
+  const token =
+    req.cookies?.[TOKEN_COOKIE_NAME] ||
+    req.headers.authorization?.split(" ")[1];
 
   if (!token) {
     return res.status(401).json({

@@ -2,12 +2,7 @@ const mongoose = require("mongoose");
 
 const orderSchema = new mongoose.Schema(
   {
-    orderNumber: {
-      type: Number,
-      required: true,
-      unique: true,
-      index: true,
-    },
+    orderNumber: { type: Number, required: true, unique: true, index: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     email: String,
     items: [],
@@ -31,7 +26,11 @@ const orderSchema = new mongoose.Schema(
     estimatedDelivery: { type: Date, default: null },
 
     // ── Stripe payment fields ──
-    paymentStatus: { type: String, enum: ["unpaid", "paid", "failed"], default: "unpaid" },
+    paymentStatus: {
+      type: String,
+      enum: ["unpaid", "paid", "failed"],
+      default: "unpaid",
+    },
     stripeSessionId: { type: String, default: null },
     paidAt: { type: Date, default: null },
   },

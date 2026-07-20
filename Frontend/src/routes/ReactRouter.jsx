@@ -9,7 +9,8 @@ import Kids from '../files/Kids.jsx'
 import Accessories from '../files/Accessories.jsx'
 import Getinspired from '../files/Getinspired.jsx'
 import Home from '../files/Home.jsx'
-import OrderSuccess from '../files/OrderSuccess.jsx'  
+import OrderSuccess from '../files/OrderSuccess.jsx'
+import OrderCancelled from '../files/OrderCancelled.jsx'
 import MainLayout from '../Layouts/MainLayout.jsx'
 import NotFound from '../files/NotFound.jsx'
 import Detail_Page from '../assets/components/Detail_Page/Detail_Page.jsx'
@@ -57,6 +58,7 @@ const router = createBrowserRouter([
 
       { path: 'order', element: <ProtectedAdminRoute><Orders/></ProtectedAdminRoute> },
       { path: 'order-success', element: <OrderSuccess/> },
+      { path: 'order-cancelled', element: <OrderCancelled/> },
       { path: 'verify-otp', element: <VerifyOtp /> },
       { path: 'forgot-password', element: <Forgotpassword/> },
       { path: 'reset-password/:token', element: <Resetpassword/> },

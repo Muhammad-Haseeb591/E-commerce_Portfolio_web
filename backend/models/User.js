@@ -1,85 +1,91 @@
 const mongoose = require("mongoose");
-const bcrypt   = require("bcryptjs");
-const crypto   = require("crypto");
+const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const { Schema } = mongoose;
 
-const userSchema = new Schema({
-  fullName: { type: String, required: true, trim: true },
-  email:    { type: String, required: true, unique: true, lowercase: true, trim: true },
-  googleId: { type: String, unique: true, sparse: true },
-  password: { type: String, required: function () { return !this.googleId; } },
-
-  role: {
-    type: String,
-    enum: ["user", "admin"],
-    default: "user",
-  },
-
-  // 🔑 Naya field — Google OAuth se profile picture URL yahan save hogi
-  avatar: {
-    type: String,
-    default: "",
-  },
-
-  favourites: [
-    {
-      type: Schema.Types.ObjectId,
-      ref: "Product",
+const userSchema = new Schema(
+  {
+    fullName: { type: String, required: true, trim: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    googleId: { type: String, unique: true, sparse: true },
+    password: {
+      type: String,
+      required: function () {
+        return !this.googleId;
+      },
+      select: false,
     },
-  ],
 
-  // ==============================
-  // Email Verification (OTP)
-  // ==============================
-  isVerified: {
-    type: Boolean,
-    default: false,
-  },
-  otp: {
-    type: String,
-    select: false, // normal queries me kabhi nahi aayega
-  },
-  otpExpiry: {
-    type: Date,
-    select: false,
-  },
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+    },
 
-  // ==============================
-  // Forgot / Reset Password
-  // ==============================
-  resetPasswordToken: {
-    type: String,
-    select: false,
-  },
-  resetPasswordExpiry: {
-    type: Date,
-    select: false,
-  },
+    avatar: {
+      type: String,
+      default: "",
+    },
 
-}, { timestamps: true });
+    favourites: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Product",
+      },
+    ],
 
-userSchema.pre("save", async function () {
-  if (!this.isModified("password")) return;
-  if (!this.password) return; // Google-only users
-  if (this.password.startsWith("$2b$")) return;
-  this.password = await bcrypt.hash(this.password, 10);
+    // ==============================
+    // Email Verification (OTP)
+    // ==============================
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    otp: {
+      type: String,
+      select: false,
+    },
+    otpExpiry: {
+      type: Date,
+      select: false,
+    },
+
+    // ==============================
+    // Forgot / Reset Password
+    // ==============================
+    resetPasswordToken: {
+      type: String,
+      select: false,
+    },
+    resetPasswordExpiry: {
+      type: Date,
+      select: false,
+    },
+  },
+  { timestamps: true }
+);
+
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+  if (!this.password) return next(); // Google-only users
+  this.password = await bcrypt.hash(this.password, 12);
+  next();
 });
 
-userSchema.methods.comparePassword = async function (enteredPassword) {
-  return bcrypt.compare(enteredPassword, this.password);
-   console.log("Entered password:", enteredPassword);
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
 };
 
 // ==============================
 // Generate 6-digit OTP, store hashed, return plain
 // ==============================
 userSchema.methods.generateOtp = function () {
-  const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
   this.otp = crypto.createHash("sha256").update(otp).digest("hex");
   this.otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-  return otp; // plain OTP — email me ye bhejna hai
+  return otp;
 };
 
 userSchema.methods.verifyOtp = function (enteredOtp) {
@@ -99,7 +105,7 @@ userSchema.methods.generateResetToken = function () {
   this.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
   this.resetPasswordExpiry = Date.now() + 15 * 60 * 1000; // 15 minutes
 
-  return resetToken; // plain token — email link me ye bhejna hai
+  return resetToken;
 };
 
 module.exports = mongoose.model("User", userSchema);

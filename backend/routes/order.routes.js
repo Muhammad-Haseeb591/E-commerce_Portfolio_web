@@ -1,5 +1,13 @@
 const express = require("express");
-const router = express.Router();
+
+const paymentRouter = express.Router();
+const orderRouter = express.Router();
+
+const {
+  createCheckoutSession,
+  verifySession,
+  createPaymentIntent,
+} = require("../controllers/payment.controller");
 
 const {
   createOrder,
@@ -15,23 +23,35 @@ const {
 
 const { protect, authorize } = require("../middleware/auth.Middleware");
 
-// Customer routes — must be logged in
-router.post("/", protect, createOrder);
-router.get("/", protect, getOrders); // logged-in user's own orders
+// ================= PAYMENT ROUTES =================
 
-router.put("/:id/cancel", protect, cancelOrder);
+// Create checkout session (requires login)
+paymentRouter.post("/create-checkout-session", protect, createCheckoutSession);
+
+// Verify session for success page (requires login)
+paymentRouter.get("/verify-session/:sessionId", protect, verifySession);
+
+// Create payment intent for inline form
+paymentRouter.post("/create-payment-intent", protect, createPaymentIntent);
+
+// ================= ORDER ROUTES =================
+
+// Customer routes — must be logged in
+orderRouter.post("/", protect, createOrder);
+orderRouter.get("/", protect, getOrders); // logged-in user's own orders
+orderRouter.put("/:id/cancel", protect, cancelOrder);
 
 // Admin routes — logged in AND role === "admin"
-router.get("/all", protect, authorize("admin"), getAllOrders);
+orderRouter.get("/all", protect, authorize("admin"), getAllOrders);
 
 // 🔑 Must come BEFORE "/:id" — otherwise Express matches "dashboard-stats"
 // as an :id param and getOrderById runs instead (Invalid order ID error).
-router.get("/dashboard-stats", protect, authorize("admin"), getDashboardStats);
+orderRouter.get("/dashboard-stats", protect, authorize("admin"), getDashboardStats);
 
-router.get("/:id", protect, authorize("admin"), getOrderById);
-router.put("/:id", protect, authorize("admin"), updateOrder);
-router.delete("/:id", protect, authorize("admin"), deleteOrder);
+orderRouter.get("/:id", protect, authorize("admin"), getOrderById);
+orderRouter.put("/:id", protect, authorize("admin"), updateOrder);
+orderRouter.delete("/:id", protect, authorize("admin"), deleteOrder);
 
-router.get("/track/:orderNumber", trackOrder);
+orderRouter.get("/track/:orderNumber", trackOrder);
 
-module.exports = router;
+module.exports = { paymentRouter, orderRouter };
