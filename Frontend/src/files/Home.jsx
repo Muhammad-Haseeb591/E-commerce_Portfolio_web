@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchFeaturedReviews } from "../assets/components/redux_Toolkit/reviewSlice"; // ← confirm this is the actual path/filename of your review slice
 
 const categories = [
   { name: "New", slug: "new", image: "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=600" },
@@ -17,34 +19,6 @@ const bannerImages = [
   "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1200",
   "https://images.unsplash.com/photo-1490114538077-0a7f8cb49891?w=1200",
   "https://images.unsplash.com/photo-1541643600914-78b084683601?w=1200",
-];
-
-// customer reviews shown at the bottom
-const reviews = [
-  {
-    name: "Ayesha Khan",
-    image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
-    rating: 5,
-    text: "Loved the quality of the fabric, fits perfectly and delivery was fast.",
-  },
-  {
-    name: "Bilal Ahmed",
-    image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200",
-    rating: 4,
-    text: "Great selection and the packaging felt premium. Will order again.",
-  },
-  {
-    name: "Sana Malik",
-    image: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200",
-    rating: 5,
-    text: "Customer support was super helpful when I needed a size exchange.",
-  },
-  {
-    name: "Usman Tariq",
-    image: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=200",
-    rating: 4,
-    text: "Good prices during the sale, and the sizing chart was accurate.",
-  },
 ];
 
 function RevealCard({ cat, index }) {
@@ -97,6 +71,9 @@ function RevealCard({ cat, index }) {
   );
 }
 
+// Real review shape from GET /reviews/featured:
+//   { _id, rating, title, comment, userId: { fullName, avatar }, productId: { name, images }, createdAt }
+// Falls back gracefully if userId/avatar didn't populate for any reason.
 function ReviewCard({ review, index }) {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
@@ -119,6 +96,12 @@ function ReviewCard({ review, index }) {
     return () => observer.disconnect();
   }, []);
 
+  const reviewerName = review.userId?.fullName || "Verified Buyer";
+  const reviewerAvatar =
+    review.userId?.avatar ||
+    "https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=200";
+  const reviewText = review.comment?.trim() || review.title?.trim() || "";
+
   return (
     <div
       ref={ref}
@@ -131,12 +114,12 @@ function ReviewCard({ review, index }) {
     >
       <div className="flex items-center gap-3">
         <img
-          src={review.image}
-          alt={review.name}
+          src={reviewerAvatar}
+          alt={reviewerName}
           className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover border border-[#333333]"
         />
         <div>
-          <p className="text-sm sm:text-base font-medium">{review.name}</p>
+          <p className="text-sm sm:text-base font-medium">{reviewerName}</p>
           <div className="text-xs sm:text-sm">
             {"★".repeat(review.rating)}
             {"☆".repeat(5 - review.rating)}
@@ -144,13 +127,25 @@ function ReviewCard({ review, index }) {
         </div>
       </div>
       <p className="text-xs sm:text-sm md:text-base leading-relaxed">
-        {review.text}
+        {reviewText}
       </p>
+      {review.productId?.name && (
+        <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wide">
+          {review.productId.name}
+        </p>
+      )}
     </div>
   );
 }
 
 export default function Home() {
+  const dispatch = useDispatch();
+  const { featuredReviews, featuredLoading } = useSelector((state) => state.reviews);
+
+  useEffect(() => {
+    dispatch(fetchFeaturedReviews());
+  }, [dispatch]);
+
   // duplicate categories so the auto-scroll marquee loops seamlessly
   const marqueeCategories = [...categories, ...categories];
 
@@ -228,28 +223,35 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Reviews */}
-      <section className="px-4 py-8 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16 border-t border-[#333333]">
-        <h2 className="text-base sm:text-lg md:text-xl font-semibold mb-5">
-          What our customers say
-        </h2>
-        <div
-          className="
-            grid gap-4
-            grid-cols-1
-            xs:grid-cols-2
-            sm:grid-cols-2
-            md:grid-cols-2
-            lg:grid-cols-3
-            xl:grid-cols-4
-            2xl:grid-cols-4
-          "
-        >
-          {reviews.map((review, index) => (
-            <ReviewCard key={review.name} review={review} index={index} />
-          ))}
-        </div>
-      </section>
+      {/* Reviews — real data from GET /reviews/featured via fetchFeaturedReviews */}
+      {(featuredLoading || featuredReviews.length > 0) && (
+        <section className="px-4 py-8 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16 border-t border-[#333333]">
+          <h2 className="text-base sm:text-lg md:text-xl font-semibold mb-5">
+            What our customers say
+          </h2>
+
+          {featuredLoading ? (
+            <p className="text-sm text-gray-400">Loading reviews...</p>
+          ) : (
+            <div
+              className="
+                grid gap-4
+                grid-cols-1
+                xs:grid-cols-2
+                sm:grid-cols-2
+                md:grid-cols-2
+                lg:grid-cols-3
+                xl:grid-cols-4
+                2xl:grid-cols-4
+              "
+            >
+              {featuredReviews.map((review, index) => (
+                <ReviewCard key={review._id} review={review} index={index} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
