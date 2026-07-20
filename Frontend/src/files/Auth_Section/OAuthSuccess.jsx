@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { checkAuth } from "../assets/components/redux_Toolkit/authSlice";
+import { checkAuth } from "../../assets/components/redux_Toolkit/authSlice";
 
 const OAuthSuccess = () => {
   const [params] = useSearchParams();
