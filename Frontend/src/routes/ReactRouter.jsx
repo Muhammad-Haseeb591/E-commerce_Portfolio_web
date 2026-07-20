@@ -15,18 +15,18 @@ import MainLayout from '../Layouts/MainLayout.jsx'
 import NotFound from '../files/NotFound.jsx'
 import Detail_Page from '../assets/components/Detail_Page/Detail_Page.jsx'
 import Cart from '../assets//components/Detail_Page/Cart.jsx'
-import Login from "../files/Login.jsx"
-import Signup from "../files/Signup.jsx"
+import Login from "../files/Auth_Section/Login.jsx"
+import Signup from "../files/Auth_Section/Signup.jsx"
 import AdminPanel  from "../assets/components/AdminPanelComponents/AdminPanel.jsx"
-import Checkoutpage from "../files/Checkoutpage.jsx"
+import Checkoutpage from "../files/CheckOutPage/Checkoutpage.jsx"
 import CartSync from "../assets/components/Detail_Page/Cartsync.jsx" 
 import Favourite from "../files/Favourite.jsx"
 import Orders from "../assets/components/AdminPanelComponents/Orders.jsx"
 import ProtectedAdminRoute from "../assets/components/AdminPanelComponents/ProtectedAdminRoute.jsx"
-import OAuthSuccess from "../files/OAuthSuccess.jsx"
-import VerifyOtp from '../files/Verifyotp.jsx'
-import Forgotpassword from "../files/Forgotpassword"
-import Resetpassword from "../files/Resetpassword"
+import OAuthSuccess from "../files/Auth_Section/OAuthSuccess.jsx"
+import VerifyOtp from '../files/Auth_Section/Verifyotp.jsx'
+import Forgotpassword from "../files/Auth_Section/Forgotpassword"
+import Resetpassword from "../files/Auth_Section/Resetpassword"
 import Accountactivity from "../assets/components/e-Components/Accountactivity.jsx"
 
 const router = createBrowserRouter([

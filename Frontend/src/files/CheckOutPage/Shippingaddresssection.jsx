@@ -1,5 +1,5 @@
 import Required from "./Required";
-import { labelClass, inputClass, CITY_OPTIONS } from "../constants";
+import { labelClass, inputClass, CITY_OPTIONS } from "./constants";
 
 export default function ShippingAddressSection({
   form, setForm, setField, errors, refs, fieldClass, onZipChange, shippingFee, formatPrice,

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { Mail, ArrowRight, CheckCircle2 } from "lucide-react";
-import { forgotPassword, clearError, clearMessage } from "../assets/components/redux_Toolkit/authSlice";
+import { forgotPassword, clearError, clearMessage } from "../../assets/components/redux_Toolkit/authSlice";
 
 const ForgotPassword = () => {
   const dispatch = useDispatch();

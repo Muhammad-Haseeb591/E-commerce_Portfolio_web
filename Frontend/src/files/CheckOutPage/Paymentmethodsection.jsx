@@ -1,5 +1,5 @@
 import { CardElement } from "@stripe/react-stripe-js";
-import { inputClass, labelClass, cardElementOptions } from "../constants";
+import { inputClass, labelClass, cardElementOptions } from "./Constants";
 
 export default function PaymentMethodSection({
   paymentMethod, setPaymentMethod, codAllowed, currency,

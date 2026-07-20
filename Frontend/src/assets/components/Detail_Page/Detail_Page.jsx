@@ -7,7 +7,7 @@ import { fetchFavourites, toggleFavourite } from "../redux_Toolkit/Favouriteslic
 import { IoArrowBack, IoStar, IoStarHalf, IoStarOutline } from "react-icons/io5";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
 import ReviewSection from "../e-Components/Reviewsection";
-import { FREE_DELIVERY_THRESHOLD } from "../utils/shipping";
+import { FREE_DELIVERY_THRESHOLD } from "../../../utils/shipping";
 
 const getItemId = (item) => item?._id ?? item?.id;
 
