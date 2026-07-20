@@ -10,6 +10,8 @@ import ReviewSection from "../e-Components/Reviewsection";
 
 const getItemId = (item) => item?._id ?? item?.id;
 
+// dsfjbsfj
+
 const FREE_DELIVERY_THRESHOLD = 5000;
 
 // Some products come with combined size strings like "40,41,42,43,44"

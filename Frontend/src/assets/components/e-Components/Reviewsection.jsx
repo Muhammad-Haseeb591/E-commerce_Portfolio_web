@@ -1,337 +1,234 @@
-import { useEffect, useState, useCallback } from "react";
-import { useSelector } from "react-redux";
-import axios from "axios";
-import { Star, ImagePlus, Pencil, Trash2, BadgeCheck } from "lucide-react";
-import { API_URL } from "../../../config/api";
+import { useEffect, useState, useRef } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  fetchProductReviews,
+  fetchMyReviews,
+  createReview,
+  updateReview,
+  deleteReview,
+  clearReviewError,
+  resetProductReviews,
+} from "../redux_Toolkit/reviewSlice"; // 🔧 adjust path to match your project
 
-
-const API_BASE = `${API_URL}/reviews`;
-
-const StarRow = ({ value, size = 16 }) => (
-  <div className="flex items-center gap-0.5" aria-label={`${value} out of 5 stars`}>
-    {[1, 2, 3, 4, 5].map((n) => (
-      <Star
-        key={n}
-        size={size}
-        strokeWidth={1.5}
-        className={n <= Math.round(value) ? "fill-[#333333] text-[#333333]" : "text-gray-300"}
-      />
-    ))}
-  </div>
-);
-
-const StarPicker = ({ value, onChange }) => (
-  <div className="flex items-center gap-1">
-    {[1, 2, 3, 4, 5].map((n) => (
-      <button
-        key={n}
-        type="button"
-        onClick={() => onChange(n)}
-        className="p-0.5 transition-transform hover:scale-110"
-        aria-label={`Rate ${n} star${n > 1 ? "s" : ""}`}
-      >
-        <Star
-          size={26}
-          strokeWidth={1.5}
-          className={n <= value ? "fill-[#333333] text-[#333333]" : "text-gray-300"}
-        />
-      </button>
-    ))}
-  </div>
-);
-
-const RatingBar = ({ label, count, total }) => {
-  const pct = total ? Math.round((count / total) * 100) : 0;
+const StarRow = ({ value, onChange, size = "text-xl" }) => {
+  const stars = [1, 2, 3, 4, 5];
   return (
-    <div className="flex items-center gap-3 text-sm">
-      <span className="w-3 text-[#333333]/70">{label}</span>
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100">
-        <div
-          className="h-full rounded-full bg-[#333333] transition-all duration-500 ease-out"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className="w-8 text-right text-xs text-[#333333]/50">{count}</span>
+    <div className="flex gap-1">
+      {stars.map((s) => (
+        <button
+          key={s}
+          type="button"
+          disabled={!onChange}
+          onClick={() => onChange && onChange(s)}
+          className={`${size} leading-none ${onChange ? "cursor-pointer" : "cursor-default"}`}
+          style={{ color: s <= value ? "#333333" : "#D9D9D9" }}
+          aria-label={`${s} star`}
+        >
+          ★
+        </button>
+      ))}
     </div>
   );
 };
 
-const timeAgo = (dateStr) => {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  if (days < 1) return "Today";
-  if (days === 1) return "1 day ago";
-  if (days < 30) return `${days} days ago`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months} month${months > 1 ? "s" : ""} ago`;
-  const years = Math.floor(months / 12);
-  return `${years} year${years > 1 ? "s" : ""} ago`;
-};
+const emptyForm = { rating: 5, title: "", comment: "", images: [] };
 
-// axios needs to send the httpOnly "token" cookie set by your login route
-// on every request, since protect() reads req.cookies.token.
-axios.defaults.withCredentials = true;
+export default function ReviewSection({ productId, currentUserId }) {
+  // No productId → "my reviews" mode: list everything the signed-in user
+  // has written, across products, with edit/delete only (no product to
+  // attach a new review to, so the write-review form stays hidden).
+  const isMyReviewsMode = !productId;
 
-export default function ReviewSection({ productId }) {
-  const user = useSelector((state) => state.auth?.user);
+  const dispatch = useDispatch();
+  const {
+    productReviews,
+    totalCount,
+    totalPages,
+    currentPage,
+    loading,
+    myReviews,
+    myReviewsLoading,
+    submitting,
+    deleting,
+    error,
+  } = useSelector((state) => state.reviews);
 
-  // review data (previously from redux)
-  const [reviews, setReviews] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [pages, setPages] = useState(1);
-  const [average, setAverage] = useState(0);
-  const [ratingBreakdown, setRatingBreakdown] = useState({});
-  const [status, setStatus] = useState("idle"); // idle | loading | succeeded | failed
-
-  // form state
-  const [formOpen, setFormOpen] = useState(false);
+  const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
-  const [rating, setRating] = useState(0);
-  const [title, setTitle] = useState("");
-  const [comment, setComment] = useState("");
-  const [images, setImages] = useState([]);
-  const [submitStatus, setSubmitStatus] = useState("idle"); // idle | loading
-  const [submitError, setSubmitError] = useState("");
-
-  const fetchReviews = useCallback(
-    async (pageNum = 1) => {
-      if (!productId) return;
-      setStatus("loading");
-      try {
-        const { data } = await axios.get(`${API_BASE}/product/${productId}`, {
-          params: { page: pageNum },
-        });
-        setReviews(data.reviews || []);
-        setTotal(data.total || 0);
-        setPage(data.page || pageNum);
-        setPages(data.pages || 1);
-        setAverage(data.average || 0);
-        setRatingBreakdown(data.ratingBreakdown || {});
-        setStatus("succeeded");
-      } catch (err) {
-        console.error("Failed to fetch reviews:", err);
-        setStatus("failed");
-      }
-    },
-    [productId]
-  );
+  const [showForm, setShowForm] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
-    fetchReviews(1);
-  }, [fetchReviews]);
+    if (isMyReviewsMode) {
+      dispatch(fetchMyReviews());
+      return;
+    }
+    dispatch(fetchProductReviews({ productId, page: 1 }));
+    dispatch(fetchMyReviews());
+    return () => {
+      dispatch(resetProductReviews());
+    };
+  }, [dispatch, productId, isMyReviewsMode]);
 
-  const myReview = reviews.find(
-    (r) => r.userId?._id === user?._id || r.userId === user?._id
+  const displayedReviews = isMyReviewsMode ? myReviews : productReviews;
+  const isLoading = isMyReviewsMode ? myReviewsLoading : loading;
+  const listCount = isMyReviewsMode ? myReviews.length : totalCount;
+
+  const myReviewForProduct = myReviews.find(
+    (r) => r.productId === productId || r.product === productId
   );
 
-  const openWriteForm = () => {
+  const handlePageChange = (page) => {
+    dispatch(fetchProductReviews({ productId, page }));
+  };
+
+  const openNewForm = () => {
     setEditingId(null);
-    setRating(0);
-    setTitle("");
-    setComment("");
-    setImages([]);
-    setSubmitError("");
-    setFormOpen(true);
+    setForm(emptyForm);
+    setShowForm(true);
   };
 
   const openEditForm = (review) => {
     setEditingId(review._id);
-    setRating(review.rating);
-    setTitle(review.title || "");
-    setComment(review.comment || "");
-    setImages([]);
-    setSubmitError("");
-    setFormOpen(true);
+    setForm({
+      rating: review.rating,
+      title: review.title || "",
+      comment: review.comment || "",
+      images: [],
+    });
+    setShowForm(true);
   };
 
   const closeForm = () => {
-    setFormOpen(false);
-    setSubmitError("");
+    setShowForm(false);
+    setEditingId(null);
+    setForm(emptyForm);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const buildFormData = () => {
-    const fd = new FormData();
-    fd.append("productId", productId);
-    fd.append("rating", rating);
-    fd.append("title", title);
-    fd.append("comment", comment);
-    images.forEach((file) => fd.append("images", file));
-    return fd;
+  const handleFileChange = (e) => {
+    setForm((f) => ({ ...f, images: Array.from(e.target.files || []) }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!rating || !title.trim()) return;
+    dispatch(clearReviewError());
 
-    setSubmitStatus("loading");
-    setSubmitError("");
-
-    try {
-      const formData = buildFormData();
-
-      if (editingId) {
-        await axios.put(`${API_BASE}/${editingId}`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-      } else {
-        await axios.post(`${API_BASE}`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-      }
-
-      setSubmitStatus("idle");
-      closeForm();
-      fetchReviews(1);
-    } catch (err) {
-      console.error("Failed to submit review:", err);
-      setSubmitStatus("idle");
-      setSubmitError(
-        err.response?.data?.message || "Something went wrong. Please try again."
-      );
+    if (editingId) {
+      const result = await dispatch(updateReview({ id: editingId, ...form }));
+      if (updateReview.fulfilled.match(result)) closeForm();
+    } else {
+      const result = await dispatch(createReview({ productId, ...form }));
+      if (createReview.fulfilled.match(result)) closeForm();
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete this review?")) return;
-    try {
-      await axios.delete(`${API_BASE}/${id}`);
-      fetchReviews(page);
-    } catch (err) {
-      console.error("Failed to delete review:", err);
+  const handleDelete = (id) => {
+    if (window.confirm("Delete this review?")) {
+      dispatch(deleteReview(id));
     }
-  };
-
-  const goToPage = (p) => {
-    if (p < 1 || p > pages) return;
-    fetchReviews(p);
   };
 
   return (
-    <section className="bg-white text-[#333333]">
-      <h2 className="text-xl font-semibold tracking-tight">Customer Reviews</h2>
-
-      {/* Summary */}
-      <div className="mt-6 flex flex-col gap-8 border-b border-gray-100 pb-8 sm:flex-row">
-        <div className="flex flex-shrink-0 flex-col items-center justify-center sm:w-40">
-          <span className="text-5xl font-semibold leading-none">{average || "—"}</span>
-          <div className="mt-2">
-            <StarRow value={average} size={18} />
-          </div>
-          <span className="mt-1 text-xs text-[#333333]/50">
-            {total} {total === 1 ? "review" : "reviews"}
-          </span>
+    <section className="w-full bg-white text-[#333333]">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-[#e5e5e5] px-4 py-4 sm:px-6">
+        <div>
+          <h2 className="text-lg font-semibold sm:text-xl">{isMyReviewsMode ? "Your Reviews" : "Reviews"}</h2>
+          <p className="text-sm text-[#777777]">{listCount} review{listCount === 1 ? "" : "s"}</p>
         </div>
-
-        <div className="flex-1 space-y-1.5">
-          {[5, 4, 3, 2, 1].map((n) => (
-            <RatingBar
-              key={n}
-              label={n}
-              count={ratingBreakdown?.[n] || 0}
-              total={total}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Write / edit review CTA */}
-      <div className="mt-6">
-        {!formOpen && user && (
+        {!isMyReviewsMode && !myReviewForProduct && (
           <button
-            onClick={myReview ? () => openEditForm(myReview) : openWriteForm}
-            className="rounded-md border border-[#333333] px-5 py-2 text-sm font-medium transition-colors hover:bg-[#333333] hover:text-white"
+            onClick={openNewForm}
+            className="rounded-full bg-[#333333] px-4 py-2 text-sm font-medium text-white active:opacity-80"
           >
-            {myReview ? "Edit your review" : "Write a review"}
+            Write a review
           </button>
         )}
-        {!user && (
-          <p className="text-sm text-[#333333]/60">Log in to leave a review.</p>
-        )}
       </div>
 
-      {/* Form */}
-      {formOpen && (
+      {/* Error banner */}
+      {error && (
+        <div className="mx-4 mt-3 rounded-md border border-[#333333] bg-[#f5f5f5] px-3 py-2 text-sm sm:mx-6">
+          {error}
+        </div>
+      )}
+
+      {/* Review form */}
+      {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="mt-4 space-y-4 rounded-lg border border-gray-200 p-5"
+          className="mx-4 mt-4 space-y-4 rounded-lg border border-[#e5e5e5] p-4 sm:mx-6"
         >
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Your rating</label>
-            <StarPicker value={rating} onChange={setRating} />
+            <label className="mb-1 block text-sm font-medium">Your rating</label>
+            <StarRow
+              value={form.rating}
+              onChange={(v) => setForm((f) => ({ ...f, rating: v }))}
+              size="text-2xl"
+            />
           </div>
 
           <div>
-            <label htmlFor="review-title" className="mb-1.5 block text-sm font-medium">
+            <label className="mb-1 block text-sm font-medium" htmlFor="review-title">
               Title
             </label>
             <input
               id="review-title"
               type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              maxLength={120}
-              placeholder="Sum up your review in a few words"
-              className="w-full rounded-md border border-gray-200 p-3 text-sm outline-none focus:border-[#333333]"
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              placeholder="Sum it up in a few words"
+              className="w-full rounded-md border border-[#cccccc] px-3 py-2 text-sm focus:border-[#333333] focus:outline-none"
+              maxLength={100}
             />
           </div>
 
           <div>
-            <label htmlFor="review-comment" className="mb-1.5 block text-sm font-medium">
-              Your review
+            <label className="mb-1 block text-sm font-medium" htmlFor="review-comment">
+              Comment
             </label>
             <textarea
               id="review-comment"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              rows={4}
-              maxLength={1000}
+              value={form.comment}
+              onChange={(e) => setForm((f) => ({ ...f, comment: e.target.value }))}
               placeholder="What did you like or dislike?"
-              className="w-full resize-none rounded-md border border-gray-200 p-3 text-sm outline-none focus:border-[#333333]"
+              rows={4}
+              className="w-full resize-none rounded-md border border-[#cccccc] px-3 py-2 text-sm focus:border-[#333333] focus:outline-none"
+              maxLength={1000}
             />
           </div>
 
           <div>
-            <label className="mb-1.5 flex w-fit cursor-pointer items-center gap-2 text-sm font-medium text-[#333333]/70 hover:text-[#333333]">
-              <ImagePlus size={18} strokeWidth={1.5} />
-              Add photos ({images.length}/5)
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                multiple
-                className="hidden"
-                onChange={(e) =>
-                  setImages(Array.from(e.target.files).slice(0, 5))
-                }
-              />
+            <label className="mb-1 block text-sm font-medium" htmlFor="review-images">
+              Photos (optional)
             </label>
-            {images.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {images.map((file, i) => (
-                  <span key={i} className="rounded bg-gray-100 px-2 py-1 text-xs text-[#333333]/70">
-                    {file.name}
-                  </span>
-                ))}
-              </div>
+            <input
+              id="review-images"
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileChange}
+              className="w-full text-sm file:mr-3 file:rounded-full file:border-0 file:bg-[#333333] file:px-3 file:py-1.5 file:text-white"
+            />
+            {form.images.length > 0 && (
+              <p className="mt-1 text-xs text-[#777777]">{form.images.length} file(s) selected</p>
             )}
           </div>
 
-          {submitError && (
-            <p className="text-sm text-red-600">{submitError}</p>
-          )}
-
-          <div className="flex items-center gap-3 pt-1">
+          <div className="flex gap-3 pt-1">
             <button
               type="submit"
-              disabled={!rating || !title.trim() || submitStatus === "loading"}
-              className="rounded-md bg-[#333333] px-5 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={submitting}
+              className="flex-1 rounded-full bg-[#333333] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              {submitStatus === "loading" ? "Submitting..." : "Submit review"}
+              {submitting ? "Saving..." : editingId ? "Update review" : "Submit review"}
             </button>
             <button
               type="button"
               onClick={closeForm}
-              className="text-sm text-[#333333]/60 hover:text-[#333333]"
+              className="rounded-full border border-[#333333] px-4 py-2 text-sm font-medium text-[#333333]"
             >
               Cancel
             </button>
@@ -340,106 +237,86 @@ export default function ReviewSection({ productId }) {
       )}
 
       {/* List */}
-      <div className="mt-8 divide-y divide-gray-100">
-        {status === "loading" && (
-          <p className="py-8 text-center text-sm text-[#333333]/50">Loading reviews...</p>
+      <div className="divide-y divide-[#e5e5e5] px-4 sm:px-6">
+        {isLoading && displayedReviews.length === 0 && (
+          <p className="py-6 text-sm text-[#777777]">Loading reviews...</p>
         )}
 
-        {status === "succeeded" && reviews.length === 0 && (
-          <p className="py-8 text-center text-sm text-[#333333]/50">
-            No reviews yet — be the first to share your thoughts.
+        {!isLoading && displayedReviews.length === 0 && (
+          <p className="py-6 text-sm text-[#777777]">
+            {isMyReviewsMode ? "You haven't written any reviews yet." : "No reviews yet. Be the first to write one."}
           </p>
         )}
 
-        {reviews.map((review) => {
+        {displayedReviews.map((review) => {
           const isMine =
-            review.userId?._id === user?._id || review.userId === user?._id;
-          const authorName = review.userId?.fullName || "Anonymous";
+            isMyReviewsMode ||
+            (currentUserId && (review.user === currentUserId || review.user?._id === currentUserId));
           return (
-            <div key={review._id} className="py-5">
+            <div key={review._id} className="py-4">
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#333333] text-sm font-medium text-white">
-                    {authorName.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-medium">{authorName}</span>
-                      {review.verifiedPurchase && (
-                        <span className="flex items-center gap-1 text-xs text-emerald-600">
-                          <BadgeCheck size={13} /> Verified purchase
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs text-[#333333]/40">
-                      {timeAgo(review.createdAt)}
-                    </span>
-                  </div>
+                <div>
+                  {isMyReviewsMode && review.product?.name && (
+                    <p className="mb-1 text-xs font-medium text-[#999999]">{review.product.name}</p>
+                  )}
+                  <StarRow value={review.rating} />
+                  {review.title && <h3 className="mt-1 text-sm font-semibold">{review.title}</h3>}
                 </div>
-
-                {isMine && (
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => openEditForm(review)}
-                      className="text-[#333333]/40 hover:text-[#333333]"
-                      aria-label="Edit review"
-                    >
-                      <Pencil size={15} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(review._id)}
-                      className="text-[#333333]/40 hover:text-red-600"
-                      aria-label="Delete review"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                )}
+                <span className="shrink-0 text-xs text-[#999999]">
+                  {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : ""}
+                </span>
               </div>
 
-              <div className="mt-2 pl-12">
-                <StarRow value={review.rating} />
-                {review.title && (
-                  <p className="mt-1.5 text-sm font-medium">{review.title}</p>
-                )}
-                {review.comment && (
-                  <p className="mt-1 text-sm leading-relaxed text-[#333333]/80">
-                    {review.comment}
-                  </p>
-                )}
-                {review.images?.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {review.images.map((src, i) => (
-                      <a key={i} href={src} target="_blank" rel="noopener noreferrer">
-                        <img
-                          src={src}
-                          alt={`Review photo ${i + 1}`}
-                          className="h-16 w-16 rounded-md object-cover ring-1 ring-gray-200"
-                        />
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {review.comment && (
+                <p className="mt-2 text-sm leading-relaxed text-[#4d4d4d]">{review.comment}</p>
+              )}
+
+              {Array.isArray(review.images) && review.images.length > 0 && (
+                <div className="mt-3 flex gap-2 overflow-x-auto">
+                  {review.images.map((img, i) => (
+                    <img
+                      key={i}
+                      src={typeof img === "string" ? img : img.url}
+                      alt={`review-${i}`}
+                      className="h-16 w-16 shrink-0 rounded-md object-cover"
+                    />
+                  ))}
+                </div>
+              )}
+
+              {isMine && (
+                <div className="mt-3 flex gap-4 text-xs font-medium">
+                  <button onClick={() => openEditForm(review)} className="text-[#333333] underline">
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(review._id)}
+                    disabled={deleting}
+                    className="text-[#333333] underline disabled:opacity-50"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
       {/* Pagination */}
-      {pages > 1 && (
-        <div className="mt-6 flex items-center justify-center gap-2">
-          {Array.from({ length: pages }, (_, i) => i + 1).map((p) => (
+      {!isMyReviewsMode && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 px-4 py-6 sm:px-6">
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
             <button
-              key={p}
-              onClick={() => goToPage(p)}
-              className={`h-8 w-8 rounded-md text-sm transition-colors ${
-                p === page
+              key={page}
+              onClick={() => handlePageChange(page)}
+              className={`h-8 w-8 rounded-full text-sm font-medium ${
+                page === currentPage
                   ? "bg-[#333333] text-white"
-                  : "text-[#333333]/60 hover:bg-gray-100"
+                  : "border border-[#cccccc] text-[#333333]"
               }`}
             >
-              {p}
+              {page}
             </button>
           ))}
         </div>
