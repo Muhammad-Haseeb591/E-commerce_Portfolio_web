@@ -18,6 +18,39 @@ const buildReviewFormData = ({ productId, rating, title, comment, images }) => {
   return formData;
 };
 
+// ==========================
+// Fetch Featured Reviews (homepage "what our customers say")
+// GET /reviews/featured — top-rated reviews across ALL products.
+// 🔑 Guard: skip refetching if we already have data and no error, same
+// pattern as the other "widget" fetches in this app (dashboard stats,
+// etc.) — a homepage remount shouldn't re-hit the network every time.
+// ==========================
+export const fetchFeaturedReviews = createAsyncThunk(
+  "reviews/fetchFeaturedReviews",
+  async (params = {}, thunkAPI) => {
+    try {
+      const { limit } = params;
+      const res = await axios.get(`${BASE_URL}/featured`, {
+        ...config,
+        params: limit ? { limit } : undefined,
+      });
+      return res.data.reviews;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(
+        error.response?.data?.message || "Failed to load featured reviews."
+      );
+    }
+  },
+  {
+    condition: (params = {}, { getState }) => {
+      if (params?.force) return true;
+      const { featuredReviews, featuredError } = getState().reviews;
+      if (featuredReviews.length > 0 && !featuredError) return false;
+      return true;
+    },
+  }
+);
+
 export const fetchProductReviews = createAsyncThunk(
   "reviews/fetchProductReviews",
   async ({ productId, page = 1, limit = 10 }, thunkAPI) => {
@@ -101,6 +134,11 @@ export const deleteReview = createAsyncThunk(
 const reviewSlice = createSlice({
   name: "reviews",
   initialState: {
+    // ---- featured reviews (homepage widget) ----
+    featuredReviews: [],
+    featuredLoading: false,
+    featuredError: null,
+
     productReviews: [],
     totalCount: 0,
     totalPages: 1,
@@ -133,6 +171,23 @@ const reviewSlice = createSlice({
 
   extraReducers: (builder) => {
     builder
+      // ---- fetchFeaturedReviews (homepage) ----
+      .addCase(fetchFeaturedReviews.pending, (state) => {
+        state.featuredLoading = true;
+        state.featuredError = null;
+      })
+      .addCase(fetchFeaturedReviews.fulfilled, (state, action) => {
+        state.featuredLoading = false;
+        state.featuredReviews = action.payload;
+      })
+      .addCase(fetchFeaturedReviews.rejected, (state, action) => {
+        state.featuredLoading = false;
+        // undefined payload means the mount guard skipped this — not a real error
+        if (action.payload) {
+          state.featuredError = action.payload;
+        }
+      })
+
       .addCase(fetchProductReviews.pending, (state) => {
         state.loading = true;
         state.error = null;
