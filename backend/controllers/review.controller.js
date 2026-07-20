@@ -33,7 +33,7 @@ const recalcProductRating = async (productId) => {
 exports.createReview = async (req, res) => {
   try {
     if (!req.userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(401).json({ success: false, message: "Login required" });
     }
 
     const { productId, rating, title, comment } = req.body;
@@ -170,7 +170,7 @@ exports.getProductReviews = async (req, res) => {
 exports.getMyReviews = async (req, res) => {
   try {
     if (!req.userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(401).json({ success: false, message: "Login required" });
     }
 
     const reviews = await Review.find({ userId: req.userId })
@@ -190,7 +190,7 @@ exports.getMyReviews = async (req, res) => {
 exports.updateReview = async (req, res) => {
   try {
     if (!req.userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(401).json({ success: false, message: "Login required" });
     }
 
     const { id } = req.params;
@@ -254,7 +254,7 @@ exports.updateReview = async (req, res) => {
 exports.deleteReview = async (req, res) => {
   try {
     if (!req.userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(401).json({ success: false, message: "Login required" });
     }
 
     const { id } = req.params;
