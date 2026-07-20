@@ -1,10 +1,3 @@
-// Assumed project layout:
-//   src/pages/checkout/CheckoutForm.jsx   (this file)
-//   src/pages/checkout/CheckoutPage.jsx
-//   src/pages/checkout/constants.js
-//   src/pages/checkout/components/*.jsx
-// Adjust the "../../utils/...", "../../assets/..." import paths below
-// if your real folder structure is different.
 
 import { useState, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -12,24 +5,24 @@ import { useDispatch } from "react-redux";
 import axios from "axios";
 import { CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
-import { formatAmount, getCurrencyForCountry, getAllowedPaymentMethods } from "../utils/formatCurrency";
-import { getShippingFee } from "../utils/shipping";
-import { getCouponDiscount } from "../utils/coupons";
-import { clearCart } from "../assets/components/redux_Toolkit/cartSlice";
-import { API_URL } from "../config/api";
+import { formatAmount, getCurrencyForCountry, getAllowedPaymentMethods } from "../../utils/formatCurrency";
+import { getShippingFee } from "../../utils/shipping";
+import { getCouponDiscount } from "../../utils/coupons";
+import { clearCart } from "../../assets/components/redux_Toolkit/cartSlice";
+import { API_URL } from "../../config/api";
 
 import { inputClass } from "./constants";
-import CustomToast from "./components/CustomToast";
-import EmptyCart from "./components/EmptyCart";
-import OrderConfirmation from "./components/OrderConfirmation";
-import CheckoutHeader from "./components/CheckoutHeader";
-import MobileOrderSummary from "./components/MobileOrderSummary";
-import ContactInfoSection from "./components/ContactInfoSection";
-import ShippingAddressSection from "./components/ShippingAddressSection";
-import CouponSection from "./components/CouponSection";
-import PaymentMethodSection from "./components/PaymentMethodSection";
-import OrderSummarySidebar from "./components/OrderSummarySidebar";
-import SubmitButton from "./components/SubmitButton";
+import CustomToast from "../CheckOutPage/Customtoast";
+import EmptyCart from "../CheckOutPage/Emptycart";
+import OrderConfirmation from "../CheckOutPage/OrderConfirmation";
+import CheckoutHeader from "../CheckOutPage/CheckoutHeader";
+import MobileOrderSummary from "../CheckOutPage/MobileOrderSummary";
+import ContactInfoSection from "../CheckOutPage/ContactInfoSection";
+import ShippingAddressSection from "../CheckOutPage/ShippingAddressSection";
+import CouponSection from "../CheckOutPage/CouponSection";
+import PaymentMethodSection from "../CheckOutPage/PaymentMethodSection";
+import OrderSummarySidebar from "../CheckOutPage/OrderSummarySidebar";
+import SubmitButton from "../CheckOutPage/SubmitButton";
 
 const ORDERS_API_URL = `${API_URL}/orders`;
 

@@ -5,7 +5,7 @@ import {
   cancelOrder,
   clearOrderError,
 } from "../redux_Toolkit/OrderSlice"; // 🔧 adjust path to match your project
-import { API_URL } from "../config/api";
+import { API_URL } from "../../../config/api";
 
 const CANCELLABLE_STATUSES = ["pending", "processing"];
 

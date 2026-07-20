@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Check } from "lucide-react";
-import { registerUser, clearError } from "./src/assets/components/redux_Toolkit/authSlice";
+import { registerUser, clearError } from "../../assets/components/redux_Toolkit/authSlice";
 
 
 

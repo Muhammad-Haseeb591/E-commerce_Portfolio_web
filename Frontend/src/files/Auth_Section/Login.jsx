@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { Eye, EyeOff, Mail, Lock, ArrowRight, CheckCircle2 } from "lucide-react";
-import { loginUser, clearError } from "../assets/components/redux_Toolkit/authSlice";
-import { API_URL } from "../config/api";
+import { loginUser, clearError } from "../../assets/components/redux_Toolkit/authSlice";
+import { API_URL } from "../../config/api";
 
 
 const GoogleIcon = () => (
