@@ -5,19 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import OrderSection from "./Ordersection";
 import ReviewSection from "./Reviewsection"; // 🔧 adjust paths to match your project
 
-/**
- * AccountActivity
- * ----------------
- * "My Activity" — head component for routes:
- *   { path: 'account', element: <AccountActivity /> }
- *   { path: 'account/:tab', element: <AccountActivity /> }
- *
- * Just owns tab/route state and renders the matching section.
- * OrderSection and ReviewSection each fetch their own data (fetchOrders /
- * fetchMyReviews) and already have mount-guards in their slices, so this
- * component doesn't duplicate any of that logic — it only decides which
- * tab is active and keeps the URL in sync.
- */
+
 
 const VALID_TABS = ["orders", "reviews"];
 

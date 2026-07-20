@@ -1,32 +1,100 @@
-import { useEffect, useState } from 'react';
-import { Elements } from '@stripe/react-stripe-js';
-import { stripePromise } from '../lib/stripe';
-import CheckoutForm from './CheckoutForm';
-import OrderSummary from './OrderSummary';
+import { useState, useEffect } from "react";
+import { Elements } from "@stripe/react-stripe-js";
+import getStripe from "../lib/stripe";
+import CheckoutForm from "./CheckoutForm";
 
-export default function PaymentPage({ cartTotal }) {
-  const [clientSecret, setClientSecret] = useState('');
+const PaymentPage = ({ cartTotal, items, shippingAddress }) => {
+  const [clientSecret, setClientSecret] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/payment/create-payment-intent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount: cartTotal * 100 }), // convert to cents
-    })
-      .then((res) => res.json())
-      .then((data) => setClientSecret(data.clientSecret));
+    const createPaymentIntent = async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/payments/create-payment-intent`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ amount: cartTotal }),
+          }
+        );
+        const data = await res.json();
+
+        if (data.success) {
+          setClientSecret(data.clientSecret);
+        } else {
+          setError(data.message || "Failed to initialize payment");
+        }
+      } catch (err) {
+        setError("Failed to connect to payment server");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (cartTotal > 0) {
+      createPaymentIntent();
+    }
   }, [cartTotal]);
 
-  const options = { clientSecret, appearance: { theme: 'stripe' } };
+  const options = {
+    clientSecret,
+    appearance: {
+      theme: "stripe",
+      variables: {
+        colorPrimary: "#333333",
+        borderRadius: "12px",
+      },
+    },
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#333333] mx-auto mb-4"></div>
+          <p className="text-gray-600">Preparing secure checkout...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-[#333333] text-white px-4 py-2 rounded-lg"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-2xl mx-auto p-6 grid gap-6 md:grid-cols-2">
-      <OrderSummary total={cartTotal} />
-      {clientSecret && (
-        <Elements options={options} stripe={stripePromise}>
-          <CheckoutForm />
-        </Elements>
-      )}
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-2xl font-bold text-[#333333] mb-8 text-center">
+          Secure Checkout
+        </h1>
+        {clientSecret && (
+          <Elements options={options} stripe={getStripe()}>
+            <CheckoutForm
+              cartTotal={cartTotal}
+              items={items}
+              shippingAddress={shippingAddress}
+            />
+          </Elements>
+        )}
+      </div>
     </div>
   );
-}
+};
+
+export default PaymentPage;

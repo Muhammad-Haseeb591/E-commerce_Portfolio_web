@@ -6,7 +6,7 @@ const { sendOtpEmail, sendResetPasswordEmail } = require("../utils/sendEmail");
 
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
-// =============================
+// ==============================
 // Generate JWT Token
 // ==============================
 const generateToken = (id) => {
@@ -18,9 +18,9 @@ const generateToken = (id) => {
 };
 
 // ==============================
-// Send Cookie + User
+// Send Cookie + User (+ token in body, for header/Bearer-auth clients)
 // ==============================
-const sendToken = (user, res) => {
+const sendToken = (user, res, statusCode = 200) => {
   const token = generateToken(user._id);
   const isProduction = process.env.NODE_ENV === "production";
 
@@ -31,9 +31,10 @@ const sendToken = (user, res) => {
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
-  return res.status(200).json({
+  return res.status(statusCode).json({
     success: true,
     message: "Authentication successful.",
+    token,
     user: {
       id: user._id,
       fullName: user.fullName,
@@ -242,7 +243,7 @@ exports.login = async (req, res) => {
 
     email = email.toLowerCase().trim();
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select("+password");
 
     if (!user) {
       return res.status(400).json({

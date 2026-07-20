@@ -1,7 +1,32 @@
-const USD_PER_PKR = 1 / 278; // ~1 USD = 278 PKR
+// client/src/utils/formatCurrency.js
 
-export const getCurrencyForCountry = (countryCode) =>
-  countryCode === "PK" ? "PKR" : "USD";
+// ── Approximate conversion rates FROM PKR — update periodically ──
+// All amounts in the app are stored/calculated in PKR (base currency).
+// These rates only affect DISPLAY, never what's sent to the backend.
+const RATES_FROM_PKR = {
+  PKR: 1,
+  USD: 1 / 278,   // ~1 USD = 278 PKR
+  EUR: 1 / 300,   // ~1 EUR = 300 PKR
+  GBP: 1 / 350,   // ~1 GBP = 350 PKR
+};
+
+const CURRENCY_FORMAT = {
+  PKR: { symbol: "Rs.", locale: "en-PK" },
+  USD: { symbol: "$", locale: "en-US" },
+  EUR: { symbol: "€", locale: "de-DE" },
+  GBP: { symbol: "£", locale: "en-GB" },
+};
+
+export const getCurrencyForCountry = (countryCode) => {
+  const map = {
+    PK: "PKR",
+    US: "USD",
+    GB: "GBP",
+    DE: "EUR",
+    FR: "EUR",
+  };
+  return map[countryCode] || "USD";
+};
 
 // COD is ONLY valid for Pakistan. Every other country = card only.
 export const getAllowedPaymentMethods = (countryCode) =>
@@ -9,14 +34,24 @@ export const getAllowedPaymentMethods = (countryCode) =>
 
 export const convertFromPKR = (amountPKR, currency = "PKR") => {
   const value = Number(amountPKR) || 0;
-  return currency === "USD" ? value * USD_PER_PKR : value;
+  const rate = RATES_FROM_PKR[currency] ?? 1;
+  return value * rate;
 };
 
 export const formatAmount = (amountPKR, currency = "PKR") => {
   const value = convertFromPKR(amountPKR, currency);
+  const config = CURRENCY_FORMAT[currency] || CURRENCY_FORMAT.PKR;
 
   if (currency === "PKR") {
-    return `Rs. ${value.toLocaleString("en-PK", { maximumFractionDigits: 0 })}`;
+    return `${config.symbol} ${value.toLocaleString("en-PK", {
+      maximumFractionDigits: 0,
+    })}`;
   }
-  return `$${value.toFixed(2)}`;
+
+  return new Intl.NumberFormat(config.locale, {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 };

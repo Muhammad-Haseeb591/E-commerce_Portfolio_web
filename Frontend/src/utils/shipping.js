@@ -1,3 +1,5 @@
+// client/src/utils/shipping.js
+
 export const FREE_DELIVERY_THRESHOLD = 5000; // PKR
 export const SHIPPING_FEE = 200; // PKR — flat fee below threshold
 

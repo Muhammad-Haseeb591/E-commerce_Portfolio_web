@@ -29,6 +29,7 @@ exports.createCheckoutSession = async (req, res) => {
         currency: "usd",
         product_data: {
           name: item.name || "Product",
+          images: item.image ? [item.image] : [],
         },
         unit_amount: Math.round(Number(item.price || 0) * 100), // Rs. → paisa
       },
@@ -55,6 +56,7 @@ exports.createCheckoutSession = async (req, res) => {
     return res.status(200).json({
       success: true,
       url: session.url, // ← frontend isi URL pe redirect karega
+      sessionId: session.id,
     });
   } catch (error) {
     console.error("Create Checkout Session Error:", error.message);
@@ -139,5 +141,32 @@ exports.verifySession = async (req, res) => {
   } catch (error) {
     console.error("Verify Session Error:", error.message);
     return res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+// ==========================
+// Create Payment Intent (inline card form ke liye — checkout session
+// redirect wale flow ke bajaye direct on-page card element)
+// ==========================
+exports.createPaymentIntent = async (req, res) => {
+  try {
+    const { amount, currency = "usd" } = req.body;
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100), // Convert to cents
+      currency,
+      automatic_payment_methods: { enabled: true },
+    });
+
+    return res.status(200).json({
+      success: true,
+      clientSecret: paymentIntent.client_secret,
+    });
+  } catch (error) {
+    console.error("Create PaymentIntent Error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create payment intent",
+    });
   }
 };

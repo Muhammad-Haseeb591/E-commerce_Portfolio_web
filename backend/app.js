@@ -11,8 +11,7 @@ const authRoutes = require("./routes/auth.routes");
 const adminRoute = require("./routes/admin.route");
 const favouriteRoutes = require("./routes/wishlist.routes");
 const cartRoutes = require("./routes/cart.routes.js");
-const orderRoutes = require("./routes/order.routes");
-const paymentRoutes = require("./routes/payment.routes");
+const { paymentRouter, orderRouter } = require("./routes/combined.routes");
 const uploadRoutes = require("./routes/upload");
 const { stripeWebhook } = require("./controllers/payment.controller");
 const reviewRoutes = require("./routes/review.routes");
@@ -55,12 +54,12 @@ app.use(cookieParser());
 app.use(passport.initialize());
 
 // Routes
-app.use("/api/payments", paymentRoutes); // create-checkout-session, verify-session (webhook already registered above)
+app.use("/api/payments", paymentRouter); // create-checkout-session, verify-session (webhook already registered above)
 app.use("/auth", authRoutes);
 app.use("/admin", adminRoute);
 app.use("/favourites", favouriteRoutes);
 app.use("/cart", cartRoutes);
-app.use("/orders", orderRoutes);
+app.use("/orders", orderRouter); // ⚠️ original me /orders tha, /api/orders nahi — path same rakha
 app.use("/api", uploadRoutes);
 app.use("/reviews", reviewRoutes);
 
