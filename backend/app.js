@@ -26,14 +26,27 @@ app.post(
   stripeWebhook
 );
 
+// ── CORS: allow multiple known frontend origins ──
+const allowedOrigins = [
+  "https://e-commerce-portfolio-ashen.vercel.app",
+  "https://e-commerce-portfolio-web.vercel.app",
+];
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL,
+    origin: function (origin, callback) {
+      // allow requests with no origin (like Postman, curl, server-to-server)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );
 
-console.log("CLIENT_URL:", process.env.CLIENT_URL);
+console.log("Allowed origins:", allowedOrigins);
 console.log("NODE_ENV:", process.env.NODE_ENV);
 
 app.use(express.json());
