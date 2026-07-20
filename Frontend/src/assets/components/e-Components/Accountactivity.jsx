@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { useParams, useNavigate } from "react-router-dom";
 
-import OrderSection from "./OrderSection";
-import ReviewSection from "./ReviewSection"; // 🔧 adjust paths to match your project
+import OrderSection from "./Ordersection";
+import ReviewSection from "./Reviewsection"; // 🔧 adjust paths to match your project
 
 /**
  * AccountActivity
