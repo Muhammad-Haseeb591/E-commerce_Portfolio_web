@@ -1,5 +1,5 @@
 import Required from "./Required";
-import { labelClass } from "./constants";
+import { labelClass } from "./Constants";
 
 export default function ContactInfoSection({ form, setField, errors, refs, fieldClass, onPhoneChange }) {
   return (
