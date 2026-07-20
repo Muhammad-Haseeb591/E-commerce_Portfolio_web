@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { Lock, ArrowRight, Eye, EyeOff } from "lucide-react";
-import { resetPassword, clearError } from "../assets/components/redux_Toolkit/authSlice";
+import { resetPassword, clearError } from "../../assets/components/redux_Toolkit/authSlice";
 
 const ResetPassword = () => {
   const dispatch = useDispatch();

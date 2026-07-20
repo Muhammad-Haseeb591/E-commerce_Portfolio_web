@@ -7,12 +7,11 @@ import { fetchFavourites, toggleFavourite } from "../redux_Toolkit/Favouriteslic
 import { IoArrowBack, IoStar, IoStarHalf, IoStarOutline } from "react-icons/io5";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
 import ReviewSection from "../e-Components/Reviewsection";
+import { FREE_DELIVERY_THRESHOLD } from "../utils/shipping";
 
 const getItemId = (item) => item?._id ?? item?.id;
 
-// dsfjbsfj
-
-const FREE_DELIVERY_THRESHOLD = 5000;
+// Detail_Page.jsx — top imports me add karo
 
 // Some products come with combined size strings like "40,41,42,43,44"
 // on a single entry (optionally with a matching comma-separated stock string).

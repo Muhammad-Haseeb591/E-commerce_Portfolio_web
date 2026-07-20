@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { ShieldCheck, ArrowRight } from "lucide-react";
-import { verifyOtp, resendOtp, clearError, clearMessage } from "../assets/components/redux_Toolkit/authSlice";
+import { verifyOtp, resendOtp, clearError, clearMessage } from "../../assets/components/redux_Toolkit/authSlice";
 
 const RESEND_COOLDOWN = 30; // seconds
 
