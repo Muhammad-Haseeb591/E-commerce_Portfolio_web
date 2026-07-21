@@ -10,7 +10,7 @@ export default function OrderConfirmation({
           <p className="text-gray-500 text-sm mb-8">
             A confirmation will be sent to{" "}
             <span className="text-[#333333] font-medium break-all">{email}</span>.
-          </p>
+          </p>     
           <div className="bg-white border border-[#333333] rounded-2xl p-5 text-left mb-6">
             <p className="text-gray-500 text-sm mb-1">Payment method</p>
             <p className="text-[#333333] font-semibold capitalize">
