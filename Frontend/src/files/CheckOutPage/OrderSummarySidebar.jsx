@@ -1,4 +1,4 @@
-import ProductMeta from "./ProductMeta";
+import ProductMeta from "./Productmeta";
 import SubmitButton from "./SubmitButton";
 
 export default function OrderSummarySidebar({
