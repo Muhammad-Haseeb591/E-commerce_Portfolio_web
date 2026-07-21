@@ -82,15 +82,17 @@ const Header = () => {
           </button>
         </div>
 
-
-        <div className='max-w-[280px] h-full flex items-center relative left-[15px]'>
-  <Link to="/">
-    <h1 className="logo-responsive relative md:left-[45px] font-['Noto_Serif'] text-black whitespace-nowrap">
-      <span className="text-[28px] font-semibold tracking-wide">PORTFOLIO</span>
-      <span className="text-[20px] font-semibold tracking-wide ml-[6px]">SITE</span>
-    </h1>
-  </Link>
-</div>
+        <div className='max-w-[200px] relative left-[15px]'>
+          <Link to="/">
+            <img
+              className="logo-responsive relative md:left-[45px]"
+              src="//insignia.com.pk/cdn/shop/files/final_logo_insignia-01_2847a8f6-7ff7-4e81-ab09-44d3d3fe386e.png?v=1686553684&width=600"
+              alt="Insignia PK"
+              srcSet="//insignia.com.pk/cdn/shop/files/final_logo_insignia-01_2847a8f6-7ff7-4e81-ab09-44d3d3fe386e.png?v=1686553684&width=200 200w, //insignia.com.pk/cdn/shop/files/final_logo_insignia-01_2847a8f6-7ff7-4e81-ab09-44d3d3fe386e.png?v=1686553684&width=300 300w"
+              loading="eager"
+            />
+          </Link>
+        </div>
 
         <div className='flex justify-between items-center'>
           <div className='items-center justify-center relative z-10 w-[95.125px] h-[20px] overflow-none box-border hidden md:block top-[-3px] '>
