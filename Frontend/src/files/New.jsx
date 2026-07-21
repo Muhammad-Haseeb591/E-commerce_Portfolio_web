@@ -52,13 +52,6 @@ const New = () => {
   return (
     <div className="max-lg:w-full min-h-[80px] mt-[16px] lg:px-[30px] font-sans px-[12px] md:px-[24px] max-w-[1280px] min-[1350px]:max-w-[1800px] mx-auto">
 
-    {/* ── New In heading (as-is) ───────────────────────────── */}
-    {!catalogLoading && products.length > 0 && (
-      <div className='h-[102px] w-full px-[20px] max-[380px]:px-[12px] flex items-center justify-center outline-none backdrop-blur-sm'>
-        <h1 className='text-[38px] max-sm:text-[28px] max-[380px]:text-[22px] font-semibold leading-[1.0px] tracking-[1.6px]'>New In</h1>
-      </div>
-    )}
-  
     {/* Loading / Empty states */}
     {catalogLoading && (
       <p className="text-center text-gray-500 py-[40px]">Loading products...</p>
@@ -122,6 +115,15 @@ const New = () => {
           </li>
         ))}
       </ul>
+    )}
+  
+    {/* ── "New In" bottom loader ─────────────────────────────
+        Sirf tab dikhega jab agla batch fetch ho raha ho (loadingMore).
+        Jaise hi hasMore false ho jaye (products khatam), ye hide ho jayega. */}
+    {loadingMore && hasMore && (
+      <div className='h-[102px] w-full px-[20px] max-[380px]:px-[12px] flex items-center justify-center outline-none backdrop-blur-sm'>
+        <h1 className='text-[38px] max-sm:text-[28px] max-[380px]:text-[22px] font-semibold leading-[1.0px] tracking-[1.6px]'>New In</h1>
+      </div>
     )}
   
     {/* ── Pagination ───────────────────────────── */}
