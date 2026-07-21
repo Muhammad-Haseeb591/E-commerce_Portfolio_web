@@ -82,17 +82,18 @@ const Header = () => {
           </button>
         </div>
 
-        <div className='max-w-[200px] relative left-[15px]'>
-          <Link to="/">
-            <img
-              className="logo-responsive relative md:left-[45px]"
-              src="//insignia.com.pk/cdn/shop/files/final_logo_insignia-01_2847a8f6-7ff7-4e81-ab09-44d3d3fe386e.png?v=1686553684&width=600"
-              alt="Insignia PK"
-              srcSet="//insignia.com.pk/cdn/shop/files/final_logo_insignia-01_2847a8f6-7ff7-4e81-ab09-44d3d3fe386e.png?v=1686553684&width=200 200w, //insignia.com.pk/cdn/shop/files/final_logo_insignia-01_2847a8f6-7ff7-4e81-ab09-44d3d3fe386e.png?v=1686553684&width=300 300w"
-              loading="eager"
-            />
-          </Link>
-        </div>
+        <div className='max-w-[200px] h-full flex items-center relative left-[15px]'>
+  <Link to="/">
+    <img
+      className="logo-responsive relative md:left-[45px] w-full h-auto object-contain"
+      src="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784673289/Gemini_Generated_Image_42k8yv42k8yv42k8_qlrij0.png"
+      alt="Port_Site.pk"
+      srcSet="https://res.cloudinary.com/dxqs4sg8j/image/upload/e_trim/w_200/v1784672972/Gemini_Generated_Image_o3o4zfo3o4zfo3o4_uwki2q.png 200w, https://res.cloudinary.com/dxqs4sg8j/image/upload/e_trim/w_300/v1784672972/Gemini_Generated_Image_o3o4zfo3o4zfo3o4_uwki2q.png 300w"
+      sizes="200px"
+      loading="eager"
+    />
+  </Link>
+</div>
 
         <div className='flex justify-between items-center'>
           <div className='items-center justify-center relative z-10 w-[95.125px] h-[20px] overflow-none box-border hidden md:block top-[-3px] '>
