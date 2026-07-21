@@ -26,13 +26,40 @@ const orderSchema = new mongoose.Schema(
     estimatedDelivery: { type: Date, default: null },
 
     // ── Stripe payment fields ──
+    // NOTE: `required: true` yahan jaan-boojh kar nahi lagaya — koi bhi
+    // purana call-site (ya future COD path) jo paymentMethod na bheje, uska
+    // Order.create()/save() validation error se crash NAHI hoga. Default
+    // "cod" isliye rakha hai kyunki purana schema is field ke bina hi COD
+    // orders bhi bana raha tha.
+    paymentMethod: {
+      type: String,
+      enum: ["cod", "card"],
+      default: "cod",
+    },
     paymentStatus: {
       type: String,
       enum: ["unpaid", "paid", "failed"],
       default: "unpaid",
     },
+
+    // Checkout Session flow (redirect-based) — already used in
+    // payment.controller.stripeWebhook / verifySession. Kept as-is.
     stripeSessionId: { type: String, default: null },
+
+    // PaymentIntent flow (inline card element / createPaymentMethod).
+    // Alag field isliye kyunki dono flows (session id vs intent id) ek
+    // saath maujood ho sakte hain agar dono paths kabhi use ho rahay hon.
+    stripePaymentIntentId: { type: String, default: null, index: true },
+
     paidAt: { type: Date, default: null },
+
+    // ── Refund fields ──
+    refundId: { type: String, default: null },
+    refundStatus: {
+      type: String,
+      enum: ["none", "pending", "succeeded", "failed"],
+      default: "none",
+    },
   },
   { timestamps: true }
 );

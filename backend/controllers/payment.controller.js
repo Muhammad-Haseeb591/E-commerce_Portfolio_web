@@ -69,7 +69,13 @@ exports.createCheckoutSession = async (req, res) => {
 };
 
 // ==========================
-// Stripe Webhook — payment confirm hone par YAHAN order create hota hai
+// Stripe Webhook — single entry point for ALL Stripe events.
+// Handles:
+//   - checkout.session.completed  → order create karo (Checkout Session flow)
+//   - charge.refunded             → order.refundStatus sync karo (cancelOrder
+//                                    flow se trigger hone wale refund ka
+//                                    final confirmation yahin aata hai)
+//   - payment_intent.payment_failed → order.paymentStatus = "failed"
 // ==========================
 exports.stripeWebhook = async (req, res) => {
   const sig = req.headers["stripe-signature"];
@@ -83,10 +89,9 @@ exports.stripeWebhook = async (req, res) => {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object;
-
-    try {
+  try {
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object;
       const metadata = session.metadata;
 
       // ── Duplicate order na banay — agar isi sessionId ka order pehle se hai to skip karo ──
@@ -104,15 +109,45 @@ exports.stripeWebhook = async (req, res) => {
         status: "processing",
         paymentStatus: "paid",
         stripeSessionId: session.id,
+        // session.payment_intent hota hai jab mode:"payment" ho — store karo
+        // taake cancelOrder ka refund flow (jo stripePaymentIntentId use
+        // karta hai) Checkout-Session orders ke liye bhi kaam kare.
+        stripePaymentIntentId: session.payment_intent || undefined,
         paidAt: new Date(),
       });
 
       console.log("✅ Order created after successful payment:", session.id);
-    } catch (err) {
-      console.error("Order creation after payment failed:", err.message);
-      // 500 return karo taake Stripe retry kare
-      return res.status(500).json({ error: "Order creation failed" });
     }
+
+    // ── Refund confirm hua — cancelOrder controller me refund turant
+    // "pending" set karta hai, final "succeeded"/partial-refund state
+    // sirf yahan se, Stripe ki taraf se, confirm hoti hai. ──
+    if (event.type === "charge.refunded") {
+      const charge = event.data.object;
+
+      await Order.findOneAndUpdate(
+        { stripePaymentIntentId: charge.payment_intent },
+        { refundStatus: charge.refunded ? "succeeded" : "pending" }
+      );
+    }
+
+    // ── Payment fail hua (card decline, insufficient funds, etc). Note:
+    // agar order abhi tak create hi nahi hua tha (createOrder ka card-flow
+    // sirf "succeeded" ke baad Order.create karta hai), to
+    // findOneAndUpdate ko koi match nahi milega — ye harmless no-op hai,
+    // koi error nahi throw hoga. ──
+    if (event.type === "payment_intent.payment_failed") {
+      const intent = event.data.object;
+
+      await Order.findOneAndUpdate(
+        { stripePaymentIntentId: intent.id },
+        { paymentStatus: "failed" }
+      );
+    }
+  } catch (err) {
+    console.error(`Webhook handler failed for event ${event.type}:`, err.message);
+    // 500 return karo taake Stripe automatically retry kare
+    return res.status(500).json({ error: "Webhook handler failed" });
   }
 
   return res.status(200).json({ received: true });

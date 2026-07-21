@@ -1,11 +1,8 @@
 const mongoose = require("mongoose");
 const Order = require("../models/Order");
 const Product = require("../models/Product");
+const stripe = require("../config/stripe");
 
-// Wraps a route handler so any thrown/rejected error automatically gets a
-// clean 500 response instead of crashing the process or hanging the
-// request. Individual handlers can still use their own try/catch for
-// cases that need a specific status code or message (e.g. rollback logic).
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch((error) => {
     console.error(`${req.method} ${req.originalUrl} —`, error.message);
@@ -14,7 +11,28 @@ const asyncHandler = (fn) => (req, res, next) => {
 };
 
 // ==========================
-// Stock helpers
+// Shipping / Coupon calculation
+// ==========================
+// TODO (STRICT): Ye dono functions abhi placeholder hain. Frontend ke
+// utils/currency.js me jo getShippingFee() aur getCouponDiscount() logic
+// hai, wahi EXACT logic yahan port karo — warna frontend aur backend ka
+// totalAmount mismatch ho jayega aur customer ko wrong amount charge hoga.
+// Jab tak port nahi karte, shippingFee = 0 aur discount = 0 rahega
+// (safe fallback — order create hoga, lekin shipping fee customer se
+// nahi liya jayega).
+function calculateShippingFee(subtotal) {
+  // TODO: implement real shipping logic (matching frontend)
+  return 0;
+}
+
+async function validateCoupon(couponCode, subtotal) {
+  // TODO: DB se coupon validate karo (expiry, min order amount, usage limit)
+  // Abhi ke liye koi discount nahi milega — coupon silently ignore hoga.
+  return { discount: 0 };
+}
+
+// ==========================
+// Stock helpers (size-aware, with rollback)
 // ==========================
 const decrementStockForItem = async ({ productId, size, quantity }) => {
   if (size) {
@@ -42,8 +60,9 @@ const decrementStockForItem = async ({ productId, size, quantity }) => {
   );
 };
 
-// If the order fails partway through (out-of-stock item / DB error), undo
-// every decrement that already happened so stock is never left wrong.
+// If the order fails partway through (out-of-stock item / DB error / payment
+// error), undo every decrement that already happened so stock is never left
+// wrong.
 const rollbackDecrements = async (decremented) => {
   await Promise.all(
     decremented.map(async ({ productId, size, quantity }) => {
@@ -66,6 +85,16 @@ const rollbackDecrements = async (decremented) => {
   );
 };
 
+// Small helper so refund failures never crash the request (payment already
+// failed/stock ran out — we still want to return a response to the client).
+const safeRefund = async (paymentIntentId) => {
+  try {
+    await stripe.refunds.create({ payment_intent: paymentIntentId });
+  } catch (err) {
+    console.error("Refund failed for payment_intent", paymentIntentId, err.message);
+  }
+};
+
 // Statuses a customer is still allowed to self-cancel from. Once an order
 // leaves this list (shipped/delivered/cancelled), cancellation must go
 // through a return/refund flow instead — see cancelOrder below.
@@ -75,6 +104,11 @@ const CANCELLABLE_STATUSES = ["pending", "placed", "processing"];
 
 // ==========================
 // Create Order
+// Supports:
+//  - COD ("cod" / "rs")
+//  - Card via Stripe PaymentIntent, including 3D Secure (requires_action)
+// Price/subtotal/shipping/discount/totalAmount are ALWAYS computed
+// server-side from the DB — never trust values sent from the frontend.
 // ==========================
 exports.createOrder = asyncHandler(async (req, res) => {
   if (!req.userId) {
@@ -84,25 +118,66 @@ exports.createOrder = asyncHandler(async (req, res) => {
     });
   }
 
-  const { items, totalAmount, shippingAddress, email } = req.body;
+  const { items, shippingAddress, email, paymentMethod, paymentMethodId, couponCode } = req.body;
 
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ success: false, message: "No items in the order." });
   }
-  if (!totalAmount || !shippingAddress || !email) {
-    return res.status(400).json({
-      success: false,
-      message: "totalAmount, shippingAddress and email are required.",
+  if (!shippingAddress || !email) {
+    return res.status(400).json({ success: false, message: "shippingAddress and email are required." });
+  }
+
+  // ── 1. Product ids validate + price/product DB se dobara nikalo —
+  // frontend se aaya price/totalAmount kabhi trust na karo ──
+  for (const item of items) {
+    if (!mongoose.Types.ObjectId.isValid(item.productId)) {
+      return res.status(400).json({ success: false, message: `Invalid product id: ${item.productId}` });
+    }
+  }
+
+  const dbProducts = await Product.find({ _id: { $in: items.map((i) => i.productId) } });
+  const productMap = new Map(dbProducts.map((p) => [String(p._id), p]));
+
+  let subtotal = 0;
+  const verifiedItems = [];
+
+  for (const item of items) {
+    const dbProduct = productMap.get(String(item.productId));
+    if (!dbProduct) {
+      return res.status(400).json({ success: false, message: `Invalid product: ${item.productId}` });
+    }
+    const quantity = Number(item.quantity) || 1;
+    const price = dbProduct.price; // ← DB se, frontend se nahi
+
+    subtotal += price * quantity;
+
+    verifiedItems.push({
+      productId: dbProduct._id,
+      name: dbProduct.name,
+      price,
+      image: dbProduct.images?.[0] || "",
+      color: item.color || "",
+      size: item.size ?? null,
+      quantity,
     });
   }
 
-  // Duplicate-request guard (double click / network retry) — stock was
-  // already decremented on the original request, so don't touch it again.
+  // ── 2. Shipping/coupon backend se calculate karo (see TODOs above) ──
+  const shippingFee = calculateShippingFee(subtotal);
+  const { discount } = couponCode
+    ? await validateCoupon(couponCode, subtotal)
+    : { discount: 0 };
+
+  const totalAmount = Math.max(0, subtotal - discount) + shippingFee;
+
+  // ── 3. Duplicate-request guard (double click / network retry) — agar
+  // pichle 30 second me isi email + totalAmount + same item-count wala
+  // order ban chuka hai to usi ko wapas bhej do, dobara stock mat kaato ──
   const thirtySecondsAgo = new Date(Date.now() - 30 * 1000);
   const existingOrder = await Order.findOne({
     email,
     totalAmount,
-    items: { $size: items.length },
+    items: { $size: verifiedItems.length },
     createdAt: { $gte: thirtySecondsAgo },
   }).sort({ createdAt: -1 });
 
@@ -110,41 +185,135 @@ exports.createOrder = asyncHandler(async (req, res) => {
     return res.status(200).json({ success: true, order: existingOrder, duplicate: true });
   }
 
-  // Stock is decremented BEFORE Order.create() so a short-on-stock item
-  // blocks order creation entirely, with earlier decrements rolled back.
-  const decremented = [];
+  // ── 4a. COD ── stock pehle decrement karo (order create se pehle), taake
+  // out-of-stock item pura order hi block kar de, aur pichle decrements
+  // rollback ho jayein.
+  if (paymentMethod === "cod" || paymentMethod === "rs") {
+    const decremented = [];
 
-  for (const item of items) {
-    const { productId, size, quantity } = item;
+    for (const item of verifiedItems) {
+      const updated = await decrementStockForItem({
+        productId: item.productId,
+        size: item.size,
+        quantity: item.quantity,
+      });
 
-    if (!mongoose.Types.ObjectId.isValid(productId)) {
-      await rollbackDecrements(decremented);
-      return res.status(400).json({ success: false, message: `Invalid product id: ${productId}` });
+      if (!updated) {
+        await rollbackDecrements(decremented);
+        return res.status(409).json({
+          success: false,
+          message: `"${item.name}"${item.size ? ` (size ${item.size})` : ""} is out of stock.`,
+        });
+      }
+
+      decremented.push({ productId: item.productId, size: item.size, quantity: item.quantity });
     }
 
-    const updated = await decrementStockForItem({ productId, size, quantity });
+    let order;
+    try {
+      order = await Order.create({
+        userId: req.userId,
+        email,
+        items: verifiedItems,
+        shippingAddress,
+        subtotal,
+        shippingFee,
+        discount,
+        totalAmount,
+        paymentMethod: "cod",
+        paymentStatus: "unpaid",
+        status: "pending",
+      });
+    } catch (orderErr) {
+      await rollbackDecrements(decremented);
+      throw orderErr; // caught by asyncHandler -> clean 500
+    }
+
+    return res.status(201).json({ success: true, order });
+  }
+
+  // ── 4b. Card — PaymentIntent create + confirm (paymentMethodId frontend
+  // se tokenized aaya hota hai) ──
+  if (!paymentMethodId) {
+    return res.status(400).json({ success: false, message: "paymentMethodId is required for card payment." });
+  }
+
+  let paymentIntent;
+  try {
+    paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(totalAmount * 100),
+      currency: "usd",
+      payment_method: paymentMethodId,
+      confirm: true,
+      automatic_payment_methods: { enabled: true, allow_redirects: "never" },
+      receipt_email: email,
+      metadata: { userId: String(req.userId) },
+    });
+  } catch (err) {
+    return res.status(402).json({ success: false, message: err.message || "Payment failed." });
+  }
+
+  // 3D Secure chahiye — order abhi mat banao, na hi stock kaato. Frontend
+  // confirmCardPayment() karega aur ye endpoint (ya /orders/confirm)
+  // dobara call hoga jab tak status "succeeded" na aa jaye.
+  if (paymentIntent.status === "requires_action") {
+    return res.status(200).json({
+      success: true,
+      requiresAction: true,
+      clientSecret: paymentIntent.client_secret,
+    });
+  }
+
+  if (paymentIntent.status !== "succeeded") {
+    return res.status(402).json({ success: false, message: "Payment could not be completed." });
+  }
+
+  // ── 5. Payment confirm ho gaya — SIRF ab stock decrement + order create.
+  // Agar stock kam nikla, paisay wapas (refund) turant. ──
+  const decremented = [];
+
+  for (const item of verifiedItems) {
+    const updated = await decrementStockForItem({
+      productId: item.productId,
+      size: item.size,
+      quantity: item.quantity,
+    });
 
     if (!updated) {
-      // Either the product/size wasn't found, or stock ran out.
       await rollbackDecrements(decremented);
+      await safeRefund(paymentIntent.id);
       return res.status(409).json({
         success: false,
-        message: `"${item.name || productId}"${size ? ` (size ${size})` : ""} is out of stock.`,
+        message: `"${item.name}"${item.size ? ` (size ${item.size})` : ""} is out of stock. Payment automatically refunded.`,
       });
     }
 
-    decremented.push({ productId, size, quantity });
+    decremented.push({ productId: item.productId, size: item.size, quantity: item.quantity });
   }
 
   let order;
   try {
-    // Items are saved as-is — color/size/quantity/price all come straight
-    // from the frontend, so the Order model's items sub-schema needs to
-    // accept these fields or Mongoose will silently strip them.
-    order = await Order.create({ userId: req.userId, email, items, totalAmount, shippingAddress });
+    order = await Order.create({
+      userId: req.userId,
+      email,
+      items: verifiedItems,
+      shippingAddress,
+      subtotal,
+      shippingFee,
+      discount,
+      totalAmount,
+      paymentMethod: "card",
+      paymentStatus: "paid",
+      status: "processing",
+      stripePaymentIntentId: paymentIntent.id,
+      paidAt: new Date(),
+    });
   } catch (orderErr) {
+    // Order DB me save nahi hua lekin paisay kat gaye aur stock kam ho gaya
+    // — dono wapas karo.
     await rollbackDecrements(decremented);
-    throw orderErr; // caught by asyncHandler -> clean 500
+    await safeRefund(paymentIntent.id);
+    throw orderErr;
   }
 
   return res.status(201).json({ success: true, order });
@@ -502,6 +671,28 @@ exports.cancelOrder = asyncHandler(async (req, res) => {
       message: `This order can no longer be cancelled (current status: ${order.status}).`,
     });
   }
+
+  // ── Refund — sirf jab actually paid ho (COD/unpaid pe refund nahi hoga).
+  // Refund status abhi "pending" set hoga — final "succeeded" confirmation
+  // Stripe ke "charge.refunded" webhook se aana chahiye, is response se nahi. ──
+  if (order.paymentStatus === "paid" && order.stripePaymentIntentId) {
+    try {
+      const refund = await stripe.refunds.create({ payment_intent: order.stripePaymentIntentId });
+      order.refundId = refund.id;
+      order.refundStatus = refund.status; // 'pending' — webhook se 'succeeded' confirm hoga
+    } catch (err) {
+      console.error("Refund failed:", err.message);
+      return res.status(502).json({ success: false, message: "Refund process nahi ho saka, dobara try karein." });
+    }
+  }
+
+  // ── Stock wapis add karo — same local rollbackDecrements jo createOrder
+  // me bhi use hota hai, taake size-array aur top-level stock dono sync
+  // rahein (ek se zyada alag rollback implementations mix karna bug ki
+  // sabse badi wajah hai) ──
+  await rollbackDecrements(
+    order.items.map((i) => ({ productId: i.productId, size: i.size, quantity: i.quantity }))
+  );
 
   order.status = "cancelled";
   await order.save();

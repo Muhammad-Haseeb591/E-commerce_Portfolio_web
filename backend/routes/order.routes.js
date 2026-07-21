@@ -34,6 +34,10 @@ paymentRouter.get("/verify-session/:sessionId", protect, verifySession);
 // Create payment intent for inline form
 paymentRouter.post("/create-payment-intent", protect, createPaymentIntent);
 
+// 🔁 Alias route — kept for backward compatibility with clients
+// still calling "/create-intent" (same controller as above).
+paymentRouter.post("/create-intent", protect, createPaymentIntent);
+
 // ================= ORDER ROUTES =================
 
 // Customer routes — must be logged in
