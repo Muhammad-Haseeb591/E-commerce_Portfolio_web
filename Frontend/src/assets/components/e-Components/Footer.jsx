@@ -71,7 +71,7 @@ const Footer = () => {
             <a href="" className='size-[20px] flex-shrink-0'>
               <img src="https://cdn.shopify.com/s/files/1/0490/2443/4341/files/mail.png?v=1693980443" alt="Mail to" />
             </a>
-            <a href="mailto:support@insignia.com.pk" className='text-white/60 ml-[20px] text-[14px] break-all'>support@insignia.com.pk</a>
+            <a href="mailto:support@pr.com.pk" className='text-white/60 ml-[20px] text-[14px] break-all'>support@portfolio_website.com.pk</a>
           </div>
 
           <div className='w-full min-h-[20px] flex items-start'>
@@ -118,7 +118,7 @@ const Footer = () => {
 
       <div className='md:w-full md:h-[36px] outline-white/10 outline mt-[20px] text-[13px]'>
         <div className='w-full h-[36px] px-[20px] sm:px-[50px] text-white/60 flex justify-center items-center font-sans text-center'>
-          &copy; 2025, <a className='hover:underline hover:text-white font-sans ml-1' href="./insignia.com.pk">Insignia PK.</a>
+          &copy; 2025, <a className='hover:underline hover:text-white font-sans ml-1' href="./portfolio_web.com.pk">Portfolio website PK.</a>
         </div>
       </div>
     </div>
