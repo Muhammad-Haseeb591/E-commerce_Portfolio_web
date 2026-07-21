@@ -70,7 +70,7 @@ const Sidebar = ({ onClose }) => {
                 Welcome to
               </p>
               <h2 className="truncate text-sm font-bold tracking-tight text-gray-900 sm:text-base">
-                WWW.INSIGNIA.COM
+                WWW.Port_Site.COM
               </h2>
             </div>
 
