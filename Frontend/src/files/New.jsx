@@ -67,59 +67,64 @@ const New = () => {
 
       {/* ── Product Grid ─────────────────────────────
           default/sm: 2 col | md: 3 col | lg/xl/2xl: 4 col */}
-      {!catalogLoading && products.length > 0 && (
-        <ul className="w-full grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 gap-[10px] xl:gap-[6px] 2xl:gap-[4px]">
-          {products.map((product) => (
-            <li
-              key={product._id}
-              className="w-full h-auto relative cursor-pointer group border border-transparent rounded-[4px] overflow-hidden transition-colors"
-            >
-              <div className="bg-[#f2f2f2] flex justify-center items-start w-full h-auto min-h-[190px] sm:min-h-[372.862px] relative overflow-hidden">
-                {product.discount && (
-                  <p className="bg-[#cc0000] text-center text-white text-[13px] font-medium w-[84.13px] h-[24.33px] absolute z-40 top-[10px] left-[6px] rounded-[5px] pt-[1px] shadow-sm">
-                    {product.discount}
-                  </p>
-                )}
-                <Link to={`/products/${product._id}`} className="overflow-hidden w-full h-full block">
-                  <img
-                    className="w-full h-full object-cover transition-transform duration-500 ease-in-out group-hover:scale-105"
-                    src={product.images?.[0]}
-                    alt={product.name}
-                    loading="lazy"
-                    onError={(e) => (e.target.src = "/placeholder.png")}
-                  />
-                </Link>
-              </div>
+    {!catalogLoading && products.length > 0 && (
+  <ul className="w-full grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 gap-[10px] xl:gap-[6px] 2xl:gap-[4px]">
+    {products.map((product) => (
+      <li
+        key={product._id}
+        className="w-full h-auto relative cursor-pointer group border border-transparent rounded-[4px] overflow-hidden transition-colors"
+      >
+        {/* 🔑 Fixed min-h ki jagah aspect-ratio use kiya —
+            ab image container width ke sath proportionally
+            shrink/grow hoga (filter open/close, grid columns
+            change hone par bhi ratio maintain rahega, blank
+            gray space nahi banega) */}
+        <div className="bg-[#f2f2f2] w-full aspect-[3/4] relative overflow-hidden">
+          {product.discount && (
+            <p className="bg-[#cc0000] text-center text-white text-[13px] font-medium w-[84.13px] h-[24.33px] absolute z-40 top-[10px] left-[6px] rounded-[5px] pt-[1px] shadow-sm">
+              {product.discount}
+            </p>
+          )}
+          <Link to={`/products/${product._id}`} className="overflow-hidden w-full h-full block">
+            <img
+              className="w-full h-full object-cover transition-transform duration-500 ease-in-out group-hover:scale-105"
+              src={product.images?.[0]}
+              alt={product.name}
+              loading="lazy"
+              onError={(e) => (e.target.src = "/placeholder.png")}
+            />
+          </Link>
+        </div>
 
-              <div className="w-full h-auto px-[6px] pt-[8px] pb-[8px]">
-                <h3 className="w-full text-[14px] text-gray-800 truncate">{product.name}</h3>
+        <div className="w-full h-auto px-[6px] pt-[8px] pb-[8px]">
+          <h3 className="w-full text-[14px] text-gray-800 truncate">{product.name}</h3>
 
-                {product.article && (
-                  <p className="w-full text-[12px] text-gray-400 truncate">
-                    Art. {product.article}
-                  </p>
-                )}
+          {product.article && (
+            <p className="w-full text-[12px] text-gray-400 truncate">
+              Art. {product.article}
+            </p>
+          )}
 
-                <span className="flex items-center w-full mt-[4px]">
-                  <p className="mr-[10px] text-red-700 font-semibold text-[14px]">
-                    Rs. {product.price}
-                  </p>
-                  {product.oldPrice && (
-                    <del className="text-gray-400 text-[13px]">Rs. {product.oldPrice}</del>
-                  )}
-                </span>
-              </div>
+          <span className="flex items-center w-full mt-[4px]">
+            <p className="mr-[10px] text-red-700 font-semibold text-[14px]">
+              Rs. {product.price}
+            </p>
+            {product.oldPrice && (
+              <del className="text-gray-400 text-[13px]">Rs. {product.oldPrice}</del>
+            )}
+          </span>
+        </div>
 
-              {product.color && (
-                <div
-                  title={product.color}
-                  style={{ backgroundColor: getColorHex(product.color) }}
-                  className="size-[20px] rounded-[50%] outline outline-black outline-offset-1 m-[6px] absolute bottom-0 right-0"
-                />
-              )}
-            </li>
-          ))}
-        </ul>
+        {product.color && (
+          <div
+            title={product.color}
+            style={{ backgroundColor: getColorHex(product.color) }}
+            className="size-[20px] rounded-[50%] outline outline-black outline-offset-1 m-[6px] absolute bottom-0 right-0"
+          />
+        )}
+      </li>
+    ))}
+  </ul>
       )}
 
       {/* ── Pagination ───────────────────────────── */}
