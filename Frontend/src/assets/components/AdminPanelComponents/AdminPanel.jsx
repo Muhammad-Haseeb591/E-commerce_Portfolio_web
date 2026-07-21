@@ -41,12 +41,14 @@ const AdminPanel = () => {
       >
         {/* Logo */}
 <div className="px-5 py-5 border-b border-gray-100 flex flex-col items-start gap-1">
-<img
-  className="w-[140px] h-[70px] object-contain flex-shrink-0"
-  src="https://res.cloudinary.com/dxqs4sg8j/image/upload/e_trim/v1784586246/Black_and_White_Minimalist_Monogram_Personal_Logo_ge0k6i.png"
-  alt="Portfolio Site"
-  loading="eager"
-/>
+<div className="w-[140px] h-[70px] overflow-hidden">
+  <img
+    className="w-full h-full object-cover scale-[2]"
+    src="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784586246/Black_and_White_Minimalist_Monogram_Personal_Logo_ge0k6i.png"
+    alt="Portfolio Site"
+    loading="eager"
+  />
+</div>
   <p className="text-xs text-gray-400 truncate">Manage your store</p>
 </div>
 
