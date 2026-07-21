@@ -83,7 +83,7 @@ const Header = () => {
         </div>
 
 
-      <div className='max-w-[280px] relative left-[15px]'>
+        <div className='max-w-[280px] h-full flex items-center relative left-[15px]'>
   <Link to="/">
     <h1 className="logo-responsive relative md:left-[45px] font-['Noto_Serif'] text-black whitespace-nowrap">
       <span className="text-[28px] font-semibold tracking-wide">PORTFOLIO</span>
