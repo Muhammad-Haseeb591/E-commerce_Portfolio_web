@@ -82,16 +82,13 @@ const Header = () => {
           </button>
         </div>
 
-        <div className='max-w-[200px] relative left-[15px]'>
+
+      <div className='max-w-[280px] relative left-[15px]'>
   <Link to="/">
-    <img
-      className="logo-responsive relative md:left-[45px]"
-      src="https://res.cloudinary.com/dxqs4sg8j/image/upload/w_600/v1784261644/ChatGPT_Image_Jul_17_2026_09_12_54_AM_hijqtl.png"
-      alt="Insignia PK"
-      srcSet="https://res.cloudinary.com/dxqs4sg8j/image/upload/w_200/v1784261644/ChatGPT_Image_Jul_17_2026_09_12_54_AM_hijqtl.png 200w, https://res.cloudinary.com/dxqs4sg8j/image/upload/w_300/v1784261644/ChatGPT_Image_Jul_17_2026_09_12_54_AM_hijqtl.png 300w"
-      sizes="200px"
-      loading="eager"
-    />
+    <h1 className="logo-responsive relative md:left-[45px] font-['Noto_Serif'] text-black whitespace-nowrap">
+      <span className="text-[28px] font-semibold tracking-wide">PORTFOLIO</span>
+      <span className="text-[20px] font-semibold tracking-wide ml-[6px]">SITE</span>
+    </h1>
   </Link>
 </div>
 
