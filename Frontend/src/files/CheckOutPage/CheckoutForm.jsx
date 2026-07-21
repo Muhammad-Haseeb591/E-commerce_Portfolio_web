@@ -15,14 +15,14 @@ import { inputClass } from "./Constants.jsx";
 import CustomToast from "../CheckOutPage/Customtoast";
 import EmptyCart from "../CheckOutPage/Emptycart";
 import OrderConfirmation from "./OrderConfirmation";
-import CheckoutHeader from "../CheckOutPage/CheckoutHeader";
-import MobileOrderSummary from "../CheckOutPage/MobileOrderSummary";
+import CheckoutHeader from "./CheckoutHeader.jsx";
+import MobileOrderSummary from "./MobileOrderSummary.jsx";
 import ContactInfoSection from "./ContactInfoSection.jsx";
-import ShippingAddressSection from "../CheckOutPage/ShippingAddressSection";
+import ShippingAddressSection from "./ShippingAddressSection.jsx";
 import CouponSection from "./CouponSection.jsx";
 import PaymentMethodSection from "./PaymentMethodSection.jsx";
 import OrderSummarySidebar from "./OrderSummarySidebar.jsx";
-import SubmitButton from "../CheckOutPage/SubmitButton";
+import SubmitButton from "./SubmitButton.jsx";
 
 const ORDERS_API_URL = `${API_URL}/orders`;
 
