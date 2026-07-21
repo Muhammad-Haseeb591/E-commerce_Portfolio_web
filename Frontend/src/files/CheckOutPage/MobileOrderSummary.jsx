@@ -1,4 +1,4 @@
-import ProductMeta from "./ProductMeta";
+import ProductMeta from "./Productmeta";
 
 export default function MobileOrderSummary({
   summaryOpen, onToggle, products, formatPrice, subtotal, discount, appliedCoupon, shipping, total,
