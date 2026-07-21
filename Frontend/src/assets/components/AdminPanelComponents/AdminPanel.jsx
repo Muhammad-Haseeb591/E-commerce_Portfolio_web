@@ -5,8 +5,6 @@ import Dashboard from "./Dashboard";
 import Orders from "./Orders";
 import Products from "./Products";
 
-// ─── Nav items ────────────────────────────────────────────────────────────────
-
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "products",  label: "Products",  icon: Package },
@@ -14,22 +12,18 @@ const NAV_ITEMS = [
   { id: "customers", label: "Customers", icon: Users },
 ];
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
 const AdminPanel = () => {
   const [activeTab,   setActiveTab]   = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const handleTab = (id) => {
     setActiveTab(id);
-    // on mobile, close sidebar after selecting
     if (window.innerWidth < 768) setSidebarOpen(false);
   };
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
 
-      {/* ── Mobile overlay ── */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/20 z-20 md:hidden"
@@ -37,7 +31,6 @@ const AdminPanel = () => {
         />
       )}
 
-      {/* ── Sidebar ── */}
       <aside
         className={`
           fixed md:static z-30 h-full
@@ -48,15 +41,15 @@ const AdminPanel = () => {
       >
         {/* Logo */}
         <div className="px-5 py-5 border-b border-gray-100 flex flex-col items-start gap-1">
-  <img
-    className="w-[36px] h-[36px] sm:w-[40px] sm:h-[40px] object-contain flex-shrink-0"
-    src="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784586246/Black_and_White_Minimalist_Monogram_Personal_Logo_ge0k6i.png"
-    alt="Portfolio Site"
-    loading="eager"
-  />
-  <p className="text-xs text-gray-400 truncate">Manage your store</p>
-</div>
-        {/* Nav */}
+          <img
+            className="w-[36px] h-[36px] sm:w-[40px] sm:h-[40px] object-contain flex-shrink-0 [filter:brightness(0)]"
+            src="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784586246/Black_and_White_Minimalist_Monogram_Personal_Logo_ge0k6i.png"
+            alt="Portfolio Site"
+            loading="eager"
+          />
+          <p className="text-xs text-gray-400 truncate">Manage your store</p>
+        </div>
+
         <nav className="px-3 py-4 space-y-0.5">
           {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
             <button
@@ -76,16 +69,12 @@ const AdminPanel = () => {
           ))}
         </nav>
 
-        {/* Bottom label */}
         <div className="absolute bottom-5 left-0 right-0 px-5">
           <p className="text-xs text-gray-300 text-center">v1.0.0</p>
         </div>
       </aside>
 
-      {/* ── Main area ── */}
       <div className="flex-1 flex flex-col min-w-0">
-
-        {/* Header */}
         <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3.5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <button
@@ -97,7 +86,6 @@ const AdminPanel = () => {
                 ? <X    className="w-5 h-5 text-gray-500" />
                 : <Menu className="w-5 h-5 text-gray-500" />}
             </button>
-            {/* Breadcrumb */}
             <span className="text-sm font-semibold text-gray-800 capitalize">{activeTab}</span>
           </div>
           <Link
@@ -109,7 +97,6 @@ const AdminPanel = () => {
           </Link>
         </header>
 
-        {/* Content */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           {activeTab === "dashboard" && <Dashboard />}
           {activeTab === "products"  && <Products />}
@@ -124,7 +111,6 @@ const AdminPanel = () => {
             </div>
           )}
         </main>
-
       </div>
     </div>
   );
