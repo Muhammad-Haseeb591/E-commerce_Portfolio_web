@@ -11,7 +11,7 @@ import { getCouponDiscount } from "../../utils/coupons";
 import { clearCart } from "../../assets/components/redux_Toolkit/cartSlice";
 import { API_URL } from "../../config/api";
 
-import { inputClass } from "./Constants";
+import { inputClass } from "./Constants.jsx";
 import CustomToast from "../CheckOutPage/Customtoast";
 import EmptyCart from "../CheckOutPage/Emptycart";
 import OrderConfirmation from "../CheckOutPage/OrderConfirmation";
