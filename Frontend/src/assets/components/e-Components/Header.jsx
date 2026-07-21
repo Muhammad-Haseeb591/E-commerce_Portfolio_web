@@ -86,9 +86,8 @@ const Header = () => {
   <Link to="/">
     <img
       className="logo-responsive relative md:left-[45px] w-full h-auto object-contain"
-      src="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784673289/Gemini_Generated_Image_42k8yv42k8yv42k8_qlrij0.png"
-      alt="Port_Site.pk"
-      srcSet="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784673289/Gemini_Generated_Image_42k8yv42k8yv42k8_qlrij0.png 200w, https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784673289/Gemini_Generated_Image_42k8yv42k8yv42k8_qlrij0.png 300w"
+      src="https://res.cloudinary.com/dxqs4sg8j/image/upload/e_trim/w_600/v1784673289/Gemini_Generated_Image_42k8yv42k8yv42k8_qlrij0.png"
+      alt="Portfolio_web PK"
       sizes="200px"
       loading="eager"
     />
