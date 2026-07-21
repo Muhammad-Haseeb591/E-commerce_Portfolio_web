@@ -47,18 +47,14 @@ const AdminPanel = () => {
         `}
       >
         {/* Logo */}
-        <div className="px-5 py-5 border-b border-gray-100 flex items-center gap-3">
+        <div className="px-5 py-5 border-b border-gray-100 flex flex-col items-start gap-1">
   <img
     className="w-[36px] h-[36px] sm:w-[40px] sm:h-[40px] object-contain flex-shrink-0"
-    src="https://res.cloudinary.com/dxqs4sg8j/image/upload/e_trim/w_100/v1784672972/Gemini_Generated_Image_o3o4zfo3o4zfo3o4_uwki2q.png"
-    alt="Portfolio_site PK"
-    srcSet="https://res.cloudinary.com/dxqs4sg8j/image/upload/e_trim/w_80/v1784672972/Gemini_Generated_Image_o3o4zfo3o4zfo3o4_uwki2q.png 80w, https://res.cloudinary.com/dxqs4sg8j/image/upload/e_trim/w_100/v1784672972/Gemini_Generated_Image_o3o4zfo3o4zfo3o4_uwki2q.png 100w"
-    sizes="40px"
+    src="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784673289/Gemini_Generated_Image_42k8yv42k8yv42k8_qlrij0.png"
+    alt="Portfolio Site"
     loading="eager"
   />
-  <div className="min-w-0">
-    <p className="text-xs text-gray-400 truncate">Manage your store</p>
-  </div>
+  <p className="text-xs text-gray-400 truncate">Manage your store</p>
 </div>
         {/* Nav */}
         <nav className="px-3 py-4 space-y-0.5">
