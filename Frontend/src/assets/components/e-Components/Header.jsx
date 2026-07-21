@@ -83,16 +83,17 @@ const Header = () => {
         </div>
 
         <div className='max-w-[200px] relative left-[15px]'>
-          <Link to="/">
-            <img
-              className="logo-responsive relative md:left-[45px]"
-              src="//insignia.com.pk/cdn/shop/files/final_logo_insignia-01_2847a8f6-7ff7-4e81-ab09-44d3d3fe386e.png?v=1686553684&width=600"
-              alt="Insignia PK"
-              srcSet="//insignia.com.pk/cdn/shop/files/final_logo_insignia-01_2847a8f6-7ff7-4e81-ab09-44d3d3fe386e.png?v=1686553684&width=200 200w, //insignia.com.pk/cdn/shop/files/final_logo_insignia-01_2847a8f6-7ff7-4e81-ab09-44d3d3fe386e.png?v=1686553684&width=300 300w"
-              loading="eager"
-            />
-          </Link>
-        </div>
+  <Link to="/">
+    <img
+      className="logo-responsive relative md:left-[45px]"
+      src="https://res.cloudinary.com/dxqs4sg8j/image/upload/w_600/v1784261644/ChatGPT_Image_Jul_17_2026_09_12_54_AM_hijqtl.png"
+      alt="Insignia PK"
+      srcSet="https://res.cloudinary.com/dxqs4sg8j/image/upload/w_200/v1784261644/ChatGPT_Image_Jul_17_2026_09_12_54_AM_hijqtl.png 200w, https://res.cloudinary.com/dxqs4sg8j/image/upload/w_300/v1784261644/ChatGPT_Image_Jul_17_2026_09_12_54_AM_hijqtl.png 300w"
+      sizes="200px"
+      loading="eager"
+    />
+  </Link>
+</div>
 
         <div className='flex justify-between items-center'>
           <div className='items-center justify-center relative z-10 w-[95.125px] h-[20px] overflow-none box-border hidden md:block top-[-3px] '>
