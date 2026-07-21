@@ -88,7 +88,7 @@ const Header = () => {
       className="logo-responsive relative md:left-[45px] w-full h-auto object-contain"
       src="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784673289/Gemini_Generated_Image_42k8yv42k8yv42k8_qlrij0.png"
       alt="Port_Site.pk"
-      srcSet="https://res.cloudinary.com/dxqs4sg8j/image/upload/e_trim/w_200/v1784672972/Gemini_Generated_Image_o3o4zfo3o4zfo3o4_uwki2q.png 200w, https://res.cloudinary.com/dxqs4sg8j/image/upload/e_trim/w_300/v1784672972/Gemini_Generated_Image_o3o4zfo3o4zfo3o4_uwki2q.png 300w"
+      srcSet="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784673289/Gemini_Generated_Image_42k8yv42k8yv42k8_qlrij0.png"
       sizes="200px"
       loading="eager"
     />
