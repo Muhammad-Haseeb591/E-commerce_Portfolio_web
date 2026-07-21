@@ -14,7 +14,7 @@ import { API_URL } from "../../config/api";
 import { inputClass } from "./Constants.jsx";
 import CustomToast from "../CheckOutPage/Customtoast";
 import EmptyCart from "../CheckOutPage/Emptycart";
-import OrderConfirmation from "./OrderConfirmation";
+import OrderConfirmation from "./OrderConfirmation.jsx";
 import CheckoutHeader from "./CheckoutHeader.jsx";
 import MobileOrderSummary from "./MobileOrderSummary.jsx";
 import ContactInfoSection from "./ContactInfoSection.jsx";
