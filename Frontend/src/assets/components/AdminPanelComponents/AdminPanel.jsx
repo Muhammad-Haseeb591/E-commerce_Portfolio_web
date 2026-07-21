@@ -42,8 +42,8 @@ const AdminPanel = () => {
         {/* Logo */}
 <div className="px-5 py-5 border-b border-gray-100 flex flex-col items-start gap-1">
 <img
-  className="w-[56px] h-[56px] sm:w-[60px] sm:h-[60px] object-contain flex-shrink-0 mix-blend-multiply"
-  src="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784586246/Black_and_White_Minimalist_Monogram_Personal_Logo_ge0k6i.png"
+  className="w-[140px] h-[70px] object-contain flex-shrink-0"
+  src="https://res.cloudinary.com/dxqs4sg8j/image/upload/e_trim/v1784586246/Black_and_White_Minimalist_Monogram_Personal_Logo_ge0k6i.png"
   alt="Portfolio Site"
   loading="eager"
 />
