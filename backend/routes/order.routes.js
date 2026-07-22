@@ -1,61 +1,207 @@
-const express = require("express");
+// controllers/invoice.controller.js
+const PDFDocument = require("pdfkit");
+const Order = require("../models/Order");
 
-const paymentRouter = express.Router();
-const orderRouter = express.Router();
+const PRIMARY_COLOR = "#1f2937";
+const GRAY_COLOR = "#6b7280";
+const PAGE_BOTTOM_LIMIT = 700; // is se neeche jaane par naya page
 
-const {
-  createCheckoutSession,
-  verifySession,
-  createPaymentIntent,
-} = require("../controllers/payment.controller");
+// ─────────────────────────────────────────────────────────────
+// SINGLE ORDER INVOICE — multi-page support ke sath
+// ─────────────────────────────────────────────────────────────
+exports.generateInvoice = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.orderId)
+      .populate("user")
+      .populate("items.product");
 
-const {
-  createOrder,
-  getOrders,
-  getAllOrders,
-  getDashboardStats,
-  getOrderById,
-  updateOrder,
-  deleteOrder,
-  trackOrder,
-  cancelOrder,
-} = require("../controllers/order.controller");
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
 
-const { protect, authorize } = require("../middleware/auth.Middleware");
+    const doc = new PDFDocument({ size: "A4", margin: 50 });
 
-// ================= PAYMENT ROUTES =================
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=invoice-${order.orderNumber || order._id}.pdf`
+    );
 
-// Create checkout session (requires login)
-paymentRouter.post("/create-checkout-session", protect, createCheckoutSession);
+    doc.pipe(res);
 
-// Verify session for success page (requires login)
-paymentRouter.get("/verify-session/:sessionId", protect, verifySession);
+    buildInvoice(doc, order);
 
-// Create payment intent for inline form
-paymentRouter.post("/create-payment-intent", protect, createPaymentIntent);
+    doc.end();
 
-// 🔁 Alias route — kept for backward compatibility with clients
-// still calling "/create-intent" (same controller as above).
-paymentRouter.post("/create-intent", protect, createPaymentIntent);
+  } catch (error) {
+    console.error("Invoice generation error:", error);
+    return res.status(500).json({ success: false, message: "Failed to generate invoice" });
+  }
+};
 
-// ================= ORDER ROUTES =================
+function buildInvoice(doc, order) {
+  // ── Header ──
+  doc.fontSize(20).fillColor(PRIMARY_COLOR).text("INVOICE", 50, 50, { align: "left" });
 
-// Customer routes — must be logged in
-orderRouter.post("/", protect, createOrder);
-orderRouter.get("/", protect, getOrders); // logged-in user's own orders
-orderRouter.put("/:id/cancel", protect, cancelOrder);
+  doc
+    .fontSize(10)
+    .fillColor(GRAY_COLOR)
+    .text(`Order #${order.orderNumber || order._id}`, 50, 80)
+    .text(`Date: ${new Date(order.createdAt).toLocaleDateString()}`, 50, 95);
 
-// Admin routes — logged in AND role === "admin"
-orderRouter.get("/all", protect, authorize("admin"), getAllOrders);
+  // ── Customer info (right side) ──
+  doc
+    .fontSize(10)
+    .fillColor(PRIMARY_COLOR)
+    .text(order.user?.fullName || "Customer", 350, 50, { align: "right", width: 200 })
+    .fillColor(GRAY_COLOR)
+    .text(order.user?.email || "", 350, 65, { align: "right", width: 200 });
 
-// 🔑 Must come BEFORE "/:id" — otherwise Express matches "dashboard-stats"
-// as an :id param and getOrderById runs instead (Invalid order ID error).
-orderRouter.get("/dashboard-stats", protect, authorize("admin"), getDashboardStats);
+  doc.moveTo(50, 130).lineTo(550, 130).strokeColor("#e5e7eb").stroke();
 
-orderRouter.get("/:id", protect, authorize("admin"), getOrderById);
-orderRouter.put("/:id", protect, authorize("admin"), updateOrder);
-orderRouter.delete("/:id", protect, authorize("admin"), deleteOrder);
+  let y = 150;
 
-orderRouter.get("/track/:orderNumber", trackOrder);
+  const drawTableHeader = () => {
+    doc.fontSize(10).fillColor(PRIMARY_COLOR);
+    doc.text("Product", 50, y);
+    doc.text("Qty", 300, y);
+    doc.text("Price", 370, y);
+    doc.text("Total", 470, y);
+    y += 20;
+    doc.moveTo(50, y).lineTo(550, y).strokeColor("#e5e7eb").stroke();
+    y += 10;
+  };
 
-module.exports = { paymentRouter, orderRouter };
+  drawTableHeader();
+
+  // ── Table rows — page break check ke sath ──
+  order.items.forEach((item) => {
+    if (y > PAGE_BOTTOM_LIMIT) {
+      doc.addPage();
+      y = 50;
+      drawTableHeader(); // har naye page pe table header repeat
+    }
+
+    const name = item.product?.name || "Product";
+    const qty = item.quantity;
+    const price = item.price;
+    const total = price * qty;
+
+    doc.fontSize(9).fillColor(PRIMARY_COLOR);
+    doc.text(name, 50, y, { width: 230 });
+    doc.text(String(qty), 300, y);
+    doc.text(`Rs. ${price.toLocaleString()}`, 370, y);
+    doc.text(`Rs. ${total.toLocaleString()}`, 470, y);
+
+    y += 25;
+  });
+
+  // Grand total ke liye bhi check
+  if (y > PAGE_BOTTOM_LIMIT - 30) {
+    doc.addPage();
+    y = 50;
+  }
+
+  doc.moveTo(50, y).lineTo(550, y).strokeColor("#e5e7eb").stroke();
+  y += 15;
+
+  doc
+    .fontSize(11)
+    .fillColor(PRIMARY_COLOR)
+    .text("Grand Total", 370, y)
+    .text(`Rs. ${Number(order.totalAmount).toLocaleString()}`, 470, y);
+
+  doc
+    .fontSize(8)
+    .fillColor(GRAY_COLOR)
+    .text("Thank you for your order!", 50, 750, { align: "center", width: 500 });
+}
+
+// ─────────────────────────────────────────────────────────────
+// BULK INVOICE — 2 orders per A4 page
+// ─────────────────────────────────────────────────────────────
+exports.generateBulkInvoice = async (req, res) => {
+  try {
+    const { orderIds } = req.body; // ["id1", "id2", "id3", "id4"]
+
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({ success: false, message: "orderIds array is required" });
+    }
+
+    const orders = await Order.find({ _id: { $in: orderIds } })
+      .populate("user")
+      .populate("items.product");
+
+    if (!orders.length) {
+      return res.status(404).json({ success: false, message: "No orders found" });
+    }
+
+    const doc = new PDFDocument({ size: "A4", margin: 0 });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=invoices-bulk.pdf`);
+    doc.pipe(res);
+
+    const PAGE_HEIGHT = 842; // A4 height in points
+    const HALF_HEIGHT = PAGE_HEIGHT / 2;
+
+    orders.forEach((order, index) => {
+      const isTopHalf = index % 2 === 0;
+
+      if (isTopHalf && index !== 0) {
+        doc.addPage();
+      }
+
+      const offsetY = isTopHalf ? 30 : HALF_HEIGHT + 30;
+
+      buildHalfInvoice(doc, order, offsetY);
+
+      if (isTopHalf) {
+        doc
+          .moveTo(0, HALF_HEIGHT)
+          .lineTo(595, HALF_HEIGHT)
+          .dash(3, { space: 3 })
+          .strokeColor("#9ca3af")
+          .stroke()
+          .undash();
+      }
+    });
+
+    doc.end();
+
+  } catch (error) {
+    console.error("Bulk invoice generation error:", error);
+    return res.status(500).json({ success: false, message: "Failed to generate invoices" });
+  }
+};
+
+function buildHalfInvoice(doc, order, offsetY) {
+  doc.fontSize(14).fillColor(PRIMARY_COLOR).text("INVOICE", 50, offsetY);
+  doc
+    .fontSize(8)
+    .fillColor(GRAY_COLOR)
+    .text(`Order #${order.orderNumber || order._id}`, 50, offsetY + 20)
+    .text(`Date: ${new Date(order.createdAt).toLocaleDateString()}`, 50, offsetY + 32);
+
+  doc
+    .fontSize(8)
+    .fillColor(PRIMARY_COLOR)
+    .text(order.user?.fullName || "Customer", 350, offsetY, { align: "right", width: 200 })
+    .fillColor(GRAY_COLOR)
+    .text(order.user?.email || "", 350, offsetY + 12, { align: "right", width: 200 });
+
+  let y = offsetY + 55;
+
+  order.items.slice(0, 6).forEach((item) => { // half-page mein max ~6 items fit
+    doc.fontSize(8).fillColor(PRIMARY_COLOR);
+    doc.text(`${item.product?.name || "Product"} x${item.quantity}`, 50, y, { width: 300 });
+    doc.text(`Rs. ${(item.price * item.quantity).toLocaleString()}`, 470, y);
+    y += 15;
+  });
+
+  doc
+    .fontSize(9)
+    .fillColor(PRIMARY_COLOR)
+    .text("Total:", 400, y + 5)
+    .text(`Rs. ${Number(order.totalAmount).toLocaleString()}`, 470, y + 5);
+}
