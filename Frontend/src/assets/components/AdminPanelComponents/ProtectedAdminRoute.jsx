@@ -5,7 +5,11 @@ const ProtectedAdminRoute = ({ children }) => {
   const { user, authChecked } = useSelector((state) => state.auth);
 
   if (!authChecked) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex items-center justify-center h-screen w-full bg-white">
+        <div className="w-10 h-10 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" />
+      </div>
+    );
   }
 
   if (!user) {
