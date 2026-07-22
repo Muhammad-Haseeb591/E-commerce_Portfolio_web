@@ -33,7 +33,7 @@ const {
 const {
   getSalesReport,
   exportSalesReportExcel,
-} = require("../controllers/salesreport.controller");
+} = require("../controllers/Salesreport.controller");
 
 // ================= PAYMENT ROUTES =================
 
