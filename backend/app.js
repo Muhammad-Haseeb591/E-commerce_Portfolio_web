@@ -27,24 +27,35 @@ app.post(
 
 // ── CORS: allow multiple known frontend origins ──
 const allowedOrigins = [
-  "https://e-commerce-portfolio-ashen.vercel.app",
+  "https://e-commerce-portfolio-web.vercel.app", // ✅ actual production frontend
+  "https://e-commerce-portfolio-ashen.vercel.app", // keep if this is still in use
   "http://localhost:5173",
   "http://localhost:3000",
 ];
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // allow requests with no origin (like Postman, curl, server-to-server)
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
-  })
-);
+const corsOptions = {
+  origin: function (origin, callback) {
+    // allow requests with no origin (Postman, curl, server-to-server)
+    if (!origin) return callback(null, true);
+
+    // allow whitelisted origins + any Vercel preview deployment of this project
+    if (
+      allowedOrigins.includes(origin) ||
+      /^https:\/\/e-commerce-portfolio-web.*\.vercel\.app$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+
+    console.log("Blocked by CORS:", origin);
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+
+// ✅ Explicitly handle preflight OPTIONS requests for all routes
+app.options("*", cors(corsOptions));
 
 console.log("Allowed origins:", allowedOrigins);
 console.log("NODE_ENV:", process.env.NODE_ENV);
