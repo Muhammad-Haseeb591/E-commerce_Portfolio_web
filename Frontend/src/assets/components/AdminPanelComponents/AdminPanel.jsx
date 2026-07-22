@@ -44,7 +44,7 @@ const AdminPanel = () => {
 <div className="w-[140px] h-[70px] overflow-hidden">
   <img
     className="w-full h-full object-cover scale-[2]"
-    src="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784586246/Black_and_White_Minimalist_Monogram_Personal_Logo_ge0k6i.png"
+    src="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784673289/Gemini_Generated_Image_42k8yv42k8yv42k8_qlrij0.png"
     alt="Portfolio Site"
     loading="eager"
   />
