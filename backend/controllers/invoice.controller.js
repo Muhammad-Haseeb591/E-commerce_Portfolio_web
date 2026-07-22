@@ -5,7 +5,7 @@
 const PDFDocument = require("pdfkit");
 const Order = require("../models/Order");
 const User = require("../models/User");
-const { renderFullInvoice } = require("../services/pdf/invoiceRenderer");
+const { renderFullInvoice } = require("../services/pdf/invoicerenderer");
 
 exports.generateInvoice = async (req, res) => {
   try {
