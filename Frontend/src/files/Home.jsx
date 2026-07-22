@@ -13,12 +13,12 @@ const categories = [
   { name: "Sales", slug: "sales", image: "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?w=600" },
 ];
 
-// images for the full-screen banner slideshow
-const bannerImages = [
-  "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=1200",
-  "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1200",
-  "https://images.unsplash.com/photo-1490114538077-0a7f8cb49891?w=1200",
-  "https://images.unsplash.com/photo-1541643600914-78b084683601?w=1200",
+// 🔑 Banner ki har slide ab ek category se linked hai (clickable)
+const bannerSlides = [
+  { image: "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=1200", slug: "new" },
+  { image: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1200", slug: "women" },
+  { image: "https://images.unsplash.com/photo-1490114538077-0a7f8cb49891?w=1200", slug: "men" },
+  { image: "https://images.unsplash.com/photo-1541643600914-78b084683601?w=1200", slug: "fragrances" },
 ];
 
 function RevealCard({ cat, index }) {
@@ -71,9 +71,6 @@ function RevealCard({ cat, index }) {
   );
 }
 
-// Real review shape from GET /reviews/featured:
-//   { _id, rating, title, comment, userId: { fullName, avatar }, productId: { name, images }, createdAt }
-// Falls back gracefully if userId/avatar didn't populate for any reason.
 function ReviewCard({ review, index }) {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
@@ -146,21 +143,72 @@ export default function Home() {
     dispatch(fetchFeaturedReviews());
   }, [dispatch]);
 
-  // duplicate categories so the auto-scroll marquee loops seamlessly
   const marqueeCategories = [...categories, ...categories];
 
   const [slideIndex, setSlideIndex] = useState(0);
+  const bannerRef = useRef(null);
+  const isDragging = useRef(false);
+  const didDrag = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartScroll = useRef(0);
 
+  // ── Auto-advance har 5s — jab tak user khud drag na kar raha ho ──
   useEffect(() => {
     const timer = setInterval(() => {
-      setSlideIndex((prev) => (prev + 1) % bannerImages.length);
+      if (isDragging.current) return;
+      const node = bannerRef.current;
+      if (!node) return;
+      const nextIndex = (slideIndex + 1) % bannerSlides.length;
+      node.scrollTo({ left: nextIndex * node.clientWidth, behavior: "smooth" });
+      setSlideIndex(nextIndex);
     }, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [slideIndex]);
+
+  // ── Manual scroll (touch/wheel) ke waqt dots ko sync rakho ──
+  const handleBannerScroll = () => {
+    const node = bannerRef.current;
+    if (!node) return;
+    const index = Math.round(node.scrollLeft / node.clientWidth);
+    if (index !== slideIndex) setSlideIndex(index);
+  };
+
+  // ── Mouse se click-and-drag scroll (touch already native kaam karta hai) ──
+  const handleMouseMove = (e) => {
+    if (!isDragging.current) return;
+    const node = bannerRef.current;
+    if (!node) return;
+    const walk = e.pageX - dragStartX.current;
+    if (Math.abs(walk) > 5) didDrag.current = true;
+    node.scrollLeft = dragStartScroll.current - walk;
+  };
+
+  const handleMouseUp = () => {
+    isDragging.current = false;
+    window.removeEventListener("mousemove", handleMouseMove);
+    window.removeEventListener("mouseup", handleMouseUp);
+  };
+
+  const handleMouseDown = (e) => {
+    const node = bannerRef.current;
+    if (!node) return;
+    isDragging.current = true;
+    didDrag.current = false;
+    dragStartX.current = e.pageX;
+    dragStartScroll.current = node.scrollLeft;
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
+
+  const goToSlide = (i) => {
+    const node = bannerRef.current;
+    if (!node) return;
+    node.scrollTo({ left: i * node.clientWidth, behavior: "smooth" });
+    setSlideIndex(i);
+  };
 
   return (
     <div className="w-full min-h-screen bg-white text-[#333333]">
-      {/* keyframes + scrollbar styling, scoped to this component */}
       <style>{`
         @keyframes marquee-scroll {
           from { transform: translateX(0); }
@@ -172,6 +220,7 @@ export default function Home() {
         .marquee-track:hover {
           animation-play-state: paused;
         }
+        .banner-scroll::-webkit-scrollbar { display: none; }
       `}</style>
 
       {/* Header */}
@@ -181,28 +230,43 @@ export default function Home() {
         </h1>
       </header>
 
-      {/* Full height banner slideshow, changes every 1 minute */}
-      <section className="w-full h-[80vh] overflow-hidden border-b border-[#333333] relative">
+      {/* ── Banner: draggable/scrollable, auto-advance, clickable slides ──
+          Height: mobile/sm = 50vh (half screen), md se upar = 80vh */}
+      <section className="w-full h-[50vh] md:h-[80vh] overflow-hidden border-b border-[#333333] relative">
         <div
-          className="flex h-full transition-transform duration-1000 ease-in-out"
-          style={{
-            width: `${bannerImages.length * 100}vw`,
-            transform: `translateX(-${slideIndex * 100}vw)`,
-          }}
+          ref={bannerRef}
+          onScroll={handleBannerScroll}
+          onMouseDown={handleMouseDown}
+          className="banner-scroll flex h-full w-full overflow-x-auto snap-x snap-mandatory scroll-smooth cursor-grab active:cursor-grabbing select-none"
+          style={{ scrollbarWidth: "none" }}
         >
-          {bannerImages.map((src, i) => (
-            <div key={i} className="h-full w-[100vw] shrink-0">
-              <img src={src} alt="" className="w-full h-full object-cover" />
-            </div>
+          {bannerSlides.map((slide, i) => (
+            <Link
+              key={i}
+              to={`/${slide.slug}`}
+              draggable={false}
+              onClickCapture={(e) => {
+                // agar user ne drag kiya tha to accidental navigation rok do
+                if (didDrag.current) e.preventDefault();
+              }}
+              className="h-full w-full shrink-0 snap-center block"
+            >
+              <img
+                src={slide.image}
+                alt={slide.slug}
+                draggable={false}
+                className="w-full h-full object-cover pointer-events-none"
+              />
+            </Link>
           ))}
         </div>
 
         {/* Dots */}
         <div className="absolute bottom-4 left-0 w-full flex justify-center gap-2">
-          {bannerImages.map((_, i) => (
+          {bannerSlides.map((_, i) => (
             <button
               key={i}
-              onClick={() => setSlideIndex(i)}
+              onClick={() => goToSlide(i)}
               aria-label={`Go to slide ${i + 1}`}
               className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full border border-[#333333] transition-colors duration-300 ${
                 slideIndex === i ? "bg-[#333333]" : "bg-white"
@@ -223,7 +287,7 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Reviews — real data from GET /reviews/featured via fetchFeaturedReviews */}
+      {/* Reviews */}
       {(featuredLoading || featuredReviews.length > 0) && (
         <section className="px-4 py-8 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16 border-t border-[#333333]">
           <h2 className="text-base sm:text-lg md:text-xl font-semibold mb-5">

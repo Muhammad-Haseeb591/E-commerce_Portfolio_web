@@ -28,7 +28,6 @@ app.post(
 // ── CORS: allow multiple known frontend origins ──
 const allowedOrigins = [
   "https://e-commerce-portfolio-ashen.vercel.app",
-  "https://e-commerce-portfolio-web.vercel.app",
 ];
 
 app.use(
