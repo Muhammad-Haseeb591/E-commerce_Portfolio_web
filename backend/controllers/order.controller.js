@@ -536,6 +536,8 @@ exports.updateOrder = asyncHandler(async (req, res) => {
     trackingNumber,
     carrier,
     estimatedDelivery,
+     paymentMethod,   // 👈 add
+  paymentStatus,  
     note, // optional note attached to this status change (e.g. "Left warehouse")
   } = req.body;
 
@@ -548,7 +550,8 @@ exports.updateOrder = asyncHandler(async (req, res) => {
   if (trackingNumber !== undefined) order.trackingNumber = trackingNumber;
   if (carrier !== undefined) order.carrier = carrier;
   if (estimatedDelivery !== undefined) order.estimatedDelivery = estimatedDelivery;
-
+if (paymentMethod !== undefined) order.paymentMethod = paymentMethod;   
+if (paymentStatus !== undefined) order.paymentStatus = paymentStatus;
   // If the status actually changed and a note was sent, attach it to the
   // newest statusHistory entry that the pre-save hook is about to push.
   const willAddNote = note !== undefined && status !== undefined && status !== order.status;

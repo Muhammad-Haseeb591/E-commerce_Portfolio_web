@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
   Search, AlertCircle, PackageX, X, Pencil, Trash2, Eye,
   ChevronDown, ChevronLeft, ChevronRight, FileDown, FileSpreadsheet, FileText,
+  CreditCard, Banknote, CheckCircle2, XCircle,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchAllOrders, updateOrder, deleteOrder } from "../redux_Toolkit/OrderSlice";
@@ -80,7 +81,7 @@ const ExportButtons = ({ currentFilters }) => (
   </div>
 );
 
-// ── Shared state blocks (same pattern as Products.jsx) ──
+// ── Shared state blocks ──
 const StateBlock = ({ children }) => (
   <div className="py-14 flex flex-col items-center gap-3 text-center px-4">{children}</div>
 );
@@ -114,10 +115,10 @@ const EmptyState = () => (
 );
 
 // ── Status options + badge styling ──
-const STATUS_OPTIONS = ["placed", "processing", "shipped", "delivered", "cancelled"];
+const STATUS_OPTIONS = ["pending", "processing", "shipped", "delivered", "cancelled"];
 
 const STATUS_STYLES = {
-  placed: "bg-gray-100 text-gray-700",
+  pending: "bg-gray-100 text-gray-700",
   processing: "bg-blue-50 text-blue-700",
   shipped: "bg-indigo-50 text-indigo-700",
   delivered: "bg-emerald-50 text-emerald-700",
@@ -134,6 +135,42 @@ const StatusBadge = ({ status }) => (
   </span>
 );
 
+// ── Payment badge — matches schema enums exactly: cod|card, unpaid|paid|failed ──
+const PaymentBadge = ({ method, status }) => {
+  const isCod = (method || "").toLowerCase() === "cod";
+  const isPaid = (status || "").toLowerCase() === "paid";
+  const isFailed = (status || "").toLowerCase() === "failed";
+
+  if (isCod) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 whitespace-nowrap">
+        <Banknote className="w-3 h-3" />
+        Cash on Delivery
+      </span>
+    );
+  }
+
+  if (isFailed) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 whitespace-nowrap">
+        <XCircle className="w-3 h-3" />
+        Card · Failed
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${
+        isPaid ? "bg-emerald-50 text-emerald-700" : "bg-yellow-50 text-yellow-700"
+      }`}
+    >
+      {isPaid ? <CheckCircle2 className="w-3 h-3" /> : <CreditCard className="w-3 h-3" />}
+      {isPaid ? "Paid (Card)" : "Card · Unpaid"}
+    </span>
+  );
+};
+
 const formatDate = (dateStr) => {
   if (!dateStr) return "—";
   return new Date(dateStr).toLocaleDateString(undefined, {
@@ -145,9 +182,12 @@ const formatDate = (dateStr) => {
 
 const formatMoney = (n) => (typeof n === "number" ? `Rs. ${n.toFixed(2)}` : "—");
 
-// ── Order Details Modal (read-only view of items/shipping) ──
+// ── Order Details Modal (read-only quick view) ──
 const DetailsModal = ({ order, onClose }) => {
   if (!order) return null;
+  const addr = order.shippingAddress || {};
+  const fullName = [addr.firstName, addr.lastName].filter(Boolean).join(" ");
+
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center px-4 py-6" onClick={onClose}>
       <div
@@ -167,27 +207,38 @@ const DetailsModal = ({ order, onClose }) => {
             <span className="text-gray-900">{formatDate(order.createdAt)}</span>
           </div>
           <div className="flex justify-between text-gray-600">
-            <span>Customer email</span>
+            <span>Customer</span>
+            <span className="text-gray-900 text-right">{fullName || "—"}</span>
+          </div>
+          <div className="flex justify-between text-gray-600">
+            <span>Email</span>
             <span className="text-gray-900">{order.email || "—"}</span>
           </div>
           <div className="flex justify-between text-gray-600">
+            <span>Phone</span>
+            <span className="text-gray-900">{addr.phone || "—"}</span>
+          </div>
+          <div className="flex justify-between text-gray-600">
             <span>Total</span>
-            <span className="text-gray-900 font-medium">{formatMoney(order.totalAmount ?? order.total)}</span>
+            <span className="text-gray-900 font-medium">{formatMoney(order.totalAmount)}</span>
           </div>
           <div className="flex justify-between items-center text-gray-600">
             <span>Status</span>
             <StatusBadge status={order.status} />
           </div>
+          <div className="flex justify-between items-center text-gray-600">
+            <span>Payment</span>
+            <PaymentBadge method={order.paymentMethod} status={order.paymentStatus} />
+          </div>
 
-          {order.shippingAddress && (
-            <div className="border-t border-gray-100 pt-3">
-              <p className="text-xs font-medium text-gray-400 mb-1">Shipping Address</p>
-              <p className="text-gray-800">
-                {order.shippingAddress.line1}, {order.shippingAddress.city}, {order.shippingAddress.state}{" "}
-                {order.shippingAddress.zip}
-              </p>
-            </div>
-          )}
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-xs font-medium text-gray-400 mb-1">Shipping Address</p>
+            <p className="text-gray-800">
+              {addr.line1 || "—"}, {addr.city || "—"}, {addr.state || "—"} {addr.zip || ""}
+              <br />
+              {addr.country || "—"}
+            </p>
+          </div>
 
           {order.items?.length > 0 && (
             <div className="border-t border-gray-100 pt-3">
@@ -206,7 +257,7 @@ const DetailsModal = ({ order, onClose }) => {
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="text-gray-900 truncate">{item.name || "—"}</p>
-                      <p className="text-xs text-gray-400">Qty: {item.qty ?? 1}</p>
+                      <p className="text-xs text-gray-400">Qty: {item.quantity ?? 1}</p>
                     </div>
                     <span className="text-gray-700 font-medium">{formatMoney(item.price)}</span>
                   </div>
@@ -220,46 +271,195 @@ const DetailsModal = ({ order, onClose }) => {
   );
 };
 
-// ── Edit (status update) Modal ──
-const EditStatusModal = ({ order, onClose, onSave, saving }) => {
-  const [status, setStatus] = useState(order.status || "placed");
+// ── Field helpers for the edit form (mobile-first) ──
+const FieldLabel = ({ children, required }) => (
+  <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1">
+    {children} {required && <span className="text-red-500">*</span>}
+  </label>
+);
 
-  const handleSave = () => onSave(status);
+const TextField = ({ label, required, ...props }) => (
+  <div>
+    <FieldLabel required={required}>{label}</FieldLabel>
+    <input
+      {...props}
+      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+    />
+  </div>
+);
+
+// ── Edit Order Modal — status + contact + address + payment, all editable ──
+const EditOrderModal = ({ order, onClose, onSave, saving }) => {
+  const addr = order.shippingAddress || {};
+
+  const [form, setForm] = useState({
+    status: order.status || "pending",
+    firstName: addr.firstName || "",
+    lastName: addr.lastName || "",
+    email: order.email || "",
+    phone: addr.phone || "",
+    line1: addr.line1 || "",
+    city: addr.city || "",
+    state: addr.state || "",
+    zip: addr.zip || "",
+    country: addr.country || "PK",
+    paymentMethod: order.paymentMethod || "cod",     // enum: cod | card
+    paymentStatus: order.paymentStatus || "unpaid",  // enum: unpaid | paid | failed
+  });
+
+  const update = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  const handleSave = () => {
+    onSave({
+      status: form.status,
+      email: form.email,
+      paymentMethod: form.paymentMethod,
+      // COD ko admin se advance "paid" mark nahi karna — cash delivery pe li jati hai.
+      paymentStatus: form.paymentMethod === "cod" ? "unpaid" : form.paymentStatus,
+      shippingAddress: {
+        firstName: form.firstName,
+        lastName: form.lastName,
+        phone: form.phone,
+        line1: form.line1,
+        city: form.city,
+        state: form.state,
+        zip: form.zip,
+        country: form.country,
+      },
+    });
+  };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center px-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div
-        className="relative bg-white rounded-2xl p-4 sm:p-6 max-w-sm w-full"
+        className="relative bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Update Order Status</h3>
+        <div className="flex justify-between items-center mb-4 sticky top-0 bg-white pb-2">
+          <h3 className="text-lg font-semibold text-gray-900">Edit Order</h3>
           <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100">
             <X className="w-5 h-5 text-gray-600" />
           </button>
         </div>
 
-        <p className="text-xs text-gray-400 mb-4">Order #{order.orderNumber || order._id}</p>
+        <p className="text-xs text-gray-400 mb-5">Order #{order.orderNumber || order._id}</p>
 
-        <div className="space-y-2">
-          {STATUS_OPTIONS.map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => setStatus(opt)}
-              className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border text-sm font-medium capitalize transition ${
-                status === opt
-                  ? "border-gray-900 bg-gray-900 text-white"
-                  : "border-gray-200 text-gray-600 hover:border-gray-400"
-              }`}
-            >
-              {opt}
-              <StatusBadge status={opt} />
-            </button>
-          ))}
+        <div className="space-y-6">
+
+          {/* ── Order Status ── */}
+          <section>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Order Status</p>
+            <div className="grid grid-cols-2 gap-2">
+              {STATUS_OPTIONS.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, status: opt }))}
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm font-medium capitalize transition ${
+                    form.status === opt
+                      ? "border-gray-900 bg-gray-900 text-white"
+                      : "border-gray-200 text-gray-600 hover:border-gray-400"
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* ── Contact Information ── */}
+          <section>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Contact Information</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <TextField label="First Name" required value={form.firstName} onChange={update("firstName")} placeholder="First name" />
+              <TextField label="Last Name" required value={form.lastName} onChange={update("lastName")} placeholder="Last name" />
+              <div className="sm:col-span-2">
+                <TextField label="Email" required type="email" value={form.email} onChange={update("email")} placeholder="you@example.com" />
+              </div>
+              <div className="sm:col-span-2">
+                <TextField label="Phone" required value={form.phone} onChange={update("phone")} placeholder="+92 300 1234567" />
+              </div>
+            </div>
+          </section>
+
+          {/* ── Shipping Address ── */}
+          <section>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Shipping Address</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
+                <TextField label="Street Address" required value={form.line1} onChange={update("line1")} placeholder="House #, street, area" />
+              </div>
+              <TextField label="City" required value={form.city} onChange={update("city")} placeholder="City" />
+              <TextField label="State / Province" value={form.state} onChange={update("state")} placeholder="Punjab" />
+              <TextField label="Zip / Postal Code" required value={form.zip} onChange={update("zip")} placeholder="54000" />
+              <TextField label="Country" value={form.country} onChange={update("country")} placeholder="PK" />
+            </div>
+          </section>
+
+          {/* ── Payment Method ── */}
+          <section>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Payment Method</p>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, paymentMethod: "cod" }))}
+                className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition ${
+                  form.paymentMethod === "cod"
+                    ? "border-gray-900 bg-gray-900 text-white"
+                    : "border-gray-200 text-gray-600 hover:border-gray-400"
+                }`}
+              >
+                <Banknote className="w-4 h-4" />
+                Cash on Delivery
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, paymentMethod: "card" }))}
+                className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition ${
+                  form.paymentMethod === "card"
+                    ? "border-gray-900 bg-gray-900 text-white"
+                    : "border-gray-200 text-gray-600 hover:border-gray-400"
+                }`}
+              >
+                <CreditCard className="w-4 h-4" />
+                Card
+              </button>
+            </div>
+
+            {form.paymentMethod === "cod" ? (
+              <p className="text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
+                Cash on Delivery — payment collected at delivery, not marked paid in advance.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 px-3 py-2.5 rounded-xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.paymentStatus === "paid"}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, paymentStatus: e.target.checked ? "paid" : "unpaid" }))
+                    }
+                    className="w-4 h-4 rounded border-gray-300"
+                  />
+                  Mark as Paid
+                </label>
+                <label className="flex items-center gap-2 text-sm text-red-700 bg-red-50 px-3 py-2.5 rounded-xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.paymentStatus === "failed"}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, paymentStatus: e.target.checked ? "failed" : "unpaid" }))
+                    }
+                    className="w-4 h-4 rounded border-gray-300"
+                  />
+                  Mark as Failed
+                </label>
+              </div>
+            )}
+          </section>
         </div>
 
-        <div className="flex gap-3 mt-6">
+        <div className="flex gap-3 mt-6 sticky bottom-0 bg-white pt-3">
           <button
             onClick={onClose}
             className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition text-sm font-medium"
@@ -271,7 +471,7 @@ const EditStatusModal = ({ order, onClose, onSave, saving }) => {
             disabled={saving}
             className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition text-sm font-medium disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Save"}
+            {saving ? "Saving..." : "Save Changes"}
           </button>
         </div>
       </div>
@@ -295,9 +495,12 @@ const OrderCard = ({ order, selected, onToggleSelect, onView, onEdit, onDelete }
       <p className="text-xs text-gray-400 truncate">{order.email || "—"}</p>
       <div className="flex items-center gap-2 mt-1 flex-wrap">
         <span className="text-sm text-gray-700 font-semibold">
-          {formatMoney(order.totalAmount ?? order.total)}
+          {formatMoney(order.totalAmount)}
         </span>
         <StatusBadge status={order.status} />
+      </div>
+      <div className="mt-1">
+        <PaymentBadge method={order.paymentMethod} status={order.paymentStatus} />
       </div>
     </div>
 
@@ -312,7 +515,7 @@ const OrderCard = ({ order, selected, onToggleSelect, onView, onEdit, onDelete }
       <button
         onClick={() => onEdit(order)}
         className="p-2 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition-colors"
-        aria-label="Edit order status"
+        aria-label="Edit order"
       >
         <Pencil className="w-4 h-4" />
       </button>
@@ -343,9 +546,12 @@ const OrderRow = ({ order, selected, onToggleSelect, onView, onEdit, onDelete })
     <td className="px-6 py-4 font-medium text-gray-900">#{order.orderNumber || order._id}</td>
     <td className="px-6 py-4 text-gray-500">{order.email || "—"}</td>
     <td className="px-6 py-4 text-gray-500">{formatDate(order.createdAt)}</td>
-    <td className="px-6 py-4 text-gray-700">{formatMoney(order.totalAmount ?? order.total)}</td>
+    <td className="px-6 py-4 text-gray-700">{formatMoney(order.totalAmount)}</td>
     <td className="px-6 py-4">
       <StatusBadge status={order.status} />
+    </td>
+    <td className="px-6 py-4">
+      <PaymentBadge method={order.paymentMethod} status={order.paymentStatus} />
     </td>
     <td className="px-6 py-4">
       <div className="flex items-center gap-2">
@@ -405,8 +611,8 @@ const PaginationBar = ({ page, pages, total, onPageChange }) => {
 
 // ── Main Orders Component (admin) ──
 const Orders = () => {
-  const [searchInput, setSearchInput] = useState("");   // raw input, updates every keystroke
-  const [searchQuery, setSearchQuery] = useState("");    // debounced value actually sent to the API
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [viewingOrder, setViewingOrder] = useState(null);
@@ -423,27 +629,22 @@ const Orders = () => {
     deleting,
   } = useSelector((state) => state.orders);
 
-  // Debounce the search box — wait 400ms after the user stops typing
-  // before actually hitting the API, so every keystroke doesn't fire a request.
   useEffect(() => {
     const timeout = setTimeout(() => {
       setSearchQuery(searchInput);
-      setPage(1); // reset to page 1 whenever the search term changes
+      setPage(1);
     }, 400);
     return () => clearTimeout(timeout);
   }, [searchInput]);
 
-  // Reset to page 1 whenever the status filter changes
   useEffect(() => {
     setPage(1);
   }, [statusFilter]);
 
-  // The actual fetch — server does the search/filter/pagination now.
   useEffect(() => {
     dispatch(fetchAllOrders({ page, limit: 20, search: searchQuery, status: statusFilter }));
   }, [dispatch, page, searchQuery, statusFilter]);
 
-  // Selection shouldn't survive a page/filter change — those orders aren't on screen anymore.
   useEffect(() => {
     setSelectedIds([]);
   }, [page, searchQuery, statusFilter]);
@@ -452,14 +653,15 @@ const Orders = () => {
     if (window.confirm("Delete this order? This cannot be undone.")) {
       dispatch(deleteOrder(id)).then(() => {
         setSelectedIds((prev) => prev.filter((sid) => sid !== id));
-        // Re-fetch the current page so the table stays in sync with pagination totals
         dispatch(fetchAllOrders({ page, limit: 20, search: searchQuery, status: statusFilter }));
       });
     }
   };
 
-  const handleSaveStatus = (status) => {
-    dispatch(updateOrder({ id: editingOrder._id, status }));
+  const handleSaveOrder = (updates) => {
+    dispatch(updateOrder({ id: editingOrder._id, ...updates })).then(() => {
+      dispatch(fetchAllOrders({ page, limit: 20, search: searchQuery, status: statusFilter }));
+    });
     setEditingOrder(null);
   };
 
@@ -496,11 +698,11 @@ const Orders = () => {
       <DetailsModal order={viewingOrder} onClose={() => setViewingOrder(null)} />
 
       {editingOrder && (
-        <EditStatusModal
+        <EditOrderModal
           order={editingOrder}
           saving={updating}
           onClose={() => setEditingOrder(null)}
-          onSave={handleSaveStatus}
+          onSave={handleSaveOrder}
         />
       )}
 
@@ -515,7 +717,7 @@ const Orders = () => {
           </div>
         </div>
 
-        {/* Search + filter — stacked on mobile, side by side from sm up */}
+        {/* Search + filter */}
         <div className="p-3 bg-white rounded-xl border border-gray-100 flex flex-col gap-3 sm:flex-row sm:p-4">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -586,7 +788,7 @@ const Orders = () => {
                     aria-label="Select all orders on page"
                   />
                 </th>
-                {["Order", "Email", "Date", "Total", "Status", "Actions"].map((col) => (
+                {["Order", "Email", "Date", "Total", "Status", "Payment", "Actions"].map((col) => (
                   <th key={col} className="px-6 py-4 text-left text-sm font-semibold text-gray-600">
                     {col}
                   </th>
@@ -595,7 +797,7 @@ const Orders = () => {
             </thead>
             <tbody>
               {allOrdersLoading || allOrdersError || allOrders.length === 0 ? (
-                <tr><td colSpan={7}>{emptyOrStateContent}</td></tr>
+                <tr><td colSpan={8}>{emptyOrStateContent}</td></tr>
               ) : (
                 allOrders.map((order) => (
                   <OrderRow
