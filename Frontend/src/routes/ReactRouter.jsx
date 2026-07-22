@@ -26,6 +26,7 @@ import VerifyOtp from '../files/Auth_Section/Verifyotp.jsx'
 import Forgotpassword from "../files/Auth_Section/Forgotpassword"
 import Resetpassword from "../files/Auth_Section/Resetpassword"
 import Accountactivity from "../assets/components/e-Components/Accountactivity.jsx"
+import SalesReportPage from '../assets/components/AdminPanelComponents/Dashboard.jsx'
 
 const router = createBrowserRouter([
   {
