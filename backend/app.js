@@ -28,6 +28,8 @@ app.post(
 // ── CORS: allow multiple known frontend origins ──
 const allowedOrigins = [
   "https://e-commerce-portfolio-ashen.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:3000",
 ];
 
 app.use(
