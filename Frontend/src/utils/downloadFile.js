@@ -1,5 +1,5 @@
 import axios from "axios";
-import { API_URL } from "../../../config/api"; // apna actual relative path check kar lein
+import { API_URL } from "../config/api"; // apna actual relative path check kar lein
 
 const BASE_URL = `${API_URL.replace(/\/+$/, "")}/orders`;
 const config = { withCredentials: true };
