@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
-import { Search, AlertCircle, PackageX, X, Pencil, Trash2, Eye, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import axios from "axios";
+import { Search, AlertCircle, PackageX, X, Pencil, Trash2, Eye, ChevronDown, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchAllOrders, updateOrder, deleteOrder } from "../redux_Toolkit/OrderSlice";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 // ── Shared state blocks (same pattern as Products.jsx) ──
 const StateBlock = ({ children }) => (
@@ -68,9 +71,35 @@ const formatDate = (dateStr) => {
 
 const formatMoney = (n) => (typeof n === "number" ? `Rs. ${n.toFixed(2)}` : "—");
 
+// ── Download invoice helper — hits the PDF endpoint and triggers a browser download ──
+const downloadInvoice = async (orderId, setDownloadingId) => {
+  try {
+    setDownloadingId(orderId);
+    const res = await axios.get(`${API_URL}/orders/${orderId}/invoice`, {
+      withCredentials: true,
+      responseType: "blob", // zaroori — binary PDF data
+    });
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `invoice-${orderId}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Invoice download failed:", error);
+    alert("Failed to download invoice. Please try again.");
+  } finally {
+    setDownloadingId(null);
+  }
+};
+
 // ── Order Details Modal (read-only view of items/shipping) ──
-const DetailsModal = ({ order, onClose }) => {
+const DetailsModal = ({ order, onClose, onDownload, downloadingId }) => {
   if (!order) return null;
+  const isDownloading = downloadingId === order._id;
+
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center px-4 py-6" onClick={onClose}>
       <div
@@ -138,6 +167,16 @@ const DetailsModal = ({ order, onClose }) => {
             </div>
           )}
         </div>
+
+        {/* ── Download Invoice button ── */}
+        <button
+          onClick={() => onDownload(order._id)}
+          disabled={isDownloading}
+          className="mt-6 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition disabled:opacity-50"
+        >
+          <Download className="w-4 h-4" />
+          {isDownloading ? "Downloading..." : "Download Invoice"}
+        </button>
       </div>
     </div>
   );
@@ -203,79 +242,102 @@ const EditStatusModal = ({ order, onClose, onSave, saving }) => {
 };
 
 // ── Order Card (mobile) ──
-const OrderCard = ({ order, onView, onEdit, onDelete }) => (
-  <div className="flex items-center gap-3 p-3 border-b border-gray-100 last:border-0">
-    <div className="min-w-0 flex-1">
-      <p className="font-medium text-gray-900 truncate">#{order.orderNumber || order._id}</p>
-      <p className="text-xs text-gray-400 truncate">{order.email || "—"}</p>
-      <div className="flex items-center gap-2 mt-1 flex-wrap">
-        <span className="text-sm text-gray-700 font-semibold">
-          {formatMoney(order.totalAmount ?? order.total)}
-        </span>
-        <StatusBadge status={order.status} />
+const OrderCard = ({ order, onView, onEdit, onDelete, onDownload, downloadingId }) => {
+  const isDownloading = downloadingId === order._id;
+
+  return (
+    <div className="flex items-center gap-3 p-3 border-b border-gray-100 last:border-0">
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-gray-900 truncate">#{order.orderNumber || order._id}</p>
+        <p className="text-xs text-gray-400 truncate">{order.email || "—"}</p>
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <span className="text-sm text-gray-700 font-semibold">
+            {formatMoney(order.totalAmount ?? order.total)}
+          </span>
+          <StatusBadge status={order.status} />
+        </div>
       </div>
-    </div>
 
-    <div className="flex flex-col gap-1.5 shrink-0">
-      <button
-        onClick={() => onView(order)}
-        className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 active:bg-gray-200 transition-colors"
-        aria-label="View order"
-      >
-        <Eye className="w-4 h-4" />
-      </button>
-      <button
-        onClick={() => onEdit(order)}
-        className="p-2 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition-colors"
-        aria-label="Edit order status"
-      >
-        <Pencil className="w-4 h-4" />
-      </button>
-      <button
-        onClick={() => onDelete(order._id)}
-        className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors"
-        aria-label="Delete order"
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
-    </div>
-  </div>
-);
-
-// ── Order Row (desktop) ──
-const OrderRow = ({ order, onView, onEdit, onDelete }) => (
-  <tr className="border-t border-gray-100 hover:bg-blue-50 transition-colors">
-    <td className="px-6 py-4 font-medium text-gray-900">#{order.orderNumber || order._id}</td>
-    <td className="px-6 py-4 text-gray-500">{order.email || "—"}</td>
-    <td className="px-6 py-4 text-gray-500">{formatDate(order.createdAt)}</td>
-    <td className="px-6 py-4 text-gray-700">{formatMoney(order.totalAmount ?? order.total)}</td>
-    <td className="px-6 py-4">
-      <StatusBadge status={order.status} />
-    </td>
-    <td className="px-6 py-4">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-1.5 shrink-0">
         <button
           onClick={() => onView(order)}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+          className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+          aria-label="View order"
         >
           <Eye className="w-4 h-4" />
         </button>
         <button
           onClick={() => onEdit(order)}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+          className="p-2 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition-colors"
+          aria-label="Edit order status"
         >
           <Pencil className="w-4 h-4" />
         </button>
         <button
+          onClick={() => onDownload(order._id)}
+          disabled={isDownloading}
+          className="p-2 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 active:bg-emerald-100 transition-colors disabled:opacity-50"
+          aria-label="Download invoice"
+        >
+          <Download className="w-4 h-4" />
+        </button>
+        <button
           onClick={() => onDelete(order._id)}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+          className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors"
+          aria-label="Delete order"
         >
           <Trash2 className="w-4 h-4" />
         </button>
       </div>
-    </td>
-  </tr>
-);
+    </div>
+  );
+};
+
+// ── Order Row (desktop) ──
+const OrderRow = ({ order, onView, onEdit, onDelete, onDownload, downloadingId }) => {
+  const isDownloading = downloadingId === order._id;
+
+  return (
+    <tr className="border-t border-gray-100 hover:bg-blue-50 transition-colors">
+      <td className="px-6 py-4 font-medium text-gray-900">#{order.orderNumber || order._id}</td>
+      <td className="px-6 py-4 text-gray-500">{order.email || "—"}</td>
+      <td className="px-6 py-4 text-gray-500">{formatDate(order.createdAt)}</td>
+      <td className="px-6 py-4 text-gray-700">{formatMoney(order.totalAmount ?? order.total)}</td>
+      <td className="px-6 py-4">
+        <StatusBadge status={order.status} />
+      </td>
+      <td className="px-6 py-4">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onView(order)}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => onEdit(order)}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => onDownload(order._id)}
+            disabled={isDownloading}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => onDelete(order._id)}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+};
 
 // ── Pagination bar ──
 const PaginationBar = ({ page, pages, total, onPageChange }) => {
@@ -315,6 +377,7 @@ const Orders = () => {
   const [page, setPage] = useState(1);
   const [viewingOrder, setViewingOrder] = useState(null);
   const [editingOrder, setEditingOrder] = useState(null);
+  const [downloadingId, setDownloadingId] = useState(null); // tracks which order's invoice is currently downloading
 
   const dispatch = useDispatch();
   const {
@@ -360,6 +423,8 @@ const Orders = () => {
     setEditingOrder(null);
   };
 
+  const handleDownload = (orderId) => downloadInvoice(orderId, setDownloadingId);
+
   const renderContent = () => {
     if (allOrdersLoading) return <LoadingState />;
     if (allOrdersError) {
@@ -380,7 +445,12 @@ const Orders = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-3 sm:p-6 overflow-x-hidden">
 
-      <DetailsModal order={viewingOrder} onClose={() => setViewingOrder(null)} />
+      <DetailsModal
+        order={viewingOrder}
+        onClose={() => setViewingOrder(null)}
+        onDownload={handleDownload}
+        downloadingId={downloadingId}
+      />
 
       {editingOrder && (
         <EditStatusModal
@@ -435,6 +505,8 @@ const Orders = () => {
               onView={setViewingOrder}
               onEdit={setEditingOrder}
               onDelete={handleDelete}
+              onDownload={handleDownload}
+              downloadingId={downloadingId}
             />
           ))}
           {!emptyOrStateContent && (
@@ -465,6 +537,8 @@ const Orders = () => {
                     onView={setViewingOrder}
                     onEdit={setEditingOrder}
                     onDelete={handleDelete}
+                    onDownload={handleDownload}
+                    downloadingId={downloadingId}
                   />
                 ))
               )}
