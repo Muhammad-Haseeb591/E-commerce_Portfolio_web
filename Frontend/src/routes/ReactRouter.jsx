@@ -47,10 +47,10 @@ const router = createBrowserRouter([
       { path: 'login', element: <Login /> },
       { path: 'signup', element: <Signup /> },
       { path: 'admin/dashboard', element: <ProtectedAdminRoute><AdminPanel /></ProtectedAdminRoute> },
+      { path: 'admin/reports', element: <ProtectedAdminRoute><SalesReportPage /></ProtectedAdminRoute> }, // 👈 naya route
       { path: 'checkout', element: <Checkoutpage/> },
       { path: 'favourite', element: <Favourite/> },
 
-      // 👇 account routes — single dynamic route handles both /account/orders and /account/reviews
       { path: 'account', element: <Accountactivity /> },
       { path: 'account/:tab', element: <Accountactivity /> },
 
