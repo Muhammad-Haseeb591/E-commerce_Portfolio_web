@@ -12,8 +12,11 @@ const PAGE_BOTTOM_LIMIT = 700; // is se neeche jaane par naya page
 exports.generateInvoice = async (req, res) => {
   try {
     const order = await Order.findById(req.params.orderId)
-      .populate("user")
-      .populate("items.product");
+      .populate("userId"); // ⚠️ FIX: schema field is "userId", not "user".
+      // ⚠️ FIX: removed .populate("items.product") — `items` is a schema-less
+      // Mixed array (no subdocument schema), so Mongoose has no "product" path
+      // to populate and throws StrictPopulateError. buildInvoice() already
+      // falls back to item.name/item.price if item.product isn't populated.
 
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
@@ -50,12 +53,13 @@ function buildInvoice(doc, order) {
     .text(`Date: ${order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}`, 50, 95);
 
   // ── Customer info (right side) ──
+  // ⚠️ FIX: order.user -> order.userId
   doc
     .fontSize(10)
     .fillColor(PRIMARY_COLOR)
-    .text(order.user?.fullName || "Customer", 350, 50, { align: "right", width: 200 })
+    .text(order.userId?.fullName || "Customer", 350, 50, { align: "right", width: 200 })
     .fillColor(GRAY_COLOR)
-    .text(order.user?.email || "", 350, 65, { align: "right", width: 200 });
+    .text(order.userId?.email || order.email || "", 350, 65, { align: "right", width: 200 });
 
   doc.moveTo(50, 130).lineTo(550, 130).strokeColor("#e5e7eb").stroke();
 
@@ -134,8 +138,7 @@ exports.generateBulkInvoice = async (req, res) => {
     }
 
     const orders = await Order.find({ _id: { $in: orderIds } })
-      .populate("user")
-      .populate("items.product");
+      .populate("userId"); // ⚠️ FIX: "user" -> "userId"; dropped items.product populate (see above)
 
     if (!orders.length) {
       return res.status(404).json({ success: false, message: "No orders found" });
@@ -188,12 +191,13 @@ function buildHalfInvoice(doc, order, offsetY) {
     .text(`Order #${order.orderNumber || order._id}`, 50, offsetY + 20)
     .text(`Date: ${order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}`, 50, offsetY + 32);
 
+  // ⚠️ FIX: order.user -> order.userId
   doc
     .fontSize(8)
     .fillColor(PRIMARY_COLOR)
-    .text(order.user?.fullName || "Customer", 350, offsetY, { align: "right", width: 200 })
+    .text(order.userId?.fullName || "Customer", 350, offsetY, { align: "right", width: 200 })
     .fillColor(GRAY_COLOR)
-    .text(order.user?.email || "", 350, offsetY + 12, { align: "right", width: 200 });
+    .text(order.userId?.email || order.email || "", 350, offsetY + 12, { align: "right", width: 200 });
 
   let y = offsetY + 55;
 
