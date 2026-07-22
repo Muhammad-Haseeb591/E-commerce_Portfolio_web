@@ -2,6 +2,13 @@
 const PDFDocument = require("pdfkit");
 const Order = require("../models/Order");
 
+const PRIMARY_COLOR = "#1f2937";
+const GRAY_COLOR = "#6b7280";
+const PAGE_BOTTOM_LIMIT = 700; // is se neeche jaane par naya page
+
+// ─────────────────────────────────────────────────────────────
+// SINGLE ORDER INVOICE — multi-page support ke sath
+// ─────────────────────────────────────────────────────────────
 exports.generateInvoice = async (req, res) => {
   try {
     const order = await Order.findById(req.params.orderId)
@@ -14,14 +21,13 @@ exports.generateInvoice = async (req, res) => {
 
     const doc = new PDFDocument({ size: "A4", margin: 50 });
 
-    // ── Headers — response ko PDF stream ke tor pe bhejna hai ──
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
       `attachment; filename=invoice-${order.orderNumber || order._id}.pdf`
     );
 
-    doc.pipe(res); // seedha response mein stream ho raha hai — buffer mein store nahi karna
+    doc.pipe(res);
 
     buildInvoice(doc, order);
 
@@ -33,56 +39,57 @@ exports.generateInvoice = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────
-// PDF content banane wala function
-// ─────────────────────────────────────────────────────────────
 function buildInvoice(doc, order) {
-  const primaryColor = "#1f2937";
-  const grayColor = "#6b7280";
-
   // ── Header ──
-  doc
-    .fontSize(20)
-    .fillColor(primaryColor)
-    .text("INVOICE", 50, 50, { align: "left" });
+  doc.fontSize(20).fillColor(PRIMARY_COLOR).text("INVOICE", 50, 50, { align: "left" });
 
   doc
     .fontSize(10)
-    .fillColor(grayColor)
+    .fillColor(GRAY_COLOR)
     .text(`Order #${order.orderNumber || order._id}`, 50, 80)
-    .text(`Date: ${new Date(order.createdAt).toLocaleDateString()}`, 50, 95);
+    .text(`Date: ${order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}`, 50, 95);
 
   // ── Customer info (right side) ──
   doc
     .fontSize(10)
-    .fillColor(primaryColor)
+    .fillColor(PRIMARY_COLOR)
     .text(order.user?.fullName || "Customer", 350, 50, { align: "right", width: 200 })
-    .fillColor(grayColor)
+    .fillColor(GRAY_COLOR)
     .text(order.user?.email || "", 350, 65, { align: "right", width: 200 });
 
-  // ── Divider line ──
   doc.moveTo(50, 130).lineTo(550, 130).strokeColor("#e5e7eb").stroke();
 
-  // ── Table header ──
   let y = 150;
-  doc.fontSize(10).fillColor(primaryColor);
-  doc.text("Product", 50, y);
-  doc.text("Qty", 300, y);
-  doc.text("Price", 370, y);
-  doc.text("Total", 470, y);
 
-  y += 20;
-  doc.moveTo(50, y).lineTo(550, y).strokeColor("#e5e7eb").stroke();
-  y += 10;
+  const drawTableHeader = () => {
+    doc.fontSize(10).fillColor(PRIMARY_COLOR);
+    doc.text("Product", 50, y);
+    doc.text("Qty", 300, y);
+    doc.text("Price", 370, y);
+    doc.text("Total", 470, y);
+    y += 20;
+    doc.moveTo(50, y).lineTo(550, y).strokeColor("#e5e7eb").stroke();
+    y += 10;
+  };
 
-  // ── Table rows ──
-  order.items.forEach((item) => {
-    const name = item.product?.name || "Product";
-    const qty = item.quantity;
-    const price = item.price;
+  drawTableHeader();
+
+  // ── Table rows — page break check + safe fallback values ──
+  const items = Array.isArray(order.items) ? order.items : [];
+
+  items.forEach((item) => {
+    if (y > PAGE_BOTTOM_LIMIT) {
+      doc.addPage();
+      y = 50;
+      drawTableHeader(); // har naye page pe table header repeat
+    }
+
+    const name = item.product?.name || item.name || "Product";
+    const qty = Number(item.quantity) || 0;
+    const price = Number(item.price) || 0;
     const total = price * qty;
 
-    doc.fontSize(9).fillColor(primaryColor);
+    doc.fontSize(9).fillColor(PRIMARY_COLOR);
     doc.text(name, 50, y, { width: 230 });
     doc.text(String(qty), 300, y);
     doc.text(`Rs. ${price.toLocaleString()}`, 370, y);
@@ -91,27 +98,40 @@ function buildInvoice(doc, order) {
     y += 25;
   });
 
-  // ── Divider before total ──
+  // Grand total ke liye bhi check
+  if (y > PAGE_BOTTOM_LIMIT - 30) {
+    doc.addPage();
+    y = 50;
+  }
+
   doc.moveTo(50, y).lineTo(550, y).strokeColor("#e5e7eb").stroke();
   y += 15;
 
-  // ── Grand total ──
+  const grandTotal = Number(order.totalAmount) || 0;
+
   doc
     .fontSize(11)
-    .fillColor(primaryColor)
+    .fillColor(PRIMARY_COLOR)
     .text("Grand Total", 370, y)
-    .text(`Rs. ${Number(order.totalAmount).toLocaleString()}`, 470, y);
+    .text(`Rs. ${grandTotal.toLocaleString()}`, 470, y);
 
   // ── Footer ──
   doc
     .fontSize(8)
-    .fillColor(grayColor)
+    .fillColor(GRAY_COLOR)
     .text("Thank you for your order!", 50, 750, { align: "center", width: 500 });
 }
-// controllers/invoice.controller.js
+
+// ─────────────────────────────────────────────────────────────
+// BULK INVOICE — 2 orders per A4 page
+// ─────────────────────────────────────────────────────────────
 exports.generateBulkInvoice = async (req, res) => {
   try {
-    const { orderIds } = req.body; // ["id1", "id2", "id3", "id4"] — frontend se array
+    const { orderIds } = req.body; // ["id1", "id2", "id3", "id4"]
+
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({ success: false, message: "orderIds array is required" });
+    }
 
     const orders = await Order.find({ _id: { $in: orderIds } })
       .populate("user")
@@ -134,14 +154,13 @@ exports.generateBulkInvoice = async (req, res) => {
       const isTopHalf = index % 2 === 0;
 
       if (isTopHalf && index !== 0) {
-        doc.addPage(); // har naye pair se pehle naya page (pehle wale ke alawa)
+        doc.addPage();
       }
 
       const offsetY = isTopHalf ? 30 : HALF_HEIGHT + 30;
 
       buildHalfInvoice(doc, order, offsetY);
 
-      // Beech mein cutting/fold line
       if (isTopHalf) {
         doc
           .moveTo(0, HALF_HEIGHT)
@@ -161,39 +180,42 @@ exports.generateBulkInvoice = async (req, res) => {
   }
 };
 
-// Compact half-page invoice
 function buildHalfInvoice(doc, order, offsetY) {
-  const primaryColor = "#1f2937";
-  const grayColor = "#6b7280";
-
-  doc.fontSize(14).fillColor(primaryColor).text("INVOICE", 50, offsetY);
+  doc.fontSize(14).fillColor(PRIMARY_COLOR).text("INVOICE", 50, offsetY);
   doc
     .fontSize(8)
-    .fillColor(grayColor)
+    .fillColor(GRAY_COLOR)
     .text(`Order #${order.orderNumber || order._id}`, 50, offsetY + 20)
-    .text(`Date: ${new Date(order.createdAt).toLocaleDateString()}`, 50, offsetY + 32);
+    .text(`Date: ${order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}`, 50, offsetY + 32);
 
   doc
     .fontSize(8)
-    .fillColor(primaryColor)
+    .fillColor(PRIMARY_COLOR)
     .text(order.user?.fullName || "Customer", 350, offsetY, { align: "right", width: 200 })
-    .fillColor(grayColor)
+    .fillColor(GRAY_COLOR)
     .text(order.user?.email || "", 350, offsetY + 12, { align: "right", width: 200 });
 
   let y = offsetY + 55;
 
-  order.items.slice(0, 6).forEach((item) => { // half-page mein max ~6 items fit hote hain
-    doc.fontSize(8).fillColor(primaryColor);
-    doc.text(`${item.product?.name || "Product"} x${item.quantity}`, 50, y, { width: 300 });
-    doc.text(`Rs. ${(item.price * item.quantity).toLocaleString()}`, 470, y);
+  const items = Array.isArray(order.items) ? order.items : [];
+
+  items.slice(0, 6).forEach((item) => { // half-page mein max ~6 items fit
+    const name = item.product?.name || item.name || "Product";
+    const qty = Number(item.quantity) || 0;
+    const price = Number(item.price) || 0;
+    const total = price * qty;
+
+    doc.fontSize(8).fillColor(PRIMARY_COLOR);
+    doc.text(`${name} x${qty}`, 50, y, { width: 300 });
+    doc.text(`Rs. ${total.toLocaleString()}`, 470, y);
     y += 15;
   });
 
+  const grandTotal = Number(order.totalAmount) || 0;
+
   doc
     .fontSize(9)
-    .fillColor(primaryColor)
+    .fillColor(PRIMARY_COLOR)
     .text("Total:", 400, y + 5)
-    .text(`Rs. ${Number(order.totalAmount).toLocaleString()}`, 470, y + 5);
+    .text(`Rs. ${grandTotal.toLocaleString()}`, 470, y + 5);
 }
-
-module.exports.buildInvoice = buildInvoice; // agar kahin aur reuse karna ho
