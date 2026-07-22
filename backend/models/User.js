@@ -65,11 +65,13 @@ const userSchema = new Schema(
   { timestamps: true }
 );
 
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
-  if (!this.password) return next(); // Google-only users
+// 🔑 Fix: async pre-save hook se "next" hata diya — Mongoose 7+ mein
+// async function khud completion signal deti hai (return/throw se),
+// next() ko manually call karna crash karta hai ("next is not a function")
+userSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
+  if (!this.password) return; // Google-only users
   this.password = await bcrypt.hash(this.password, 12);
-  next();
 });
 
 userSchema.methods.comparePassword = async function (candidatePassword) {
