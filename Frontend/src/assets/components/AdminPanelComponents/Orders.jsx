@@ -15,7 +15,7 @@ const InvoiceButton = ({ orderId }) => {
     e.stopPropagation();
     setDownloading(true);
     try {
-      await downloadGetFile(`/orders/${orderId}/invoice`, `invoice-${orderId}.pdf`);
+      await downloadGetFile(`/${orderId}/invoice`, `invoice-${orderId}.pdf`);
     } catch (err) {
       console.error("Invoice download failed:", err);
     } finally {
@@ -40,7 +40,7 @@ const BulkInvoiceButton = ({ selectedOrderIds }) => {
   const handleBulkDownload = async () => {
     setDownloading(true);
     try {
-      await downloadPostFile("/orders/invoices/bulk", "invoices-bulk.pdf", {
+      await downloadPostFile("/invoices/bulk", "invoices-bulk.pdf", {
         orderIds: selectedOrderIds,
       });
     } catch (err) {
@@ -64,14 +64,14 @@ const BulkInvoiceButton = ({ selectedOrderIds }) => {
 const ExportButtons = ({ currentFilters }) => (
   <div className="flex items-center gap-2">
     <button
-      onClick={() => downloadGetFile("/orders/export/excel", "orders.xlsx", currentFilters)}
+      onClick={() => downloadGetFile("/export/excel", "orders.xlsx", currentFilters)}
       className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
     >
       <FileSpreadsheet className="w-4 h-4" />
       Excel
     </button>
     <button
-      onClick={() => downloadGetFile("/orders/export/csv", "orders.csv", currentFilters)}
+      onClick={() => downloadGetFile("/export/csv", "orders.csv", currentFilters)}
       className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
     >
       <FileText className="w-4 h-4" />
