@@ -23,7 +23,6 @@ const generateToken = (id) => {
 const sendToken = (user, res, statusCode = 200) => {
   const token = generateToken(user._id);
   const isProduction = process.env.NODE_ENV === "production";
-
   res.cookie("token", token, {
     httpOnly: true,
     secure: isProduction,
