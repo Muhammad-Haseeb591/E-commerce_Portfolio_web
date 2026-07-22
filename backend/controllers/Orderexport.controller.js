@@ -12,7 +12,7 @@ const {
   formatDate,
   customerName,
   customerEmail,
-} = require("../services/pdf/Invoicerenderer");
+} = require("../services/Invoicerenderer");
 
 // Shared query-filter builder so PDF/Excel/CSV all respect the same
 // ?from=&to=&status= filters from the admin UI.
