@@ -58,13 +58,10 @@ const Main = ({ children }) => {
           </button>
         </div>
 
-        {/* Product Count — ab har width par dikhta hai (pehle "hidden
-            md:block" tha, mobile par bilkul ghayab ho jata tha). UI/design
-            wahi hai, sirf ab kam width par text overflow/hide karne ke
-            bajaye wrap ho jata hai. */}
-        <div className='flex-1 min-w-0 px-2 text-center'>
-          <p className='text-black/70 font-normal text-[11px] sm:text-sm md:text-base leading-tight whitespace-normal break-words'>
-            {productCount} {productCount === 1 ? "product" : "products"}
+      {/* Product Count */}
+      <div>
+          <p className='text-black/70 font-normal hidden md:block'>
+            {totalCount} {totalCount === 1 ? "product" : "products"}
           </p>
         </div>
 
