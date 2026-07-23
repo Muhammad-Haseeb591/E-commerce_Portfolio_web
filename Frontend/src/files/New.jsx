@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useEffect, useState } from "react";
-import { fetchCatalog, setFilter, setFilters } from "../assets/components/redux_Toolkit/fetcherSlice";
+import { fetchCatalog, setFilter, setFilters, setTotalCount } from "../assets/components/redux_Toolkit/fetcherSlice";
 import { useFilteredProducts } from "../assets/components/hooks/useFilteredProducts";
 import { getColorHex } from "../utils/Colormap";
 
@@ -29,6 +29,19 @@ const New = () => {
   }, [dispatch, catalog]);
 
   const filteredProducts = useFilteredProducts();
+
+  // 🔑 FIX — Main.jsx ka product-count header sirf Redux ke `totalCount`
+  // se aata hai, jo sirf `fetchData` (server-side pagination) update
+  // karta hai. Ye page fetchData KABHI call nahi karta — sirf poora
+  // catalog uthata hai aur khud client-side filter/paginate karta hai
+  // (useFilteredProducts). Is wajah se totalCount kabhi sync hi nahi hota
+  // tha, aur refresh ke baad hamesha 0 (ya kisi purani page ka stale
+  // number) atka reh jata tha. Ab jab bhi client-side filtered count
+  // badalta hai (catalog load hone par, ya filters change hone par),
+  // Redux ka totalCount usi ke barabar set kar dete hain.
+  useEffect(() => {
+    dispatch(setTotalCount(filteredProducts.length));
+  }, [dispatch, filteredProducts.length]);
 
   // ── Client-side pagination ──
   const pageSize = Number(filters.size) || 20;
