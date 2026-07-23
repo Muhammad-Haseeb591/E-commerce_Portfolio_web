@@ -15,6 +15,9 @@ const NAV_ITEMS = [
 const AdminPanel = () => {
   const [activeTab,   setActiveTab]   = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // 🔑 Logo image load hone tak dummy/skeleton UI dikhane ke liye —
+  // pehle load ke doran alt-text/cropped image dikh raha tha ("PORT-_Site...")
+  const [logoLoaded, setLogoLoaded] = useState(false);
 
   const handleTab = (id) => {
     setActiveTab(id);
@@ -33,26 +36,38 @@ const AdminPanel = () => {
 
       <aside
         className={`
-          fixed md:static z-30 h-full
+          fixed md:static z-30 h-full flex flex-col
           ${sidebarOpen ? "w-60" : "w-0"}
           bg-white border-r border-gray-200
           transition-all duration-300 overflow-hidden shrink-0
         `}
       >
         {/* Logo */}
-        <div className="px-5 py-5 border-b border-gray-100 flex flex-col items-start gap-1">
-  <div className="w-full max-w-[220px] h-[60px] flex items-center">
-    <img
-      className="w-full h-full object-contain object-left"
-      src="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784673289/Gemini_Generated_Image_42k8yv42k8yv42k8_qlrij0.png"
-      alt="Portfolio Site"
-      loading="eager"
-    />
-  </div>
-  <p className="text-xs text-gray-400 truncate">Manage your store</p>
-</div>
+        <div className="px-5 py-5 border-b border-gray-100 flex flex-col items-start gap-1 shrink-0">
+          <div className="relative w-full h-14 flex items-center justify-start overflow-hidden">
+            {/* 🔑 Dummy/skeleton placeholder — image load hote hi fade out */}
+            {!logoLoaded && (
+              <div className="absolute inset-0 bg-gray-100 rounded-lg animate-pulse" />
+            )}
+            <img
+              className={`
+                max-w-full max-h-full w-auto h-auto object-contain object-left
+                transition-opacity duration-300
+                ${logoLoaded ? "opacity-100" : "opacity-0"}
+              `}
+              src="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784673289/Gemini_Generated_Image_42k8yv42k8yv42k8_qlrij0.png"
+              alt="Portfolio Site"
+              loading="eager"
+              onLoad={() => setLogoLoaded(true)}
+              onError={() => setLogoLoaded(true)}
+            />
+          </div>
+          <p className="text-xs text-gray-400 truncate">Manage your store</p>
+        </div>
 
-        <nav className="px-3 py-4 space-y-0.5">
+        {/* 🔑 Nav ab flex-1 + overflow-y-auto hai — content zyada hone par
+            khud scroll karega, baaki sidebar (logo, footer) fixed rahenge */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
           {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -71,7 +86,10 @@ const AdminPanel = () => {
           ))}
         </nav>
 
-        <div className="absolute bottom-5 left-0 right-0 px-5">
+        {/* 🔑 Pehle ye absolute bottom-5 tha, jo scroll hone par nav content
+            ke upar overlap kar sakta tha. Ab normal flex flow mein hai —
+            hamesha bottom par pinned rahega, kabhi overlap nahi karega. */}
+        <div className="px-5 py-3 border-t border-gray-100 shrink-0">
           <p className="text-xs text-gray-300 text-center">v1.0.0</p>
         </div>
       </aside>
