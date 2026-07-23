@@ -43,15 +43,15 @@ const AdminPanel = () => {
         `}
       >
         {/* Logo */}
-        <div className="px-5 py-5 border-b border-gray-100 flex flex-col items-start gap-1 shrink-0">
-          <div className="relative w-full h-14 flex items-center justify-start overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex flex-col items-start gap-1.5 shrink-0 w-full">
+          <div className="relative w-full h-16 shrink-0">
             {/* 🔑 Dummy/skeleton placeholder — image load hote hi fade out */}
             {!logoLoaded && (
               <div className="absolute inset-0 bg-gray-100 rounded-lg animate-pulse" />
             )}
             <img
               className={`
-                max-w-full max-h-full w-auto h-auto object-contain object-left
+                w-full h-full object-contain object-left
                 transition-opacity duration-300
                 ${logoLoaded ? "opacity-100" : "opacity-0"}
               `}
@@ -62,7 +62,7 @@ const AdminPanel = () => {
               onError={() => setLogoLoaded(true)}
             />
           </div>
-          <p className="text-xs text-gray-400 truncate">Manage your store</p>
+          <p className="text-xs text-gray-400 truncate w-full">Manage your store</p>
         </div>
 
         {/* 🔑 Nav ab flex-1 + overflow-y-auto hai — content zyada hone par
