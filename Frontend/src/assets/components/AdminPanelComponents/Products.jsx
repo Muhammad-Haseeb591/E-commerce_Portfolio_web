@@ -135,6 +135,18 @@ const ImageModal = ({ selectedImage, productName, onClose }) => {
 
 // ── Edit Modal — mirrors every field from the Add Product form ──
 const EditModal = ({ product, onClose, onSave }) => {
+  // 🔑 FIX: whether the plain "stock" field should be pre-filled must be
+  // based on whether THIS product's type+category actually has a shoe
+  // size scale — NOT on whether product.sizes has entries. Every product
+  // (even non-shoe ones like perfume/accessories) is saved WITH a
+  // `sizes` array — ProductForm.jsx's `cleanedSizes` fallback gives
+  // non-shoe products a single synthetic entry:
+  // [{ size: "One Size", stock: N }]. So `product.sizes?.length` was
+  // ALWAYS truthy, which meant the plain stock field was always blanked
+  // out on edit — even for perfume/accessories, where it should show
+  // the real saved stock number.
+  const initialSizeOptions = sizeOptionsFor(product.type, product.category);
+
   const [form, setForm] = useState({
     name: product.name || "",
     price: product.price || "",
@@ -145,12 +157,14 @@ const EditModal = ({ product, onClose, onSave }) => {
     type: product.type || "",
     color: product.color || "",
     status: product.status || "active",
-    stock: product.sizes?.length ? "" : product.stock || "",
+    stock: initialSizeOptions ? "" : product.stock || "",
     images: product.images?.length ? product.images : [""],
   });
 
   // Toggle-box grid state: { "40": 5, "42": 2, ... }, seeded from the
-  // product's saved `sizes` array (if it has real sizes, not "One Size").
+  // product's saved `sizes` array. Only meaningful when the product
+  // actually has a shoe size scale (initialSizeOptions truthy) — for
+  // "One Size" (non-shoe) products this map is simply never rendered.
   const [sizeStocks, setSizeStocks] = useState(() => sizesArrayToStocks(product.sizes));
 
   const [submitError, setSubmitError] = useState("");
