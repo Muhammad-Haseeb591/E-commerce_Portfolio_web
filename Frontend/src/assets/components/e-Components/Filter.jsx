@@ -2,8 +2,73 @@ import React, { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { setFilter, setFilters } from '../redux_Toolkit/fetcherSlice'
 import { useFilteredProducts } from '../hooks/useFilteredProducts'
-import { COLOR_OPTIONS, swatchStyle } from '../constants/productOptions'
 
+// ⚠️ SINGLE SOURCE OF TRUTH WARNING — READ BEFORE EDITING
+// These constants used to live in a separate shared file
+// (constants/productOptions.js) so that ProductForm.jsx (which SAVES
+// product.color to the DB) and this Filter.jsx (which QUERIES by
+// product.color) could never go out of sync. They've been inlined here
+// on request, which means: if you EVER add, remove, or rename a color
+// in ProductForm.jsx, you MUST make the exact same change here too —
+// same spelling, same casing (e.g. "Black" not "black"). If you skip
+// this step even once, filters will silently stop matching products
+// again, exactly like before.
+export const CATEGORY_OPTIONS = [
+  "men",
+  "women",
+  "sales",
+  "perfume",
+  "accessories",
+  "getinspired",
+  "kids",
+];
+
+export const TYPE_OPTIONS = ["shoes", "other"];
+
+// Casing matters — this EXACT casing must match what ProductForm.jsx
+// saves to product.color in the DB.
+export const COLOR_OPTIONS = [
+  "Black", "White", "Grey", "Navy", "Blue", "Red",
+  "Green", "Yellow", "Pink", "Brown", "Beige", "Multicolor",
+];
+
+// Multicolor's value is a CSS gradient string, not a plain hex — anything
+// that renders a swatch MUST use swatchStyle() below, not a raw
+// `style={{ backgroundColor: COLOR_SWATCH[color] }}`, or the Multicolor
+// swatch silently fails to render (invalid CSS value, ignored).
+export const COLOR_SWATCH = {
+  Black: "#000000", White: "#ffffff", Grey: "#9ca3af", Navy: "#1e3a5f",
+  Blue: "#2563eb", Red: "#dc2626", Green: "#16a34a", Yellow: "#eab308",
+  Pink: "#ec4899", Brown: "#78350f", Beige: "#e8dcc8", Multicolor:
+    "linear-gradient(135deg, red, orange, yellow, green, blue, violet)",
+};
+
+// Always use this to get a safe inline style for a color swatch/circle.
+export const swatchStyle = (color) => {
+  const value = COLOR_SWATCH[color];
+  if (!value) return { background: "#e5e7eb" };
+  return value.startsWith("linear") ? { background: value } : { backgroundColor: value };
+};
+
+// Shoe size ranges, per category. Sizes only ever apply when Type = "shoes"
+// AND the category has a defined scale below.
+const range = (start, end) =>
+  Array.from({ length: end - start + 1 }, (_, i) => String(start + i));
+
+export const SHOE_SIZES_BY_CATEGORY = {
+  kids: range(25, 36),
+  men: range(38, 46),
+  women: range(37, 42),
+};
+
+export const sizeOptionsFor = (type, category) =>
+  type === "shoes" ? SHOE_SIZES_BY_CATEGORY[category] || null : null;
+
+// 🔑 Category hata di gayi hai, is liye sab sizes ek hi combined list mein
+// dikhaye ja rahe hain (women + men + kids ka union, duplicates hataye
+// gaye hain). Agar tum chahte ho ke sizes category-specific hi rahein
+// (bina category selector ke), to batao — is case mein hum size ko khud
+// "type" bhi assign kar sakte hain product data ke through.
 const ALL_SIZES = Array.from(
   new Set([
     "28", "29", "30", "31", "32", "33", "34", "35",
@@ -15,9 +80,21 @@ const ALL_SIZES = Array.from(
 const Filter = ({ onClose }) => {
   const dispatch = useDispatch();
   const { filters } = useSelector((state) => state.FetchPrducts);
+
+  // 🔑 Same catalog + filters state se live count nikalta hai —
+  // "Apply Filters" button ab batayega abhi kitne products match ho rahe hain,
+  // real-time (color/size click karte hi update ho jayega).
   const filteredProducts = useFilteredProducts();
+
+  // 🔑 Price sirf local state mein rakha hai — "Apply" tak fetch nahi chalega.
+  // Color, Size turant Redux mein jaate hain (click-to-filter UX) — isi
+  // liye ye dono cumulative / point-by-point mehsoos hote hain: jaise hi
+  // ek filter set hota hai, filteredProducts turant us pe filter ho jata
+  // hai, aur agla filter usi list ke upar aur filter karta hai (AND logic
+  // useFilteredProducts hook ke andar honi chahiye).
   const [minPrice, setMinPrice] = useState(filters.minPrice || "");
   const [maxPrice, setMaxPrice] = useState(filters.maxPrice || "");
+
   const selectedSizes = filters.sizes ? filters.sizes.split(",").filter(Boolean) : [];
 
   const toggleSize = (size) => {
@@ -28,9 +105,8 @@ const Filter = ({ onClose }) => {
     dispatch(setFilter({ key: "sizes", value: updated.join(",") }));
   };
 
-  // 🔑 Color ab EXACT same casing me dispatch hota hai jo DB me saved hai
-  // (e.g. "Black", "Navy", "Multicolor") — COLOR_OPTIONS shared file se
-  // aata hai, isliye ProductForm.jsx se hamesha automatically sync rahega.
+  // 🔑 Color EXACT same casing me dispatch hota hai jo DB me saved hai
+  // (e.g. "Black", "Navy", "Multicolor").
   const handleColor = (color) => {
     const next = filters.color === color ? "" : color;
     dispatch(setFilter({ key: "color", value: next }));
