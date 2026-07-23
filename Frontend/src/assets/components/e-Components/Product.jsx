@@ -56,7 +56,7 @@ const Product = ({ filterOpen }) => {
                 )}
               </div>
 
-             
+            
             </div>
 
             {/* Color Swatch */}
