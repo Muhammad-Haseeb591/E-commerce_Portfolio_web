@@ -33,16 +33,19 @@ const ColorFilter = () => {
   // ka selected state hai. Koi local/dummy data nahi.
   const { catalog, filters } = useSelector((state) => state.FetchPrducts);
 
-  // 🔑 Har color ke saamne live count — catalog mein us color ke kitne
-  // products hain (case-insensitive match, jaisa useFilteredProducts
-  // mein bhi hai). Sirf wahi colors dikhaye jate hain jinka count > 0.
+  // 🔑 Ab SAB 12 colors hamesha dikhaye jate hain — form (ProductForm.jsx)
+  // ke COLOR_OPTIONS jitne bhi hain, sab yahan show honge, chahe abhi
+  // catalog mein us color ka koi product ho ya na ho. Pehle count === 0
+  // waale colors chhupa diye jate the, jo behtar searching ke liye sahi
+  // nahi tha (user ko pura range dikhna chahiye). Count sirf info ke
+  // liye saath dikhta hai.
   const colorsWithCount = useMemo(() => {
     return COLORS.map((c) => {
       const count = (catalog || []).filter(
         (p) => (p.color || "").toLowerCase() === c.value.toLowerCase()
       ).length;
       return { ...c, count };
-    }).filter((c) => c.count > 0);
+    });
   }, [catalog]);
 
   // 🔑 Redux mein filters.color ek single string hai (multi-select nahi) —
@@ -60,7 +63,7 @@ const ColorFilter = () => {
           <summary className='list-none pt-[15px] pb-[5px] pr-[17.5px]'>
             <div className='flex border-b-[1px] border-gray-200'>
               <span className='w-[191.17px] h-[29px] flex justify-between item-center'>
-                Color ({colorsWithCount.length})
+                Color ({COLORS.length})
                 <svg className='rotate-180 w-[20px] h-[6px] mt-[9px]' aria-hidden="true" focusable="false" viewBox="0 0 10 6">
                   <path fillRule="evenodd" clipRule="evenodd" d="M9.354.646a.5.5 0 00-.708 0L5 4.293 1.354.646a.5.5 0 00-.708.708l4 4a.5.5 0 00.708 0l4-4a.5.5 0 000-.708z" fill="currentColor" />
                 </svg>
@@ -72,7 +75,14 @@ const ColorFilter = () => {
             {colorsWithCount.map((c) => {
               const isChecked = filters.color?.toLowerCase() === c.value.toLowerCase();
               return (
-                <div key={c.value}>
+                <div
+                  key={c.value}
+                  // 🔑 selected color ki poori row highlight hoti hai
+                  // (reference image jaisi — blue bg, white text)
+                  className={`rounded-[4px] transition-colors ${
+                    isChecked ? "bg-blue-600 text-white" : "hover:bg-gray-50"
+                  }`}
+                >
                   <div className='flex justify-between relative mt-[8px] items-center'>
                     <input
                       type="checkbox"
@@ -85,7 +95,7 @@ const ColorFilter = () => {
                       style={swatchStyle(c.hex)}
                     />
                     <span className='relative left-[-74px]'>
-                      {c.value} ({c.count})
+                      {c.value} {c.count > 0 ? `(${c.count})` : ""}
                     </span>
                   </div>
                 </div>
