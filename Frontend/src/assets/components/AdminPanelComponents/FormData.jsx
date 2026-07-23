@@ -1,6 +1,11 @@
 import React, { useState, useRef } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { X, Loader2, Plus, ChevronDown } from "lucide-react";
 import { API_URL } from "../../../config/api";
+// 🔑 Path yahan Filter.jsx ke import se match karayi gayi hai
+// ("../redux_Toolkit/fetcherSlice"). Agar ProductForm kisi aur folder
+// depth par hai to is path ko apne project ke hisaab se adjust kar lena.
+import { fetchData } from "../redux_Toolkit/fetcherSlice";
 
 // Backend already handles Cloudinary upload (signed, via multer-storage-cloudinary)
 // so we hit OUR server route, not Cloudinary directly — no upload_preset needed.
@@ -26,6 +31,12 @@ const uploadToCloudinary = async (file) => {
 // Fixed lists (instead of free text) keep the backend's exact-match
 // filters (?category=kids, ?color=black) reliable — no typos, no casing
 // mismatches.
+//
+// 🔑 IMPORTANT: the exact strings below (casing included) are what gets
+// saved as product.color in the DB, and Filter.jsx's color list must use
+// these SAME strings, or clicking a color in the filter will never match
+// a saved product. If you ever change this list, update Filter.jsx too
+// (ideally, pull both from one shared constants file).
 
 const CATEGORY_OPTIONS = [
   "men",
@@ -72,7 +83,15 @@ const swatchStyle = (color) => {
   return value.startsWith("linear") ? { background: value } : { backgroundColor: value };
 };
 
-const ProductForm = ({ onClose }) => {
+// 🔑 onProductAdded: optional callback for the parent — call it if the
+// parent wants to force a hard remount of the product page (e.g. via a
+// `key` bump) instead of / in addition to the redux refetch below.
+const ProductForm = ({ onClose, onProductAdded }) => {
+  const dispatch = useDispatch();
+  // Same slice key Filter.jsx reads from ("state.FetchPrducts"), so the
+  // refetch below respects whatever filters/page the user currently has.
+  const { filters } = useSelector((state) => state.FetchPrducts);
+
   const [product, setProduct] = useState({
     name: "",
     price: "",
@@ -267,6 +286,16 @@ const ProductForm = ({ onClose }) => {
 
       if (res.ok) {
         alert("Product added successfully!");
+
+        // 🔑 Only NOW (a real successful add) do we touch the product
+        // list — refetch with whatever filters/page are currently active,
+        // so the product page reflects the new item instead of getting
+        // refreshed on every open/close of this form.
+        dispatch(fetchData(filters));
+        // Let the parent force a hard remount too, if it wants one
+        // (e.g. `setListKey((k) => k + 1)` passed in as onProductAdded).
+        onProductAdded?.();
+
         onClose();
       } else {
         setSubmitError(data?.message || "Could not add product. Server error.");

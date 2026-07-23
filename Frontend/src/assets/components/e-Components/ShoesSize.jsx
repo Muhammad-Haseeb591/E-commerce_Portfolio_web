@@ -1,6 +1,6 @@
 import React from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import '../../components/scrollbar.css'
+import '../../components/scrollbar.css' // 🔑 merged in — ColorFilter already had this, ShoesSize was missing it
 import { setFilter } from '../redux_Toolkit/fetcherSlice' // 🔑 apna actual path confirm kar lena
 
 // 🔑 Category ke hisaab se numeric shoe sizes — XL/2XL type letter sizing nahi
@@ -45,7 +45,7 @@ const ShoesSize = () => {
             </div>
           </summary>
 
-          <div className='overflow-y-auto overflow-hidden w-[208px] h-[265px] pb-[15px]'>
+          <div className='overflow-y-auto overflow-hidden scroll-smooth w-[208px] h-[265px] pb-[15px]'>
             {sizeOptions.map((size) => {
               const isChecked = selectedSizes.includes(size);
               return (
