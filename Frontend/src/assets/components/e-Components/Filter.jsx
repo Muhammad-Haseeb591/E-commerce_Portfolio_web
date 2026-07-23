@@ -2,12 +2,8 @@ import React, { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { setFilter, setFilters } from '../redux_Toolkit/fetcherSlice'
 import { useFilteredProducts } from '../hooks/useFilteredProducts'
+import { COLOR_OPTIONS, swatchStyle } from '../constants/productOptions'
 
-// 🔑 Category hata di gayi hai, is liye sab sizes ek hi combined list mein
-// dikhaye ja rahe hain (women + men + kids ka union, duplicates hataye
-// gaye hain). Agar tum chahte ho ke sizes category-specific hi rahein
-// (bina category selector ke), to batao — is case mein hum size ko khud
-// "type" bhi assign kar sakte hain product data ke through.
 const ALL_SIZES = Array.from(
   new Set([
     "28", "29", "30", "31", "32", "33", "34", "35",
@@ -16,36 +12,12 @@ const ALL_SIZES = Array.from(
   ])
 ).sort((a, b) => Number(a) - Number(b));
 
-// 🔑 Common shoe colors — swatch hex + backend value
-const COLORS = [
-  { value: "black", hex: "#000000" },
-  { value: "white", hex: "#ffffff" },
-  { value: "red", hex: "#cc0000" },
-  { value: "blue", hex: "#1e3a8a" },
-  { value: "grey", hex: "#9ca3af" },
-  { value: "brown", hex: "#78350f" },
-  { value: "beige", hex: "#e7d8c9" },
-  { value: "green", hex: "#166534" },
-];
-
 const Filter = ({ onClose }) => {
   const dispatch = useDispatch();
   const { filters } = useSelector((state) => state.FetchPrducts);
-
-  // 🔑 Same catalog + filters state se live count nikalta hai —
-  // "Apply Filters" button ab batayega abhi kitne products match ho rahe hain,
-  // real-time (color/size click karte hi update ho jayega).
   const filteredProducts = useFilteredProducts();
-
-  // 🔑 Price sirf local state mein rakha hai — "Apply" tak fetch nahi chalega.
-  // Color, Size turant Redux mein jaate hain (click-to-filter UX) — isi
-  // liye ye dono cumulative / point-by-point mehsoos hote hain: jaise hi
-  // ek filter set hota hai, filteredProducts turant us pe filter ho jata
-  // hai, aur agla filter usi list ke upar aur filter karta hai (AND logic
-  // useFilteredProducts hook ke andar honi chahiye).
   const [minPrice, setMinPrice] = useState(filters.minPrice || "");
   const [maxPrice, setMaxPrice] = useState(filters.maxPrice || "");
-
   const selectedSizes = filters.sizes ? filters.sizes.split(",").filter(Boolean) : [];
 
   const toggleSize = (size) => {
@@ -56,9 +28,9 @@ const Filter = ({ onClose }) => {
     dispatch(setFilter({ key: "sizes", value: updated.join(",") }));
   };
 
-  // 🔑 Color ko trim + lowercase kar ke bhejo taake case/whitespace
-  // mismatch se filter "chup ke" fail na ho (agar hook mein comparison
-  // case-sensitive hai to ye extra safety hai).
+  // 🔑 Color ab EXACT same casing me dispatch hota hai jo DB me saved hai
+  // (e.g. "Black", "Navy", "Multicolor") — COLOR_OPTIONS shared file se
+  // aata hai, isliye ProductForm.jsx se hamesha automatically sync rahega.
   const handleColor = (color) => {
     const next = filters.color === color ? "" : color;
     dispatch(setFilter({ key: "color", value: next }));
@@ -174,25 +146,26 @@ const Filter = ({ onClose }) => {
 
             {filters.color && (
               <p className="text-[11px] text-gray-400 mt-[12px] mb-[6px]">
-                Selected: <span className="text-black font-medium capitalize">{filters.color}</span>
+                Selected: <span className="text-black font-medium">{filters.color}</span>
               </p>
             )}
 
             <div className="mt-[14px] flex flex-wrap gap-[12px]">
-              {COLORS.map((c) => {
-                const isActive = filters.color === c.value;
+              {COLOR_OPTIONS.map((color) => {
+                const isActive = filters.color === color;
+                const isWhite = color === "White";
                 return (
                   <button
-                    key={c.value}
-                    onClick={() => handleColor(c.value)}
-                    title={c.value}
+                    key={color}
+                    onClick={() => handleColor(color)}
+                    title={color}
                     className={`w-[30px] h-[30px] rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer ${
                       isActive ? "ring-2 ring-black ring-offset-2" : "ring-1 ring-gray-200 ring-offset-1 hover:ring-gray-400"
                     }`}
-                    style={{ backgroundColor: c.hex }}
+                    style={swatchStyle(color)}
                   >
                     {isActive && (
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c.value === "white" ? "black" : "white"} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={isWhite ? "black" : "white"} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                     )}
