@@ -179,6 +179,17 @@ const fetcherSlice = createSlice({
     setPage: (state, action) => {
       state.filters.page = action.payload;
     },
+    // 🔑 NEW — for pages that filter/paginate CLIENT-SIDE (e.g. New.jsx,
+    // which loads the full catalog via fetchCatalog and filters it
+    // locally with useFilteredProducts, instead of calling fetchData).
+    // Those pages never trigger fetchData.fulfilled, so totalCount would
+    // otherwise stay stuck at whatever the last server-fetch page left it
+    // at (or 0, after a refresh). Call this whenever the client-side
+    // filtered product count changes, so Main.jsx's "{totalCount}
+    // products" display always matches what's actually on screen.
+    setTotalCount: (state, action) => {
+      state.totalCount = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -247,5 +258,5 @@ const fetcherSlice = createSlice({
   },
 });
 
-export const { setFilter, setFilters, resetFilters, setPage } = fetcherSlice.actions;
+export const { setFilter, setFilters, resetFilters, setPage, setTotalCount } = fetcherSlice.actions;
 export default fetcherSlice.reducer;
