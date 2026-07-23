@@ -1,4 +1,3 @@
-
 import Filter from './Filter.jsx'
 import React, { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -22,13 +21,11 @@ const Main = ({ children }) => {
   const dispatch = useDispatch();
   const { totalCount, filters } = useSelector((state) => state.FetchPrducts);
 
-  // 🔑 Yahan se fetchData ka useEffect hata diya hai — ye zimmedari ab sirf
-  // us page component ki hai jo actual grid render karta hai (Women.jsx,
-  // Men.jsx, Kids.jsx, ProductGrid.jsx waghera). Main.jsx sirf state PADHTA
-  // hai (totalCount, sortBy/order dikhane ke liye) aur setFilters DISPATCH
-  // karta hai — fetch khud nahi chalata. Isse duplicate API calls nahi hongi.
+  // 🔑 Safe fallback — jab tak fetchData ka pehla response nahi aata,
+  // totalCount redux mein 0 hi hota hai (initialFilters se), is liye
+  // "undefined products" jaisa koi bug/flash nahi aata kisi bhi render par.
+  const productCount = totalCount ?? 0;
 
-  // 🔑 Current dropdown value ko filters.sortBy/order ke hisaab se select karo
   const currentSortLabel =
     SORT_OPTIONS.find(
       (opt) => opt.sortBy === filters.sortBy && opt.order === filters.order
@@ -61,10 +58,13 @@ const Main = ({ children }) => {
           </button>
         </div>
 
-        {/* Product Count */}
-        <div>
-          <p className='text-black/70 font-normal hidden md:block'>
-            {totalCount} {totalCount === 1 ? "product" : "products"}
+        {/* Product Count — ab har width par dikhta hai (pehle "hidden
+            md:block" tha, mobile par bilkul ghayab ho jata tha). UI/design
+            wahi hai, sirf ab kam width par text overflow/hide karne ke
+            bajaye wrap ho jata hai. */}
+        <div className='flex-1 min-w-0 px-2 text-center'>
+          <p className='text-black/70 font-normal text-[11px] sm:text-sm md:text-base leading-tight whitespace-normal break-words'>
+            {productCount} {productCount === 1 ? "product" : "products"}
           </p>
         </div>
 
