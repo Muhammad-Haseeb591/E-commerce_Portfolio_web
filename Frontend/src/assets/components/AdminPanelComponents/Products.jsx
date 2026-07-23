@@ -17,16 +17,13 @@ import {
   stocksToSizesArray,
 } from "./Productformhelpers";
 
+// 🎨 Primary action color used across this page
+const PRIMARY = "#333333";
+const PRIMARY_HOVER = "#222222";
+
 // ── Loading / Error / Empty states (shared, width-safe) ──
 const StateBlock = ({ children }) => (
   <div className="py-14 flex flex-col items-center gap-3 text-center px-4">{children}</div>
-);
-
-const LoadingState = () => (
-  <StateBlock>
-    <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
-    <span className="text-sm text-gray-400">Loading products...</span>
-  </StateBlock>
 );
 
 const ErrorState = ({ message }) => (
@@ -48,6 +45,50 @@ const EmptyState = () => (
     <PackageX className="w-8 h-8 text-gray-400" />
     <span className="text-sm text-gray-400">No products found</span>
   </StateBlock>
+);
+
+// ── Skeleton placeholders — shown instead of a spinner until real data mounts ──
+const ProductCardSkeleton = () => (
+  <div className="flex items-center gap-3 p-3 border-b border-gray-100 last:border-0 animate-pulse">
+    <div className="w-12 h-12 rounded-lg bg-gray-200 shrink-0" />
+    <div className="min-w-0 flex-1 space-y-2">
+      <div className="h-3.5 w-2/3 bg-gray-200 rounded" />
+      <div className="h-2.5 w-1/3 bg-gray-100 rounded" />
+      <div className="h-3 w-1/2 bg-gray-100 rounded" />
+    </div>
+    <div className="flex flex-col gap-2 shrink-0">
+      <div className="w-6 h-6 rounded-lg bg-gray-100" />
+      <div className="w-6 h-6 rounded-lg bg-gray-100" />
+    </div>
+  </div>
+);
+
+const ProductRowSkeleton = () => (
+  <tr className="border-t border-gray-100 animate-pulse">
+    <td className="px-6 py-4">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg bg-gray-200 shrink-0" />
+        <div className="h-3.5 w-32 bg-gray-200 rounded" />
+      </div>
+    </td>
+    <td className="px-6 py-4"><div className="h-3.5 w-20 bg-gray-100 rounded" /></td>
+    <td className="px-6 py-4"><div className="h-3.5 w-16 bg-gray-100 rounded" /></td>
+    <td className="px-6 py-4"><div className="h-5 w-24 bg-gray-100 rounded-full" /></td>
+    <td className="px-6 py-4">
+      <div className="flex items-center gap-2">
+        <div className="w-6 h-6 rounded-lg bg-gray-100" />
+        <div className="w-6 h-6 rounded-lg bg-gray-100" />
+      </div>
+    </td>
+  </tr>
+);
+
+const SKELETON_COUNT = 5;
+const CardSkeletonList = () => (
+  <>{Array.from({ length: SKELETON_COUNT }).map((_, i) => <ProductCardSkeleton key={i} />)}</>
+);
+const RowSkeletonList = () => (
+  <>{Array.from({ length: SKELETON_COUNT }).map((_, i) => <ProductRowSkeleton key={i} />)}</>
 );
 
 // ── Stock Badge ──
@@ -274,7 +315,7 @@ const EditModal = ({ product, onClose, onSave }) => {
     `${baseInput} ${
       fieldErrors[name]
         ? "border-red-300 ring-2 ring-red-100 focus:ring-red-100"
-        : "border-gray-200 focus:ring-blue-300 focus:border-gray-300"
+        : "border-gray-200 focus:ring-gray-300 focus:border-gray-300"
     }`;
 
   const labelClass = "block text-xs font-medium text-gray-500 mb-1.5";
@@ -542,9 +583,10 @@ const EditModal = ({ product, onClose, onSave }) => {
                         key={size}
                         type="button"
                         onClick={() => toggleSize(size)}
+                        style={active ? { backgroundColor: PRIMARY, borderColor: PRIMARY } : undefined}
                         className={`h-11 rounded-lg text-sm font-medium border transition ${
                           active
-                            ? "bg-gray-900 border-gray-900 text-white"
+                            ? "text-white"
                             : "bg-white border-gray-200 text-gray-600 hover:border-gray-400"
                         }`}
                       >
@@ -628,7 +670,10 @@ const EditModal = ({ product, onClose, onSave }) => {
             <button
               type="button"
               onClick={handleSubmit}
-              className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition text-sm font-medium"
+              style={{ backgroundColor: PRIMARY }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = PRIMARY_HOVER)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = PRIMARY)}
+              className="flex-1 py-2.5 rounded-xl text-white transition text-sm font-medium"
             >
               Save Changes
             </button>
@@ -641,7 +686,7 @@ const EditModal = ({ product, onClose, onSave }) => {
 
 // ── Product Card (mobile — replaces table row on small screens) ──
 const ProductCard = ({ product, onDelete, onImageClick, onEdit }) => (
-  <div className="flex items-center gap-3 p-3 border-b border-gray-100 last:border-0">
+  <div className="flex items-center gap-3 p-3 border-b border-gray-100 last:border-0 active:bg-gray-50 transition-colors">
     {product.images?.[0] ? (
       <img
         src={product.images[0]}
@@ -669,13 +714,15 @@ const ProductCard = ({ product, onDelete, onImageClick, onEdit }) => (
     <div className="flex flex-col gap-1 shrink-0">
       <button
         onClick={() => onEdit(product)}
-        className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+        className="p-2 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+        aria-label="Edit product"
       >
         <Pencil className="w-4 h-4" />
       </button>
       <button
         onClick={() => onDelete(product._id)}
-        className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+        className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+        aria-label="Delete product"
       >
         <Trash2 className="w-4 h-4" />
       </button>
@@ -685,7 +732,7 @@ const ProductCard = ({ product, onDelete, onImageClick, onEdit }) => (
 
 // ── Product Row (desktop — table row, sm+ only) ──
 const ProductRow = ({ product, onDelete, onImageClick, onEdit }) => (
-  <tr className="border-t border-gray-100 hover:bg-blue-50 transition-colors">
+  <tr className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
     <td className="px-6 py-4">
       <div className="flex items-center gap-3">
         {product.images?.[0] ? (
@@ -714,13 +761,15 @@ const ProductRow = ({ product, onDelete, onImageClick, onEdit }) => (
       <div className="flex items-center gap-2">
         <button
           onClick={() => onEdit(product)}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+          aria-label="Edit product"
         >
           <Pencil className="w-4 h-4" />
         </button>
         <button
           onClick={() => onDelete(product._id)}
           className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+          aria-label="Delete product"
         >
           <Trash2 className="w-4 h-4" />
         </button>
@@ -740,6 +789,9 @@ const Products = () => {
   const dispatch = useDispatch();
   const { products = [], loading, error } = useSelector((state) => state.FetchPrducts);
 
+  // 🔑 fetchData ke andar mount-guard condition honi chahiye (jaisa orders
+  // slice mein hai) taake tab-switch / remount par dobara fetch na ho —
+  // sirf jab product add/edit/delete ho ya guard khud force:true bheje.
   useEffect(() => { dispatch(fetchData()); }, [dispatch]);
 
   if (showAddProduct) return <FormData onClose={() => setShowAddProduct(false)} />;
@@ -755,8 +807,12 @@ const Products = () => {
   const handleImageClick = (img, name) => { setSelectedImage(img); setSelectedName(name); };
   const handleEdit = (product) => setEditingProduct(product);
 
+  // Skeleton dikhta hai sirf jab data abhi tak mount hi nahi hua (loading +
+  // list khali). Baad mein background refetch pe purani list screen pe rehti hai.
+  const showSkeleton = loading && products.length === 0;
+
   const renderContent = () => {
-    if (loading) return <LoadingState />;
+    if (showSkeleton) return null; // skeleton list render hoti hai neeche seedha
     if (error) return <ErrorState message={error} />;
     if (filteredProducts.length === 0) return <EmptyState />;
     return null;
@@ -765,7 +821,7 @@ const Products = () => {
   const emptyOrStateContent = renderContent();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-3 sm:p-6 overflow-x-hidden">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-6 overflow-x-hidden">
 
       <ImageModal
         selectedImage={selectedImage}
@@ -784,14 +840,17 @@ const Products = () => {
         />
       )}
 
-      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
+      <div className="max-w-7xl mx-auto space-y-3 sm:space-y-6">
 
         {/* Header bar */}
-        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-          <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Product Management</h1>
+        <div className="bg-white rounded-2xl shadow-sm sm:shadow-lg p-4 sm:p-6 border border-gray-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+          <h1 className="text-lg sm:text-3xl font-bold text-gray-900">Product Management</h1>
           <button
             onClick={() => setShowAddProduct(true)}
-            className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-all text-sm sm:text-base w-full sm:w-auto"
+            style={{ backgroundColor: PRIMARY }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = PRIMARY_HOVER)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = PRIMARY)}
+            className="flex items-center justify-center gap-2 text-white px-5 py-3 sm:py-2.5 rounded-xl transition-colors text-sm sm:text-base w-full sm:w-auto active:scale-[0.98]"
           >
             <Plus className="w-4 h-4" />
             Add Product
@@ -799,7 +858,7 @@ const Products = () => {
         </div>
 
         {/* Search */}
-        <div className="p-3 sm:p-4 bg-white rounded-xl border border-gray-100">
+        <div className="p-3 bg-white rounded-xl border border-gray-100 sticky top-2 z-10 sm:static">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
@@ -807,22 +866,26 @@ const Products = () => {
               placeholder="Search by name or category..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-2.5 sm:py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+              className="w-full pl-12 pr-4 py-3 sm:py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-300 text-sm sm:text-base"
             />
           </div>
         </div>
 
         {/* ── Mobile: card list (< sm) ── */}
-        <div className="sm:hidden bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-          {emptyOrStateContent || filteredProducts.map((product) => (
-            <ProductCard
-              key={product._id}
-              product={product}
-              onDelete={handleDelete}
-              onImageClick={handleImageClick}
-              onEdit={handleEdit}
-            />
-          ))}
+        <div className="sm:hidden bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          {showSkeleton ? (
+            <CardSkeletonList />
+          ) : (
+            emptyOrStateContent || filteredProducts.map((product) => (
+              <ProductCard
+                key={product._id}
+                product={product}
+                onDelete={handleDelete}
+                onImageClick={handleImageClick}
+                onEdit={handleEdit}
+              />
+            ))
+          )}
         </div>
 
         {/* ── Desktop: table (sm and up) ── */}
@@ -838,7 +901,9 @@ const Products = () => {
               </tr>
             </thead>
             <tbody>
-              {loading || error || filteredProducts.length === 0 ? (
+              {showSkeleton ? (
+                <RowSkeletonList />
+              ) : error || filteredProducts.length === 0 ? (
                 <tr><td colSpan={5}>{emptyOrStateContent}</td></tr>
               ) : (
                 filteredProducts.map((product) => (
