@@ -1,4 +1,3 @@
-
 import { API_URL } from "../../../config/api";
 export const uploadToCloudinary = async (file) => {
   const uploadData = new window.FormData();
@@ -83,3 +82,62 @@ export const stocksToSizesArray = (sizeStocks, sizeOptions, plainStock) =>
         stock: Number(stock) || 0,
       }))
     : [{ size: "One Size", stock: Number(plainStock) || 0 }];
+
+// ── Colors ──────────────────────────────────────────────────────────────
+// Mirrors the sizes helpers above, but for the per-color images+stock
+// blocks used in the Colors section of both the Add and Edit forms.
+
+// Empty block seed — used for the initial state and every "Add Color" click.
+export const emptyColorBlock = () => ({ color: "", images: [""], stock: "" });
+
+// Converts a saved product into the block-shape the forms use internally:
+// [{ color, images: [...], stock }, ...]
+//
+// 🔑 Handles BOTH shapes a product can currently have in the DB:
+//   - new products: `product.colors = [{ color, hex, images, stock }]`
+//   - old/legacy products (migrated or not yet migrated): a single
+//     `product.color` string, with the product's general `images`/`stock`
+//     used as that one color's images/stock — so editing an old product
+//     doesn't just show a blank Colors section.
+export const colorsArrayToBlocks = (product) => {
+  if (Array.isArray(product?.colors) && product.colors.length > 0) {
+    return product.colors.map((c) => ({
+      color: c.color || "",
+      images: c.images?.length ? c.images : [""],
+      stock: c.stock ?? "",
+    }));
+  }
+
+  if (product?.color) {
+    return [
+      {
+        color: product.color,
+        images: product.images?.length ? product.images : [""],
+        stock: product.stock ?? "",
+      },
+    ];
+  }
+
+  return [emptyColorBlock()];
+};
+
+// Converts the block-shape back into the `colors: [{ color, hex, images, stock }]`
+// array that actually gets saved. Blocks left fully empty (no color picked)
+// are dropped rather than causing a validation error.
+export const blocksToColorsArray = (colorBlocks = []) =>
+  colorBlocks
+    .filter((c) => c.color && c.color.trim() !== "")
+    .map((c) => ({
+      color: c.color,
+      hex:
+        COLOR_SWATCH[c.color] && !COLOR_SWATCH[c.color].startsWith("linear")
+          ? COLOR_SWATCH[c.color]
+          : "",
+      images: c.images.filter((img) => img.trim() !== ""),
+      stock: Number(c.stock) || 0,
+    }));
+
+// Total stock derived from color blocks — same "sum it up" idea as
+// stocksToSizesArray's total, used when a product has colors but no sizes.
+export const colorBlocksTotalStock = (colorBlocks = []) =>
+  blocksToColorsArray(colorBlocks).reduce((sum, c) => sum + (Number(c.stock) || 0), 0);
