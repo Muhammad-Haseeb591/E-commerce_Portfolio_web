@@ -47,6 +47,43 @@ const normalizeSizes = (rawSizes) => {
   return expanded;
 };
 
+// 🔑 Colors: each entry can carry its own `images` array + its own `stock`.
+// Expects something like:
+//   product.colors = [
+//     { color: "Red",   images: ["r1.jpg","r2.jpg"], stock: 5 },
+//     { color: "Black", images: ["b1.jpg"],           stock: 0 },
+//   ]
+// `color` field name is flexible (color/name/title) and `images` field name
+// is flexible too (images/image/img), so it plugs into whatever shape the
+// product data actually has without extra changes elsewhere.
+const normalizeColors = (rawColors) => {
+  if (!Array.isArray(rawColors)) return [];
+
+  const seen = new Set();
+  const expanded = [];
+
+  rawColors.forEach((entry) => {
+    const colorName = entry?.color ?? entry?.name ?? entry?.title;
+    if (!colorName || seen.has(colorName)) return;
+    seen.add(colorName);
+
+    let imgs = entry?.images ?? entry?.image ?? entry?.img ?? [];
+    if (!Array.isArray(imgs)) imgs = imgs ? [imgs] : [];
+    imgs = imgs.filter(Boolean);
+
+    const stock = Number(entry?.stock ?? 0);
+
+    expanded.push({
+      color: colorName,
+      images: imgs,
+      stock: Number.isFinite(stock) ? stock : 0,
+      hex: entry?.hex || entry?.code || null, // optional, used for swatch dot if present
+    });
+  });
+
+  return expanded;
+};
+
 const FAKE_NAMES = [
   "Ayesha K.", "Bilal R.", "Sana M.", "Hamza A.", "Zainab T.",
   "Usman F.", "Mahnoor S.", "Ali H.", "Fatima N.", "Talha Q.",
@@ -105,6 +142,9 @@ const Detail_Page = () => {
 
   const [selectedImage, setSelectedImage] = useState(0);
 
+  // 🔑 Which color is currently selected. Index into colorList (below).
+  const [selectedColorIndex, setSelectedColorIndex] = useState(0);
+
   // 🔑 Multi-size selection: { "40": 2, "42": 1 } — key = size, value = qty
   // chosen for that size. Replaces the old single `selectedSize` string so
   // more than one size can be added to cart in the same "Add to Cart" click.
@@ -141,6 +181,7 @@ const Detail_Page = () => {
 
   useEffect(() => {
     setSelectedImage(0);
+    setSelectedColorIndex(0);
     setSelectedSizes({});
     setQuantity(1);
     setAdded(false);
@@ -158,7 +199,22 @@ const Detail_Page = () => {
     [favouriteItems, id]
   );
 
-  const images = product?.images?.length ? product.images : [""];
+  // 🔑 Colors for this product (empty array if product has no colors at all).
+  const colorList = useMemo(() => normalizeColors(product?.colors), [product]);
+  const hasColors = colorList.length > 0;
+  const allColorsOutOfStock = hasColors && colorList.every((c) => c.stock === 0);
+  const selectedColorData = hasColors ? colorList[selectedColorIndex] || colorList[0] : null;
+
+  // 🔑 Images shown = the selected color's own images if it has any,
+  // otherwise fall back to the product's general images. Object-contain
+  // (below, in the JSX) keeps whatever size/aspect the image actually is
+  // fitted neatly inside the fixed square box — no extra sizing changes needed.
+  const images = hasColors && selectedColorData?.images?.length
+    ? selectedColorData.images
+    : product?.images?.length
+    ? product.images
+    : [""];
+
   const sizeList = useMemo(() => normalizeSizes(product?.sizes), [product]);
   const hasSizes = sizeList.length > 0;
   const allSizesOutOfStock = hasSizes && sizeList.every((s) => s.stock === 0);
@@ -167,7 +223,11 @@ const Detail_Page = () => {
 
   // Live stock for products that DON'T use sizes — same "stock going up/down"
   // idea as the per-size steppers above, just against product.stock directly.
-  const productStock = Number(product?.stock) || 0;
+  // 🔑 When the product has colors (but no sizes), stock is checked against
+  // the SELECTED color's own stock instead of the product's overall stock.
+  const productStock = hasColors
+    ? Number(selectedColorData?.stock) || 0
+    : Number(product?.stock) || 0;
   const productOutOfStock = !hasSizes && productStock <= 0;
   const remainingProductStock = Math.max(0, productStock - quantity);
 
@@ -198,6 +258,17 @@ const Detail_Page = () => {
     setTimeout(() => {
       setPulsingSize((current) => (current === size ? null : current));
     }, 280);
+  };
+
+  // 🔑 Switching color: reset which image is shown + reset the quantity
+  // stepper (since remaining stock changes per color) so nothing carries
+  // over incorrectly from the previous color.
+  const selectColor = (index, stock) => {
+    if (stock === 0) return;
+    setSelectedColorIndex(index);
+    setSelectedImage(0);
+    setImgLoaded(false);
+    setQuantity(1);
   };
 
   // Toggle a size on/off. Turning it on seeds a quantity of 1 (capped to
@@ -234,13 +305,22 @@ const Detail_Page = () => {
   };
 
   const handleAddToCart = useCallback(() => {
+    if (hasColors && allColorsOutOfStock) {
+      alert("This product is out of stock in all colors.");
+      return;
+    }
+
     if (hasSizes && Object.keys(selectedSizes).length === 0) {
       alert("Please select at least one size.");
       return;
     }
 
     if (!hasSizes && productOutOfStock) {
-      alert("Quantity is out of stock.");
+      alert(
+        hasColors
+          ? `Quantity is out of stock for color ${selectedColorData?.color}.`
+          : "Quantity is out of stock."
+      );
       return;
     }
 
@@ -255,18 +335,36 @@ const Detail_Page = () => {
     // the reducer would have to re-derive stock from the raw product.sizes,
     // which may still contain the original combined "40,41,42" string and
     // wouldn't match — passing it directly avoids that mismatch entirely.
+    //
+    // 🔑 `color` is passed the same way whenever the product has colors, so
+    // cart lines stay distinct per (productId, size, color) if the reducer
+    // chooses to key on it.
+    const color = hasColors ? selectedColorData?.color : undefined;
+
     if (hasSizes) {
       Object.entries(selectedSizes).forEach(([size, qty]) => {
         const stock = sizeList.find((s) => s.size === size)?.stock;
-        dispatch(addToCart({ product, size, quantity: qty, stock }));
+        dispatch(addToCart({ product, size, quantity: qty, stock, color }));
       });
     } else {
-      dispatch(addToCart({ product, size: null, quantity, stock: productStock }));
+      dispatch(addToCart({ product, size: null, quantity, stock: productStock, color }));
     }
 
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
-  }, [hasSizes, selectedSizes, product, quantity, productOutOfStock, productStock, sizeList, dispatch]);
+  }, [
+    hasSizes,
+    hasColors,
+    allColorsOutOfStock,
+    selectedColorData,
+    selectedSizes,
+    product,
+    quantity,
+    productOutOfStock,
+    productStock,
+    sizeList,
+    dispatch,
+  ]);
 
   const handleToggleFavourite = useCallback(() => {
     const wasAlreadyFavourite = isFavourite;
@@ -317,7 +415,10 @@ const Detail_Page = () => {
   }
 
   const addToCartDisabled =
-    allSizesOutOfStock || productOutOfStock || (hasSizes && totalSelectedQty === 0);
+    allSizesOutOfStock ||
+    allColorsOutOfStock ||
+    productOutOfStock ||
+    (hasSizes && totalSelectedQty === 0);
 
   return (
     <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-[30px] py-4 sm:py-6 font-sans pb-28 sm:pb-6">
@@ -331,6 +432,9 @@ const Detail_Page = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12">
         {/* ── Images ── */}
         <div>
+          {/* 🔑 Fixed square box (aspect-square) + object-contain: whatever
+              size/aspect the actual image file is, it fits neatly INSIDE the
+              box without cropping or overflow, for every color/size. */}
           <div className="relative w-full aspect-square max-w-[480px] mx-auto lg:max-w-none bg-[#ececec] rounded-xl overflow-hidden">
             {images[selectedImage] ? (
               <img
@@ -381,7 +485,7 @@ const Detail_Page = () => {
                     selectedImage === i ? "border-[#333333]" : "border-transparent opacity-70 hover:opacity-100"
                   }`}
                 >
-                  <img src={img} alt="" className="w-full h-full object-cover" />
+                  <img src={img} alt="" className="w-full h-full object-contain" />
                 </button>
               ))}
             </div>
@@ -421,10 +525,57 @@ const Detail_Page = () => {
               : `Add Rs. ${amountLeftForFreeDelivery.toFixed(0)} more to unlock FREE delivery`}
           </div>
 
-          {product.color && (
-            <p className="text-sm text-gray-500 mt-4">
-              Color: <span className="text-[#333333] font-medium">{product.color}</span>
-            </p>
+          {/* ── Colors (only if product has colors) — selecting a color
+               swaps the images shown above AND checks that color's own stock. ── */}
+          {hasColors ? (
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-semibold text-[#333333]">
+                  Color:{" "}
+                  <span className="font-normal text-gray-500">
+                    {selectedColorData?.color}
+                  </span>
+                </p>
+                {allColorsOutOfStock && (
+                  <span className="text-xs text-red-600 font-medium">Out of stock</span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {colorList.map((c, i) => {
+                  const outOfStock = c.stock === 0;
+                  const isSelected = selectedColorIndex === i;
+                  return (
+                    <button
+                      key={c.color}
+                      type="button"
+                      disabled={outOfStock}
+                      onClick={() => selectColor(i, c.stock)}
+                      title={outOfStock ? "Out of stock" : `${c.stock} in stock`}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition ${
+                        isSelected
+                          ? "bg-[#333333] text-white border-[#333333]"
+                          : "border-gray-300 text-[#333333] hover:border-[#333333]"
+                      } ${outOfStock ? "opacity-40 cursor-not-allowed line-through" : ""}`}
+                    >
+                      {c.hex && (
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-black/10 shrink-0"
+                          style={{ backgroundColor: c.hex }}
+                        />
+                      )}
+                      {c.color}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            product.color && (
+              <p className="text-sm text-gray-500 mt-4">
+                Color: <span className="text-[#333333] font-medium">{product.color}</span>
+              </p>
+            )
           )}
 
           {/* ── Sizes (only if product has sizes) — MULTI-select now, each
@@ -572,7 +723,8 @@ const Detail_Page = () => {
           )}
 
           {/* ── Quantity stepper — only shown for products WITHOUT sizes,
-               since sized products get a quantity per size above ── */}
+               since sized products get a quantity per size above. When the
+               product also has colors, this checks the SELECTED color's stock. ── */}
           {!hasSizes && (
             <div className="mt-5">
               <div className="flex items-center gap-3">
@@ -597,7 +749,8 @@ const Detail_Page = () => {
                   </button>
                 </div>
                 {/* Live remaining stock — same pop + color-flash animation as
-                    the per-size steppers, just tracking product.stock directly. */}
+                    the per-size steppers, just tracking the active stock
+                    (selected color's stock, or product.stock if no colors). */}
                 <span
                   className={`text-xs font-semibold transition-transform duration-300 ease-out inline-block ${
                     qtyPulsing ? "scale-125" : "scale-100"

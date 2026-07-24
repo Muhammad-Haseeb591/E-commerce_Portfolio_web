@@ -33,7 +33,7 @@ const navLinks = [
     },{
     name: "NEW",
     to: "/new",
-    hoverImage:"https://res.cloudinary.com/dxqs4sg8j/image/upload/v1783365556/NewShoes_dv0vkn.webp",
+    hoverImage:"https://plus.unsplash.com/premium_photo-1665413642308-c5c1ed052d12?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     hoverDetails: [
       { section: "NEW ARRIVALS", items: [
       { label: "WOMEN'S NEW ARRIVALS", to: "/women" },
@@ -45,7 +45,7 @@ const navLinks = [
   {
     name: "WOMEN",
     to: "/women",
-    hoverImage:"https://res.cloudinary.com/dxqs4sg8j/image/upload/v1783365564/LadiesShoes_ltocgd.jpg",
+    hoverImage:"https://images.unsplash.com/photo-1596703263926-eb0762ee17e4?q=80&w=735&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     hoverDetails: [
       {
         section: "SHOES",
@@ -74,7 +74,7 @@ const navLinks = [
   {
     name: "MEN",
     to: "/men",
-    hoverImage: "https://res.cloudinary.com/dxqs4sg8j/image/upload/v1783365563/MensShoes_ukkanx.jpg",
+    hoverImage: "https://plus.unsplash.com/premium_photo-1723662148369-3dd7abaf0566?fm=jpg&q=60&w=3000&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8cHV0dGluZyUyMG9uJTIwc2hvZXN8ZW58MHx8MHx8fDA%3D",
     hoverDetails: [
       {
         section: "SHOES",
@@ -92,6 +92,7 @@ const navLinks = [
   {
     name: "KIDS",
     to: "/kids",
+    hoverImage: "https://images.unsplash.com/photo-1636130748629-655be0c60041?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     hoverDetails: [
       {
         section: "GIRLS",
@@ -219,13 +220,16 @@ const navLinks = [
       </div>
 
       {activeLink.hoverImage && (
-        <div className="w-1/2 min-h-[180px] max-h-[80vh] overflow-hidden shrink-0">
+        <Link
+          to={activeLink.to}
+          className="w-1/2 min-h-[180px] max-h-[80vh] overflow-hidden shrink-0 block"
+        >
           <img
             src={activeLink.hoverImage}
             alt={activeLink.name}
             className="w-full h-full max-h-[80vh] object-cover object-center"
           />
-        </div>
+        </Link>
       )}
       </div>
     </div>
