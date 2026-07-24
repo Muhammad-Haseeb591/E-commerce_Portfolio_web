@@ -15,6 +15,10 @@ import {
   swatchStyle,
   sizesArrayToStocks,
   stocksToSizesArray,
+  emptyColorBlock,
+  colorsArrayToBlocks,
+  blocksToColorsArray,
+  colorBlocksTotalStock,
 } from "./Productformhelpers";
 
 // 🎨 Primary action color used across this page
@@ -155,7 +159,6 @@ const EditModal = ({ product, onClose, onSave }) => {
     discount: product.discount || "",
     category: product.category || "",
     type: product.type || "",
-    color: product.color || "",
     status: product.status || "active",
     stock: initialSizeOptions ? "" : product.stock || "",
     images: product.images?.length ? product.images : [""],
@@ -167,6 +170,15 @@ const EditModal = ({ product, onClose, onSave }) => {
   // "One Size" (non-shoe) products this map is simply never rendered.
   const [sizeStocks, setSizeStocks] = useState(() => sizesArrayToStocks(product.sizes));
 
+  // 🔑 Colors — same block-array shape as the Add form, pre-filled from
+  // whatever this product already has: `colors[]` if it's already on the
+  // new schema, or the legacy single `color` string as a one-block
+  // fallback for products that haven't been migrated yet.
+  const [colorBlocks, setColorBlocks] = useState(() => colorsArrayToBlocks(product));
+  const [colorErrors, setColorErrors] = useState({});
+  const [colorImgUploading, setColorImgUploading] = useState({});
+  const [colorImgErrors, setColorImgErrors] = useState({});
+
   const [submitError, setSubmitError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [uploading, setUploading] = useState({});
@@ -176,13 +188,11 @@ const EditModal = ({ product, onClose, onSave }) => {
   const priceRef = useRef(null);
   const categoryRef = useRef(null);
   const typeRef = useRef(null);
-  const colorRef = useRef(null);
   const fieldRefs = {
     name: nameRef,
     price: priceRef,
     category: categoryRef,
     type: typeRef,
-    color: colorRef,
   };
 
   const sizeOptions = sizeOptionsFor(form.type, form.category);
@@ -264,8 +274,91 @@ const EditModal = ({ product, onClose, onSave }) => {
   const setSizeQuantity = (size, qty) =>
     setSizeStocks((prev) => ({ ...prev, [size]: qty }));
 
+  // ── Color block helpers (same shape/behavior as the Add form) ──
+
+  const addColorBlock = () =>
+    setColorBlocks((prev) => [...prev, emptyColorBlock()]);
+
+  const removeColorBlock = (colorIndex) =>
+    setColorBlocks((prev) => {
+      const next = prev.filter((_, i) => i !== colorIndex);
+      return next.length ? next : [emptyColorBlock()];
+    });
+
+  const updateColorField = (colorIndex, field, value) => {
+    setColorBlocks((prev) => {
+      const next = [...prev];
+      next[colorIndex] = { ...next[colorIndex], [field]: value };
+      return next;
+    });
+    setColorErrors((prev) => (prev[colorIndex] ? { ...prev, [colorIndex]: false } : prev));
+  };
+
+  const handleColorImageChange = (colorIndex, imgIndex, value) => {
+    setColorBlocks((prev) => {
+      const next = [...prev];
+      const images = [...next[colorIndex].images];
+      images[imgIndex] = value;
+      next[colorIndex] = { ...next[colorIndex], images };
+      return next;
+    });
+  };
+
+  const addColorImageField = (colorIndex) =>
+    setColorBlocks((prev) => {
+      const next = [...prev];
+      next[colorIndex] = {
+        ...next[colorIndex],
+        images: [...next[colorIndex].images, ""],
+      };
+      return next;
+    });
+
+  const removeColorImageField = (colorIndex, imgIndex) =>
+    setColorBlocks((prev) => {
+      const next = [...prev];
+      const images = next[colorIndex].images.filter((_, i) => i !== imgIndex);
+      next[colorIndex] = { ...next[colorIndex], images: images.length ? images : [""] };
+      return next;
+    });
+
+  const handleColorFileSelect = async (colorIndex, imgIndex, file) => {
+    if (!file) return;
+    const key = `${colorIndex}-${imgIndex}`;
+
+    setColorImgUploading((prev) => ({ ...prev, [key]: true }));
+    setColorImgErrors((prev) => ({ ...prev, [key]: "" }));
+
+    try {
+      const url = await uploadToCloudinary(file);
+      handleColorImageChange(colorIndex, imgIndex, url);
+    } catch (err) {
+      console.error(err);
+      setColorImgErrors((prev) => ({
+        ...prev,
+        [key]: err.message || "Upload failed. Please try again.",
+      }));
+    } finally {
+      setColorImgUploading((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const hasAnyColorInput = colorBlocks.some(
+    (c) => c.color.trim() !== "" || c.images.some((img) => img.trim() !== "") || c.stock !== ""
+  );
+
+  const colorsUsedElsewhere = (currentIndex) =>
+    new Set(
+      colorBlocks
+        .filter((_, i) => i !== currentIndex)
+        .map((c) => c.color)
+        .filter(Boolean)
+    );
+
   const totalStock = sizeOptions
     ? Object.values(sizeStocks).reduce((sum, q) => sum + (Number(q) || 0), 0)
+    : hasAnyColorInput
+    ? colorBlocksTotalStock(colorBlocks)
     : Number(form.stock) || 0;
 
   const validate = () => {
@@ -274,12 +367,27 @@ const EditModal = ({ product, onClose, onSave }) => {
     if (!form.price) errors.price = true;
     if (!form.category) errors.category = true;
     if (!form.type) errors.type = true;
-    if (!form.color) errors.color = true;
     return errors;
   };
 
+  // Same idea as the Add form: at least one color, and no duplicates.
+  const validateColors = () => {
+    const errs = {};
+    let hasAtLeastOne = false;
+    const seen = new Set();
+
+    colorBlocks.forEach((c, i) => {
+      if (c.color.trim() === "") return;
+      hasAtLeastOne = true;
+      if (seen.has(c.color)) errs[i] = true;
+      seen.add(c.color);
+    });
+
+    return { errs, hasAtLeastOne };
+  };
+
   const focusFirstError = (errors) => {
-    const order = ["name", "price", "category", "type", "color"];
+    const order = ["name", "price", "category", "type"];
     const firstField = order.find((f) => errors[f]);
     const ref = firstField && fieldRefs[firstField];
     if (ref?.current) {
@@ -292,14 +400,27 @@ const EditModal = ({ product, onClose, onSave }) => {
     setSubmitError("");
 
     const errors = validate();
-    if (Object.keys(errors).length > 0) {
+    const { errs: colorErrs, hasAtLeastOne } = validateColors();
+
+    if (!hasAtLeastOne) {
       setFieldErrors(errors);
-      focusFirstError(errors);
-      setSubmitError("Please fill in the highlighted required fields.");
+      setSubmitError("Please add at least one color.");
       return;
     }
 
-    if (Object.values(uploading).some(Boolean)) {
+    if (Object.keys(errors).length > 0 || Object.keys(colorErrs).length > 0) {
+      setFieldErrors(errors);
+      setColorErrors(colorErrs);
+      focusFirstError(errors);
+      setSubmitError(
+        Object.keys(colorErrs).length > 0
+          ? "Duplicate colors selected — each color can only be added once."
+          : "Please fill in the highlighted required fields."
+      );
+      return;
+    }
+
+    if (Object.values(uploading).some(Boolean) || Object.values(colorImgUploading).some(Boolean)) {
       setSubmitError("An image is still uploading, please wait.");
       return;
     }
@@ -312,9 +433,9 @@ const EditModal = ({ product, onClose, onSave }) => {
       discount: form.discount,
       category: form.category,
       type: form.type,
-      color: form.color,
       status: form.status,
       images: form.images.filter((img) => img.trim() !== ""),
+      colors: blocksToColorsArray(colorBlocks),
       sizes: stocksToSizesArray(sizeStocks, sizeOptions, form.stock),
       stock: totalStock,
     };
@@ -328,6 +449,13 @@ const EditModal = ({ product, onClose, onSave }) => {
   const fieldClass = (name) =>
     `${baseInput} ${
       fieldErrors[name]
+        ? "border-red-300 ring-2 ring-red-100 focus:ring-red-100"
+        : "border-gray-200 focus:ring-gray-300 focus:border-gray-300"
+    }`;
+
+  const colorFieldClass = (colorIndex) =>
+    `${baseInput} appearance-none pr-9 ${
+      colorErrors[colorIndex]
         ? "border-red-300 ring-2 ring-red-100 focus:ring-red-100"
         : "border-gray-200 focus:ring-gray-300 focus:border-gray-300"
     }`;
@@ -480,9 +608,12 @@ const EditModal = ({ product, onClose, onSave }) => {
             </div>
           </section>
 
-          {/* Images */}
+          {/* General Images — fallback for whichever color has no images of its own */}
           <section>
-            <label className={labelClass}>Images</label>
+            <label className={labelClass}>General Images</label>
+            <p className="text-xs text-gray-400 mb-2">
+              Used as a fallback wherever a color below doesn't have its own images.
+            </p>
             <div className="space-y-3">
               {form.images.map((img, i) => (
                 <div key={i} className="border border-gray-100 rounded-xl p-3">
@@ -550,33 +681,162 @@ const EditModal = ({ product, onClose, onSave }) => {
             </button>
           </section>
 
-          {/* Color */}
+          {/* ── Colors — each color has its OWN images + its OWN stock ── */}
           <section>
-            <label className={labelClass}>Color <Required /></label>
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <select
-                  ref={colorRef}
-                  name="color"
-                  value={form.color}
-                  onChange={handleChange}
-                  className={`${fieldClass("color")} appearance-none pr-9`}
-                >
-                  <option value="">select color</option>
-                  {COLOR_OPTIONS.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              </div>
-              {form.color && (
-                <span
-                  className="w-9 h-9 rounded-full border border-gray-300 shrink-0"
-                  style={swatchStyle(form.color)}
-                  title={form.color}
-                />
-              )}
+            <label className={labelClass}>Colors <Required /></label>
+            <p className="text-xs text-gray-400 mb-3">
+              At least one color is required. Each color can have its own photos and its own stock count.
+            </p>
+
+            <div className="space-y-4">
+              {colorBlocks.map((block, colorIndex) => {
+                const usedElsewhere = colorsUsedElsewhere(colorIndex);
+                const availableOptions = COLOR_OPTIONS.filter(
+                  (c) => c === block.color || !usedElsewhere.has(c)
+                );
+
+                return (
+                  <div
+                    key={colorIndex}
+                    className={`border rounded-xl p-3 space-y-3 ${
+                      colorErrors[colorIndex] ? "border-red-300 bg-red-50/40" : "border-gray-100"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <select
+                          value={block.color}
+                          onChange={(e) => updateColorField(colorIndex, "color", e.target.value)}
+                          className={colorFieldClass(colorIndex)}
+                        >
+                          <option value="">select color</option>
+                          {availableOptions.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      </div>
+
+                      {block.color && (
+                        <span
+                          className="w-9 h-9 rounded-full border border-gray-300 shrink-0"
+                          style={swatchStyle(block.color)}
+                          title={block.color}
+                        />
+                      )}
+
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="Stock"
+                        value={block.stock}
+                        onChange={(e) => updateColorField(colorIndex, "stock", e.target.value)}
+                        className={`${baseInput} w-28 border-gray-200 focus:ring-gray-300 focus:border-gray-300`}
+                      />
+
+                      {colorBlocks.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeColorBlock(colorIndex)}
+                          className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-500 shrink-0"
+                          aria-label="Remove color"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {colorErrors[colorIndex] && (
+                      <p className="text-[11px] text-red-500">
+                        This color is already added above — pick a different one.
+                      </p>
+                    )}
+
+                    {/* Per-color images */}
+                    <div className="pl-1 space-y-2">
+                      {block.images.map((img, imgIndex) => {
+                        const key = `${colorIndex}-${imgIndex}`;
+                        return (
+                          <div key={imgIndex} className="flex items-center gap-2">
+                            {colorImgUploading[key] ? (
+                              <div className="w-12 h-12 flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 shrink-0">
+                                <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                              </div>
+                            ) : img ? (
+                              <img
+                                src={img}
+                                alt={`${block.color || "color"}-preview-${imgIndex}`}
+                                className="w-12 h-12 object-cover rounded-lg border border-gray-200 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 flex items-center justify-center rounded-lg border border-dashed border-gray-300 text-[9px] text-gray-400 text-center shrink-0">
+                                No image
+                              </div>
+                            )}
+
+                            <label className="text-xs text-gray-600 hover:text-gray-900 cursor-pointer bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg shrink-0">
+                              {img ? "Change" : "Upload"}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) =>
+                                  handleColorFileSelect(colorIndex, imgIndex, e.target.files[0])
+                                }
+                              />
+                            </label>
+
+                            <input
+                              type="text"
+                              placeholder="...or paste image URL"
+                              value={img}
+                              onChange={(e) =>
+                                handleColorImageChange(colorIndex, imgIndex, e.target.value)
+                              }
+                              className={`${baseInput} flex-1 border-gray-200 focus:ring-gray-300 focus:border-gray-300 py-1.5`}
+                            />
+
+                            {block.images.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeColorImageField(colorIndex, imgIndex)}
+                                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-500 shrink-0"
+                                aria-label="Remove color image"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {colorImgErrors[key] && (
+                              <p className="text-[10px] text-red-500 shrink-0">
+                                {colorImgErrors[key]}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      <button
+                        type="button"
+                        onClick={() => addColorImageField(colorIndex)}
+                        className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 hover:underline"
+                      >
+                        <Plus className="w-3 h-3" /> Add image for this color
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+
+            <button
+              type="button"
+              onClick={addColorBlock}
+              disabled={colorBlocks.length >= COLOR_OPTIONS.length}
+              className="mt-3 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 hover:underline disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Color
+            </button>
           </section>
 
           {/* Sizes & stock — optional, only real for type = shoes */}
@@ -648,21 +908,26 @@ const EditModal = ({ product, onClose, onSave }) => {
             ) : (
               <div>
                 <p className="text-xs text-gray-400 mb-2">
-                  {form.type === "shoes"
+                  {hasAnyColorInput
+                    ? "Sizes only apply to the \"shoes\" type — total stock is being taken from the colors above instead."
+                    : form.type === "shoes"
                     ? form.category
                       ? `"${form.category}" doesn't have a shoe size scale — just set a stock quantity.`
                       : "Select a category above first."
                     : "Sizes only apply to the \"shoes\" type — just set a stock quantity."}
                 </p>
-                <input
-                  name="stock"
-                  type="number"
-                  min="0"
-                  placeholder="Stock quantity"
-                  value={form.stock}
-                  onChange={handleChange}
-                  className={fieldClass("stock")}
-                />
+                {!hasAnyColorInput && (
+                  <input
+                    name="stock"
+                    type="number"
+                    min="0"
+                    placeholder="Stock quantity"
+                    value={form.stock}
+                    onChange={handleChange}
+                    className={fieldClass("stock")}
+                  />
+                )}
+                <p className="text-xs text-gray-400 mt-2">Total stock: {totalStock}</p>
               </div>
             )}
           </section>

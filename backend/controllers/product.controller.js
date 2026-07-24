@@ -5,7 +5,7 @@ exports.getAddProducts = async (req, res) => {
   try {
     const {
       name, description, images,
-      price, oldPrice, color, bg,
+      price, oldPrice, colors, bg,
       discount, rating, sizes,
       category, stock, status,
     } = req.body;
@@ -19,7 +19,7 @@ exports.getAddProducts = async (req, res) => {
 
     const product = new Product({
       name, description, images,
-      price, oldPrice, color, bg,
+      price, oldPrice, colors, bg,
       discount, rating, sizes,
       category, stock, status,
     });
@@ -157,7 +157,7 @@ exports.updateProduct = async (req, res) => {
   try {
     const {
       name, description, images,
-      price, oldPrice, color, bg,
+      price, oldPrice, colors, bg,
       discount, rating, sizes,
       category, stock, status,
     } = req.body;
@@ -166,7 +166,7 @@ exports.updateProduct = async (req, res) => {
       req.params.id,
       {
         name, description, images,
-        price, oldPrice, color, bg,
+        price, oldPrice, colors, bg,
         discount, rating, sizes,
         category, stock, status,
       },
