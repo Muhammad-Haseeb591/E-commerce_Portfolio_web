@@ -60,10 +60,16 @@ const New = () => {
   // Agar `colors` array nahi milta, ye automatically single `product.color`
   // pe fallback ho jata hai, is liye kuch bhi break nahi hoga.
   const getProductColors = (product) => {
+    const normalize = (c) => {
+      if (typeof c === "string") return c;
+      if (c && typeof c === "object") return c.color || c.name || c.value || "";
+      return "";
+    };
+  
     if (Array.isArray(product.colors) && product.colors.length > 0) {
-      return product.colors;
+      return product.colors.map(normalize).filter(Boolean);
     }
-    return product.color ? [product.color] : [];
+    return product.color ? [normalize(product.color)] : [];
   };
 
   return (
