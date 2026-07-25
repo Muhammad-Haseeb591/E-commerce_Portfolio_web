@@ -26,9 +26,10 @@ const ProductForm = ({ onClose, onProductAdded }) => {
   const dispatch = useDispatch();
   // Same slice key Filter.jsx reads from ("state.FetchPrducts"), so the
   // refetch below respects whatever filters/page the user currently has.
-  const { filters } = useSelector((state) => state.FetchPrducts);
+  const { filters, products } = useSelector((state) => state.FetchPrducts);
 
   const [product, setProduct] = useState({
+    sku: "",
     name: "",
     price: "",
     oldPrice: "",
@@ -50,7 +51,11 @@ const ProductForm = ({ onClose, onProductAdded }) => {
 
   const [submitError, setSubmitError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
-  const [colorErrors, setColorErrors] = useState({}); // { [colorIndex]: true }
+  // 🔑 colorErrors[index] holds a REASON string, not just a boolean:
+  // "duplicate" (same color picked twice) or "no-image" (color has no
+  // photo of its own). Keeping the reason lets both the inline message
+  // and the top-level submitError describe exactly what's wrong.
+  const [colorErrors, setColorErrors] = useState({});
   const [uploading, setUploading] = useState({});
   const [uploadErrors, setUploadErrors] = useState({});
 
@@ -60,11 +65,13 @@ const ProductForm = ({ onClose, onProductAdded }) => {
   const [colorImgUploading, setColorImgUploading] = useState({});
   const [colorImgErrors, setColorImgErrors] = useState({});
 
+  const skuRef = useRef(null);
   const nameRef = useRef(null);
   const priceRef = useRef(null);
   const categoryRef = useRef(null);
   const typeRef = useRef(null);
   const fieldRefs = {
+    sku: skuRef,
     name: nameRef,
     price: priceRef,
     category: categoryRef,
@@ -75,6 +82,9 @@ const ProductForm = ({ onClose, onProductAdded }) => {
 
   const clearFieldError = (field) =>
     setFieldErrors((prev) => (prev[field] ? { ...prev, [field]: false } : prev));
+
+  const clearColorError = (colorIndex) =>
+    setColorErrors((prev) => (prev[colorIndex] ? { ...prev, [colorIndex]: false } : prev));
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -157,7 +167,7 @@ const ProductForm = ({ onClose, onProductAdded }) => {
       next[colorIndex] = { ...next[colorIndex], [field]: value };
       return next;
     });
-    setColorErrors((prev) => (prev[colorIndex] ? { ...prev, [colorIndex]: false } : prev));
+    clearColorError(colorIndex);
   };
 
   const handleColorImageChange = (colorIndex, imgIndex, value) => {
@@ -168,6 +178,9 @@ const ProductForm = ({ onClose, onProductAdded }) => {
       next[colorIndex] = { ...next[colorIndex], images };
       return next;
     });
+    // Adding a photo is exactly what clears a "no-image" error, so treat
+    // it the same as any other field fix.
+    clearColorError(colorIndex);
   };
 
   const addColorImageField = (colorIndex) =>
@@ -245,6 +258,7 @@ const ProductForm = ({ onClose, onProductAdded }) => {
 
   const validate = () => {
     const errors = {};
+    if (!product.sku.trim()) errors.sku = true;
     if (!product.name.trim()) errors.name = true;
     if (!product.price) errors.price = true;
     if (!product.category) errors.category = true;
@@ -252,9 +266,22 @@ const ProductForm = ({ onClose, onProductAdded }) => {
     return errors;
   };
 
+  // 🔑 A separate check on top of validate(): the SKU must not already
+  // belong to another product. Runs against whatever products are
+  // currently loaded in redux — good enough as a first line of defense;
+  // the backend should still enforce uniqueness for real.
+  const isDuplicateSku = () => {
+    const value = product.sku.trim().toLowerCase();
+    if (!value || !Array.isArray(products)) return false;
+    return products.some((p) => String(p.sku ?? "").trim().toLowerCase() === value);
+  };
+
   // 🔑 Color validation is separate from the rest since it's a list, not a
-  // single field: at least one color must be picked, and no two blocks can
-  // share the same color.
+  // single field: at least one color must be picked, no two blocks can
+  // share the same color, and every picked color needs its OWN photo —
+  // this last rule is what stops a color from silently borrowing the
+  // "General Images" fallback and showing the wrong picture on the
+  // product page (e.g. "Pink" displaying a "Yellow" bottle).
   const validateColors = () => {
     const errs = {};
     let hasAtLeastOne = false;
@@ -263,7 +290,12 @@ const ProductForm = ({ onClose, onProductAdded }) => {
     colorBlocks.forEach((c, i) => {
       if (c.color.trim() === "") return; // ignore untouched blocks
       hasAtLeastOne = true;
-      if (seen.has(c.color)) errs[i] = true;
+
+      if (seen.has(c.color)) {
+        errs[i] = "duplicate";
+      } else if (!c.images.some((img) => img.trim() !== "")) {
+        errs[i] = "no-image";
+      }
       seen.add(c.color);
     });
 
@@ -271,7 +303,7 @@ const ProductForm = ({ onClose, onProductAdded }) => {
   };
 
   const focusFirstError = (errors) => {
-    const order = ["name", "price", "category", "type"];
+    const order = ["sku", "name", "price", "category", "type"];
     const firstField = order.find((f) => errors[f]);
     const ref = firstField && fieldRefs[firstField];
     if (ref?.current) {
@@ -287,10 +319,14 @@ const ProductForm = ({ onClose, onProductAdded }) => {
     const errors = validate();
     const { errs: colorErrs, hasAtLeastOne } = validateColors();
 
+    if (!errors.sku && isDuplicateSku()) {
+      errors.sku = true;
+    }
+
     if (!hasAtLeastOne) {
       setSubmitError("Please add at least one color.");
-      focusFirstError(errors);
       setFieldErrors(errors);
+      focusFirstError(errors);
       return;
     }
 
@@ -298,9 +334,15 @@ const ProductForm = ({ onClose, onProductAdded }) => {
       setFieldErrors(errors);
       setColorErrors(colorErrs);
       focusFirstError(errors);
+
+      const reasons = Object.values(colorErrs);
       setSubmitError(
-        Object.keys(colorErrs).length > 0
+        errors.sku
+          ? "This product code is already in use — please choose a unique one."
+          : reasons.includes("duplicate")
           ? "Duplicate colors selected — each color can only be added once."
+          : reasons.includes("no-image")
+          ? "Every color needs at least one image of its own."
           : "Please fill in the highlighted required fields."
       );
       return;
@@ -316,6 +358,7 @@ const ProductForm = ({ onClose, onProductAdded }) => {
     const cleanedColors = blocksToColorsArray(filledColorBlocks, sizeOptions);
 
     const payload = {
+      sku: product.sku.trim(),
       name: product.name,
       price: Number(product.price),
       oldPrice: product.oldPrice ? Number(product.oldPrice) : null,
@@ -415,6 +458,18 @@ const ProductForm = ({ onClose, onProductAdded }) => {
 
           {/* Basic info */}
           <section className="space-y-4">
+            <div>
+              <label className={labelClass}>Product Code (SKU) <Required /></label>
+              <input
+                ref={skuRef}
+                name="sku"
+                placeholder="e.g. JCKT-BLK-001 — must be unique, not shown to customers"
+                value={product.sku}
+                onChange={handleChange}
+                className={fieldClass("sku")}
+              />
+            </div>
+
             <div>
               <label className={labelClass}>Product Name <Required /></label>
               <input
@@ -534,11 +589,12 @@ const ProductForm = ({ onClose, onProductAdded }) => {
             </div>
           </section>
 
-          {/* General Images — fallback shown when a color has no images of its own */}
+          {/* Cover image — optional, only used if this product ends up with no colors at all */}
           <section>
-            <label className={labelClass}>General Images</label>
+            <label className={labelClass}>Cover Image (optional)</label>
             <p className="text-xs text-gray-400 mb-2">
-              Used as a fallback wherever a color below doesn't have its own images.
+              Only shown if this product has no colors. Every color below needs its
+              own photos — add those in the Colors section instead.
             </p>
             <div className="space-y-3">
               {product.images.map((img, i) => (
@@ -592,7 +648,7 @@ const ProductForm = ({ onClose, onProductAdded }) => {
                     placeholder="...or paste an image URL directly"
                     value={img}
                     onChange={(e) => handleImageChange(i, e.target.value)}
-                    className={`${fieldClass("images")} mt-2`}
+                    className={`${baseInput} border-gray-200 focus:ring-gray-900/10 focus:border-gray-300 mt-2`}
                   />
                 </div>
               ))}
@@ -615,7 +671,8 @@ const ProductForm = ({ onClose, onProductAdded }) => {
               </label>
             </div>
             <p className="text-xs text-gray-400 mb-3">
-              Add at least one color. Each color has its own photos, and its own
+              Add at least one color. Each color needs its own photo(s) — this is
+              what a customer sees for that color — plus its own
               {sizeOptions ? " size-wise stock." : " stock count."}
             </p>
             {!product.type || !product.category ? (
@@ -693,7 +750,7 @@ const ProductForm = ({ onClose, onProductAdded }) => {
                       )}
                     </div>
 
-                    {colorErrors[colorIndex] && (
+                    {colorErrors[colorIndex] === "duplicate" && (
                       <p className="text-[11px] text-red-500">
                         This color is already added above — pick a different one.
                       </p>
@@ -763,11 +820,17 @@ const ProductForm = ({ onClose, onProductAdded }) => {
                       </div>
                     )}
 
-                    {/* Per-color images */}
+                    {/* Per-color images — REQUIRED, this is the only place a
+                        photo for this specific color should come from. */}
                     <div className="pl-1 space-y-2 border-t border-gray-100 pt-3">
-                      <p className="text-[11px] font-medium text-gray-500">
-                        Images for this color
-                      </p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] font-medium text-gray-500">
+                          Images for this color <Required />
+                        </p>
+                        {colorErrors[colorIndex] === "no-image" && (
+                          <p className="text-[11px] text-red-500">Needs at least one photo</p>
+                        )}
+                      </div>
                       {block.images.map((img, imgIndex) => {
                         const key = `${colorIndex}-${imgIndex}`;
                         return (
