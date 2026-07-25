@@ -6,86 +6,18 @@ import { API_URL } from "../../../config/api";
 // ("../redux_Toolkit/fetcherSlice"). Agar ProductForm kisi aur folder
 // depth par hai to is path ko apne project ke hisaab se adjust kar lena.
 import { fetchData } from "../redux_Toolkit/fetcherSlice";
-
-// Backend already handles Cloudinary upload (signed, via multer-storage-cloudinary)
-// so we hit OUR server route, not Cloudinary directly — no upload_preset needed.
-const uploadToCloudinary = async (file) => {
-  const uploadData = new FormData();
-  uploadData.append("file", file); // field name MUST match multer's upload.single('file')
-
-  const res = await fetch(`${API_URL}/api/upload`, {
-    method: "POST",
-    body: uploadData,
-  });
-
-  const data = await res.json().catch(() => null);
-
-  if (!res.ok) {
-    throw new Error(data?.error || `Upload failed (status ${res.status})`);
-  }
-
-  return data.url; // req.file.path (Cloudinary secure URL) from backend
-};
-
-// --- Fixed lookup lists -----------------------------------------------
-// Fixed lists (instead of free text) keep the backend's exact-match
-// filters (?category=kids, ?color=black) reliable — no typos, no casing
-// mismatches.
-//
-// 🔑 IMPORTANT: the exact strings below (casing included) are what gets
-// saved as colors[].color in the DB, and Filter.jsx's color list must use
-// these SAME strings, or clicking a color in the filter will never match
-// a saved product. If you ever change this list, update Filter.jsx too
-// (ideally, pull both from one shared constants file).
-
-const CATEGORY_OPTIONS = [
-  "men",
-  "women",
-  "sales",
-  "perfume",
-  "accessories",
-  "getinspired",
-  "kids",
-];
-
-const TYPE_OPTIONS = ["shoes", "other"];
-
-const COLOR_OPTIONS = [
-  "Black", "White", "Grey", "Navy", "Blue", "Red",
-  "Green", "Yellow", "Pink", "Brown", "Beige", "Multicolor",
-];
-
-const COLOR_SWATCH = {
-  Black: "#000000", White: "#ffffff", Grey: "#9ca3af", Navy: "#1e3a5f",
-  Blue: "#2563eb", Red: "#dc2626", Green: "#16a34a", Yellow: "#eab308",
-  Pink: "#ec4899", Brown: "#78350f", Beige: "#e8dcc8", Multicolor:
-    "linear-gradient(135deg, red, orange, yellow, green, blue, violet)",
-};
-
-// Shoe size ranges, per category. Sizes only ever apply when Type = "shoes"
-// AND the category has a defined scale below — everything else (type =
-// "other", or a category with no shoe scale) just uses a plain stock number.
-const range = (start, end) =>
-  Array.from({ length: end - start + 1 }, (_, i) => String(start + i));
-
-const SHOE_SIZES_BY_CATEGORY = {
-  kids: range(25, 36),
-  men: range(38, 46),
-  women: range(37, 42),
-};
-
-const sizeOptionsFor = (type, category) =>
-  type === "shoes" ? SHOE_SIZES_BY_CATEGORY[category] || null : null;
-
-const swatchStyle = (color) => {
-  const value = COLOR_SWATCH[color];
-  if (!value) return { background: "#e5e7eb" };
-  return value.startsWith("linear") ? { background: value } : { backgroundColor: value };
-};
-
-// 🔑 Empty color block seed — used both for the initial state and every
-// time "Add Color" is clicked.
-const emptyColorBlock = () => ({ color: "", images: [""], stock: "" });
+import {
+  uploadToCloudinary,
+  CATEGORY_OPTIONS,
+  TYPE_OPTIONS,
+  COLOR_OPTIONS,
+  sizeOptionsFor,
+  swatchStyle,
+  emptyColorBlock,
+  blocksToColorsArray,
+  colorBlockStock,
+  colorBlocksTotalStock,
+} from "./Productformhelpers";
 
 // 🔑 onProductAdded: optional callback for the parent — call it if the
 // parent wants to force a hard remount of the product page (e.g. via a
@@ -107,17 +39,13 @@ const ProductForm = ({ onClose, onProductAdded }) => {
     category: "",
     type: "",
     status: "active",
-    stock: "", // used only when neither sizes nor colors apply
   });
 
-  // Size is a toggle-box grid: { "40": 5, "42": 2, ... } — key = size,
-  // value = quantity for that size. Only shown for type "shoes" with a
-  // category that has a defined size scale.
-  const [sizeStocks, setSizeStocks] = useState({});
-
   // 🔑 Colors — array of blocks, each with its OWN color name, its OWN
-  // images, and its OWN stock. Starts with one empty block so the section
-  // isn't blank on first render; "Add Color" pushes another one.
+  // images, and its OWN stock (either a plain number, or a per-color
+  // size toggle-grid when the type+category has a shoe size scale).
+  // Starts with one empty block so the section isn't blank on first
+  // render; "Add Color" pushes another one.
   const [colorBlocks, setColorBlocks] = useState([emptyColorBlock()]);
 
   const [submitError, setSubmitError] = useState("");
@@ -155,18 +83,23 @@ const ProductForm = ({ onClose, onProductAdded }) => {
   };
 
   // Category and Type together decide the size scale, so changing either
-  // one resets any sizes already picked (they may no longer be valid).
+  // one resets any sizes already picked on every color block (they may no
+  // longer be valid), and clears each color's manual stock too so stale
+  // numbers from the "no size scale" mode don't linger silently.
+  const resetAllColorSizesAndStock = () =>
+    setColorBlocks((prev) => prev.map((c) => ({ ...c, sizes: {}, stock: "" })));
+
   const handleCategoryChange = (e) => {
     const category = e.target.value;
     setProduct((prev) => ({ ...prev, category }));
-    setSizeStocks({});
+    resetAllColorSizesAndStock();
     clearFieldError("category");
   };
 
   const handleTypeChange = (e) => {
     const type = e.target.value;
     setProduct((prev) => ({ ...prev, type }));
-    setSizeStocks({});
+    resetAllColorSizesAndStock();
     clearFieldError("type");
   };
 
@@ -206,22 +139,6 @@ const ProductForm = ({ onClose, onProductAdded }) => {
       const images = prev.images.filter((_, i) => i !== index);
       return { ...prev, images: images.length ? images : [""] };
     });
-
-  // Toggle a size box on/off. Turning it on seeds a quantity of 1.
-  const toggleSize = (size) => {
-    setSizeStocks((prev) => {
-      const next = { ...prev };
-      if (size in next) {
-        delete next[size];
-      } else {
-        next[size] = 1;
-      }
-      return next;
-    });
-  };
-
-  const setSizeQuantity = (size, qty) =>
-    setSizeStocks((prev) => ({ ...prev, [size]: qty }));
 
   // ── Color block helpers ──────────────────────────────────────────────
 
@@ -292,19 +209,39 @@ const ProductForm = ({ onClose, onProductAdded }) => {
     }
   };
 
+  // 🔑 Per-color size toggle-grid helpers. Toggling a size on seeds a
+  // quantity of 1 for THAT color only — other colors' size maps are
+  // untouched.
+  const toggleColorSize = (colorIndex, size) => {
+    setColorBlocks((prev) => {
+      const next = [...prev];
+      const sizes = { ...next[colorIndex].sizes };
+      if (size in sizes) {
+        delete sizes[size];
+      } else {
+        sizes[size] = 1;
+      }
+      next[colorIndex] = { ...next[colorIndex], sizes };
+      return next;
+    });
+  };
+
+  const setColorSizeQuantity = (colorIndex, size, qty) =>
+    setColorBlocks((prev) => {
+      const next = [...prev];
+      next[colorIndex] = {
+        ...next[colorIndex],
+        sizes: { ...next[colorIndex].sizes, [size]: qty },
+      };
+      return next;
+    });
+
   // Colors actually worth saving = ones where a color name was picked.
   // A block left fully empty (user clicked "Add Color" but didn't fill it)
   // is silently dropped rather than causing a validation error.
   const filledColorBlocks = colorBlocks.filter((c) => c.color.trim() !== "");
-  const hasAnyColorInput = colorBlocks.some(
-    (c) => c.color.trim() !== "" || c.images.some((img) => img.trim() !== "") || c.stock !== ""
-  );
 
-  const totalStock = sizeOptions
-    ? Object.values(sizeStocks).reduce((sum, q) => sum + (Number(q) || 0), 0)
-    : filledColorBlocks.length > 0
-    ? filledColorBlocks.reduce((sum, c) => sum + (Number(c.stock) || 0), 0)
-    : Number(product.stock) || 0;
+  const totalStock = colorBlocksTotalStock(filledColorBlocks, sizeOptions);
 
   const validate = () => {
     const errors = {};
@@ -374,23 +311,9 @@ const ProductForm = ({ onClose, onProductAdded }) => {
       return;
     }
 
-    const cleanedSizes = sizeOptions
-      ? Object.entries(sizeStocks).map(([size, stock]) => ({
-          size,
-          stock: Number(stock) || 0,
-        }))
-      : [{ size: "One Size", stock: Number(product.stock) || 0 }];
-
-    // 🔑 Only the filled-in color blocks get saved; each one's own images
-    // are trimmed of blanks the same way the top-level images are.
-    const cleanedColors = filledColorBlocks.map((c) => ({
-      color: c.color,
-      hex: COLOR_SWATCH[c.color] && !COLOR_SWATCH[c.color].startsWith("linear")
-        ? COLOR_SWATCH[c.color]
-        : "",
-      images: c.images.filter((img) => img.trim() !== ""),
-      stock: Number(c.stock) || 0,
-    }));
+    // 🔑 Each filled color carries its OWN sizes (when a size scale
+    // applies) or its own plain stock number (when it doesn't).
+    const cleanedColors = blocksToColorsArray(filledColorBlocks, sizeOptions);
 
     const payload = {
       name: product.name,
@@ -404,7 +327,6 @@ const ProductForm = ({ onClose, onProductAdded }) => {
       status: product.status,
       images: product.images.filter((img) => img.trim() !== ""),
       colors: cleanedColors,
-      sizes: cleanedSizes,
       stock: totalStock,
     };
 
@@ -685,7 +607,7 @@ const ProductForm = ({ onClose, onProductAdded }) => {
             </button>
           </section>
 
-          {/* ── Colors — each color has its OWN images + its OWN stock ── */}
+          {/* ── Colors — each color has its OWN images + its OWN stock/sizes ── */}
           <section>
             <div className="flex items-center justify-between mb-1.5">
               <label className={labelClass.replace("mb-1.5", "mb-0")}>
@@ -693,8 +615,15 @@ const ProductForm = ({ onClose, onProductAdded }) => {
               </label>
             </div>
             <p className="text-xs text-gray-400 mb-3">
-              Add at least one color. Each color can have its own photos and its own stock count.
+              Add at least one color. Each color has its own photos, and its own
+              {sizeOptions ? " size-wise stock." : " stock count."}
             </p>
+            {!product.type || !product.category ? (
+              <p className="text-xs text-amber-600 mb-3">
+                Pick a Category and Type above first — that decides whether each color
+                gets a size grid (shoes) or a plain stock number.
+              </p>
+            ) : null}
 
             <div className="space-y-4">
               {colorBlocks.map((block, colorIndex) => {
@@ -702,6 +631,7 @@ const ProductForm = ({ onClose, onProductAdded }) => {
                 const availableOptions = COLOR_OPTIONS.filter(
                   (c) => c === block.color || !usedElsewhere.has(c)
                 );
+                const blockStock = colorBlockStock(block, sizeOptions);
 
                 return (
                   <div
@@ -733,14 +663,23 @@ const ProductForm = ({ onClose, onProductAdded }) => {
                         />
                       )}
 
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="Stock"
-                        value={block.stock}
-                        onChange={(e) => updateColorField(colorIndex, "stock", e.target.value)}
-                        className={`${baseInput} w-28 border-gray-200 focus:ring-gray-900/10 focus:border-gray-300`}
-                      />
+                      {/* Plain stock input — only when there's no size scale.
+                          When sizes apply, this color's stock is the sum of
+                          the size grid below (read-only badge instead). */}
+                      {sizeOptions ? (
+                        <span className="w-28 shrink-0 text-xs text-gray-500 text-center px-2 py-2.5 rounded-xl bg-gray-100 border border-gray-200">
+                          Stock: {blockStock}
+                        </span>
+                      ) : (
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Stock"
+                          value={block.stock}
+                          onChange={(e) => updateColorField(colorIndex, "stock", e.target.value)}
+                          className={`${baseInput} w-28 border-gray-200 focus:ring-gray-900/10 focus:border-gray-300`}
+                        />
+                      )}
 
                       {colorBlocks.length > 1 && (
                         <button
@@ -760,8 +699,75 @@ const ProductForm = ({ onClose, onProductAdded }) => {
                       </p>
                     )}
 
+                    {/* 🔑 Per-color size toggle-grid — only when type=shoes
+                        and the chosen category has a defined size scale. */}
+                    {sizeOptions && (
+                      <div className="pl-1 space-y-2 border-t border-gray-100 pt-3">
+                        <p className="text-[11px] font-medium text-gray-500">
+                          Sizes for this color
+                        </p>
+                        <div className="grid grid-cols-4 xs:grid-cols-5 sm:grid-cols-6 gap-2">
+                          {sizeOptions.map((size) => {
+                            const active = size in block.sizes;
+                            return (
+                              <button
+                                key={size}
+                                type="button"
+                                onClick={() => toggleColorSize(colorIndex, size)}
+                                className={`h-10 rounded-lg text-sm font-medium border transition ${
+                                  active
+                                    ? "bg-gray-900 border-gray-900 text-white"
+                                    : "bg-white border-gray-200 text-gray-600 hover:border-gray-400"
+                                }`}
+                              >
+                                {size}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {Object.keys(block.sizes).length > 0 && (
+                          <div className="space-y-2 pt-1">
+                            {Object.entries(block.sizes)
+                              .sort((a, b) => Number(a[0]) - Number(b[0]))
+                              .map(([size, qty]) => (
+                                <div
+                                  key={size}
+                                  className="flex items-center gap-3 border border-gray-100 rounded-xl px-3 py-2"
+                                >
+                                  <span className="w-12 shrink-0 text-sm font-medium text-gray-700">
+                                    Size {size}
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    placeholder="Quantity"
+                                    value={qty}
+                                    onChange={(e) =>
+                                      setColorSizeQuantity(colorIndex, size, e.target.value)
+                                    }
+                                    className={`${baseInput} flex-1 border-gray-200 focus:ring-gray-900/10 focus:border-gray-300`}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleColorSize(colorIndex, size)}
+                                    className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-500 shrink-0"
+                                    aria-label={`Remove size ${size}`}
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Per-color images */}
-                    <div className="pl-1 space-y-2">
+                    <div className="pl-1 space-y-2 border-t border-gray-100 pt-3">
+                      <p className="text-[11px] font-medium text-gray-500">
+                        Images for this color
+                      </p>
                       {block.images.map((img, imgIndex) => {
                         const key = `${colorIndex}-${imgIndex}`;
                         return (
@@ -845,98 +851,8 @@ const ProductForm = ({ onClose, onProductAdded }) => {
             >
               <Plus className="w-3.5 h-3.5" /> Add Color
             </button>
-          </section>
 
-          {/* Sizes & stock — optional, only real for type = shoes */}
-          <section>
-            <label className={labelClass}>Sizes & Stock (optional)</label>
-
-            {sizeOptions ? (
-              <>
-                <p className="text-xs text-gray-400 mb-3">
-                  Tap a size to add it, then set the quantity for that size.
-                </p>
-
-                <div className="grid grid-cols-4 xs:grid-cols-5 sm:grid-cols-6 gap-2 mb-3">
-                  {sizeOptions.map((size) => {
-                    const active = size in sizeStocks;
-                    return (
-                      <button
-                        key={size}
-                        type="button"
-                        onClick={() => toggleSize(size)}
-                        className={`h-11 rounded-lg text-sm font-medium border transition ${
-                          active
-                            ? "bg-gray-900 border-gray-900 text-white"
-                            : "bg-white border-gray-200 text-gray-600 hover:border-gray-400"
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {Object.keys(sizeStocks).length > 0 && (
-                  <div className="space-y-2">
-                    {Object.entries(sizeStocks)
-                      .sort((a, b) => Number(a[0]) - Number(b[0]))
-                      .map(([size, qty]) => (
-                        <div
-                          key={size}
-                          className="flex items-center gap-3 border border-gray-100 rounded-xl px-3 py-2"
-                        >
-                          <span className="w-12 shrink-0 text-sm font-medium text-gray-700">
-                            Size {size}
-                          </span>
-                          <input
-                            type="number"
-                            min="0"
-                            placeholder="Quantity"
-                            value={qty}
-                            onChange={(e) => setSizeQuantity(size, e.target.value)}
-                            className={`${fieldClass("sizeQty")} flex-1`}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => toggleSize(size)}
-                            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-500 shrink-0"
-                            aria-label={`Remove size ${size}`}
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                  </div>
-                )}
-
-                <p className="text-xs text-gray-400 mt-2">Total stock: {totalStock}</p>
-              </>
-            ) : (
-              <div>
-                <p className="text-xs text-gray-400 mb-2">
-                  {hasAnyColorInput
-                    ? "Sizes only apply to the \"shoes\" type — total stock is being taken from the colors above instead."
-                    : product.type === "shoes"
-                    ? product.category
-                      ? `"${product.category}" doesn't have a shoe size scale — just set a stock quantity.`
-                      : "Select a category above first."
-                    : "Sizes only apply to the \"shoes\" type — just set a stock quantity."}
-                </p>
-                {!hasAnyColorInput && (
-                  <input
-                    name="stock"
-                    type="number"
-                    min="0"
-                    placeholder="Stock quantity"
-                    value={product.stock}
-                    onChange={handleChange}
-                    className={fieldClass("stock")}
-                  />
-                )}
-                <p className="text-xs text-gray-400 mt-2">Total stock: {totalStock}</p>
-              </div>
-            )}
+            <p className="text-xs text-gray-400 mt-3">Total stock: {totalStock}</p>
           </section>
 
           {submitError && (

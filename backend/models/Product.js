@@ -1,19 +1,44 @@
 const mongoose = require("mongoose");
 
-const sizeSchema = new mongoose.Schema({
-  size: { type: String, required: true }, // "40", "L", "XL" sab chalega
-  stock: { type: Number, default: 0 },
-});
+// 🔑 Size ab per-color hai — har color ke andar apni size-wise stock hogi.
+const sizeSchema = new mongoose.Schema(
+  {
+    size: { type: String, required: true }, // "40", "L", "XL" sab chalega
+    stock: { type: Number, default: 0 },
+  },
+  { _id: false }
+);
 
-// 🔑 Colors — har color ki apni images + apna stock.
+// 🔑 Colors — har color ki apni images + apni sizes + apna stock.
 // `color` yahi wahi string honi chahiye jo ProductForm.jsx ke COLOR_OPTIONS
 // aur Filter.jsx ke color list me hai (casing match), warna filter query
 // (?color=Black) kabhi match nahi karegi.
+//
+// Structure example:
+//   colors: [
+//     { color: "Red",  images: [...], sizes: [{size:"M",stock:5},{size:"L",stock:3}] },
+//     { color: "Blue", images: [...], sizes: [{size:"M",stock:2}] },
+//   ]
 const colorSchema = new mongoose.Schema({
   color: { type: String, required: true },
   hex: { type: String, default: "" }, // optional, swatch dot ke liye (Detail_Page/Filter me use ho sakta)
   images: { type: [String], default: [] }, // is color ki apni images; empty ho to Detail_Page product.images pe fallback karega
-  stock: { type: Number, default: 0 },
+  sizes: { type: [sizeSchema], default: [] }, // is color ke sizes + unka stock
+  stock: { type: Number, default: 0 }, // sizes diye ho to auto-sum hoga (pre-validate), warna manual value use hogi
+});
+
+// Duplicate sizes check — per-color chalta hai (same color ke andar size repeat na ho,
+// alag colors me same size name chal sakta hai, koi issue nahi).
+colorSchema.path("sizes").validate(function (sizes) {
+  const sizeList = sizes.map((s) => s.size);
+  return sizeList.length === new Set(sizeList).size;
+}, "Duplicate sizes are not allowed within the same color");
+
+// Har color ka apna stock — agar us color ke andar sizes di gayi hon to unka sum.
+colorSchema.pre("validate", function () {
+  if (this.sizes && this.sizes.length > 0) {
+    this.stock = this.sizes.reduce((sum, s) => sum + (Number(s.stock) || 0), 0);
+  }
 });
 
 const productSchema = new mongoose.Schema(
@@ -23,54 +48,44 @@ const productSchema = new mongoose.Schema(
     images: { type: [String], default: [] }, // general/fallback images (jab kisi color ki apni image na ho)
     price: { type: Number, default: 0 },
     oldPrice: { type: Number, default: null },
-    stock: { type: Number, default: 0 },
+    stock: { type: Number, default: 0 }, // total stock — colors[].stock ka sum (auto-calculated)
     status: {
       type: String,
       default: "active",
       enum: ["active", "inactive", "pending"],
     },
     isActive: { type: Boolean, default: true },
-    // 🔑 Purana single `color` field hata diya — ab colors[] array hi
-    // source of truth hai. (Neeche note dekhein: Filter.jsx aur GET
-    // products route ko is field ki jagah `colors.color` pe query karni
-    // hogi.)
+    // 🔑 Ab sirf `colors[]` hi source of truth hai — har color ke andar
+    // apni images, apni sizes, apna stock. Top-level `sizes` field
+    // hata diya gaya hai (agar kabhi bina-color simple product chahiye ho
+    // jisme sirf sizes hon, to ek "Default" naam ka color banake usme
+    // sizes daal dena — structure consistent rahega).
     colors: { type: [colorSchema], default: [] },
     bg: { type: String, default: "" },
     discount: { type: String, default: "" },
     rating: { type: Number, default: 0 },
-    sizes: { type: [sizeSchema], default: [] },
     category: { type: String, default: "" },
   },
   { timestamps: true } // createdAt + updatedAt dono auto-handle ho jayenge
 );
 
-// Duplicate sizes check
-productSchema.path("sizes").validate(function (sizes) {
-  const sizeList = sizes.map((s) => s.size);
-  return sizeList.length === new Set(sizeList).size;
-}, "Duplicate sizes are not allowed");
-
-// 🔑 Duplicate colors check — same idea as sizes above.
+// Duplicate colors check
 productSchema.path("colors").validate(function (colors) {
   const colorList = colors.map((c) => c.color);
   return colorList.length === new Set(colorList).size;
 }, "Duplicate colors are not allowed");
 
-// Auto-calculate total stock.
-// 🔑 Priority: sizes > colors > manual `stock` field.
-//   - sizes diye gaye hon (shoes wagera)      → stock = sum(sizes.stock)
-//   - warna agar colors diye gaye hon         → stock = sum(colors.stock)
-//   - warna jo manually `stock` field me diya gaya wahi rehta hai
-// Note: agar ek hi product me sizes AND colors dono diye jayen (e.g. shoes
-// jinke multiple colors bhi hon), total stock abhi sirf sizes se calculate
-// hoga — color+size ka combined stock-matrix is schema me support nahi
-// hai. Agar wo chahiye to har size-entry ke andar per-color break-up
-// (nested array) chahiye hoga, jo alag change hai.
+// Auto-calculate total product stock = sum of all colors' stock
+// (jo khud sizes ka sum hota hai agar sizes di gayi hon, warna manual color.stock)
 productSchema.pre("save", function () {
-  if (this.sizes && this.sizes.length > 0) {
-    this.stock = this.sizes.reduce((sum, s) => sum + (Number(s.stock) || 0), 0);
-  } else if (this.colors && this.colors.length > 0) {
-    this.stock = this.colors.reduce((sum, c) => sum + (Number(c.stock) || 0), 0);
+  if (this.colors && this.colors.length > 0) {
+    this.stock = this.colors.reduce((sum, c) => {
+      const colorStock =
+        c.sizes && c.sizes.length > 0
+          ? c.sizes.reduce((s, sz) => s + (Number(sz.stock) || 0), 0)
+          : Number(c.stock) || 0;
+      return sum + colorStock;
+    }, 0);
   }
 });
 
