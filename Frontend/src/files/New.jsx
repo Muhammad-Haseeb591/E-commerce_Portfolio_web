@@ -52,22 +52,31 @@ const New = () => {
 
   const showNewIn = catalogLoading || pageChanging;
 
-  // 🔑 NEW — multiple color variants ke liye helper.
-  // ⚠️ CONFIRM THIS: agar aapke product document mein multiple colors
-  // ka array field `colors` ke ilawa kisi aur naam se hai
-  // (e.g. `variations`, `availableColors`), to neeche sirf
-  // `product.colors` ko us naam se replace kar dena — baaki sab same rahega.
-  // Agar `colors` array nahi milta, ye automatically single `product.color`
-  // pe fallback ho jata hai, is liye kuch bhi break nahi hoga.
+  // 🔑 CHANGED — ab sirf color name nahi, { name, stock } dono nikal rahe
+  // hain. Stock ke bina hum ye decide nahi kar sakte ke dot ko dimmed
+  // karna hai ya nahi.
+  // ⚠️ CONFIRM THIS: color-level stock ka field name `c.stock` assume
+  // kiya hai (colorSchema ke pre-validate rollup se aane wala total).
+  // Agar aapke schema mein ye field kisi aur naam se hai
+  // (e.g. `totalStock`, `qty`), neeche sirf `c.stock` ko us naam se
+  // replace kar dena.
+  // Agar `colors` array nahi milta, ye automatically single
+  // `product.color` pe fallback ho jata hai (stock: null → dimmed nahi
+  // hoga, kyunke us case mein stock pata hi nahi).
   const getProductColors = (product) => {
     const normalize = (c) => {
-      if (typeof c === "string") return c;
-      if (c && typeof c === "object") return c.color || c.name || c.value || "";
-      return "";
+      if (typeof c === "string") return { name: c, stock: null };
+      if (c && typeof c === "object") {
+        return {
+          name: c.color || c.name || c.value || "",
+          stock: c.stock != null ? Number(c.stock) : null,
+        };
+      }
+      return { name: "", stock: null };
     };
-  
+
     if (Array.isArray(product.colors) && product.colors.length > 0) {
-      return product.colors.map(normalize).filter(Boolean);
+      return product.colors.map(normalize).filter((c) => c.name);
     }
     return product.color ? [normalize(product.color)] : [];
   };
@@ -103,7 +112,7 @@ const New = () => {
                   <Link to={`/products/${product._id}`} className="overflow-hidden w-full h-full block">
                     <img
                       className="w-full h-full object-cover transition-transform duration-500 ease-in-out group-hover:scale-105"
-                      src={product.images?.[0]}
+                      src={product.displayImage || product.images?.[0]}
                       alt={product.name}
                       loading="lazy"
                       onError={(e) => (e.target.src = "/placeholder.png")}
@@ -130,22 +139,28 @@ const New = () => {
                   </span>
                 </div>
 
-                {/* 🔑 CHANGED — pehle sirf ek 20px dot (product.color) tha.
-                    Ab saare color variants ek row mein chote (14px) dots
-                    ke roop mein dikhte hain, thoda overlap ke sath
-                    (-ml) taake zyada colors hone par bhi jagah na bigde. */}
+                {/* 🔑 CHANGED — jis color ka stock hai wo dot full-opacity
+                    dikhta hai, jis color ka stock khatam (0) hai wo dot
+                    dimmed/grayscale ho jata hai (hidden nahi — user ko pata
+                    chalna chahiye ke color exist karta hai, bas abhi
+                    available nahi). Stock unknown (null) hone par bhi
+                    normal dikhaya jata hai, kyunke hum confirm nahi kar
+                    sakte ke out of stock hai ya nahi. */}
                 {productColors.length > 0 && (
                   <div className="flex items-center absolute bottom-[6px] right-[6px]">
-                    {productColors.map((c, idx) => (
-                      <div
-                        key={`${product._id}-${c}-${idx}`}
-                        title={c}
-                        style={{ backgroundColor: getColorHex(c) }}
-                        className={`size-[14px] rounded-full outline outline-1 outline-black outline-offset-1 bg-white ${
-                          idx > 0 ? "-ml-[6px]" : ""
-                        }`}
-                      />
-                    ))}
+                    {productColors.map((c, idx) => {
+                      const outOfStock = c.stock != null && c.stock <= 0;
+                      return (
+                        <div
+                          key={`${product._id}-${c.name}-${idx}`}
+                          title={outOfStock ? `${c.name} — Out of stock` : c.name}
+                          style={{ backgroundColor: getColorHex(c.name) }}
+                          className={`size-[14px] rounded-full outline outline-1 outline-black outline-offset-1 bg-white transition-opacity ${
+                            idx > 0 ? "-ml-[6px]" : ""
+                          } ${outOfStock ? "opacity-30 grayscale" : ""}`}
+                        />
+                      );
+                    })}
                   </div>
                 )}
               </li>

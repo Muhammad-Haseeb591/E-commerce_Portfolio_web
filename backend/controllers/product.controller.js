@@ -4,22 +4,18 @@ const Product = require("../models/Product");
 exports.getAddProducts = async (req, res) => {
   try {
     const {
-      name, description, images,
+      name, description,
       price, oldPrice, colors, bg,
       discount, rating, type,
       category, stock, status,
     } = req.body;
-    // 🔑 `sizes` REMOVED from here — sizes now live INSIDE each
-    // colors[i].sizes, not at the top level. `type` ADDED — the schema
-    // now declares it, and it's what decides (with category) whether a
-    // color uses a size grid or a plain stock number.
-
-    if (!images || images.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "At least one image is required",
-      });
-    }
+    // 🔑 Top-level `images` REMOVED — General Image concept doesn't exist
+    // anymore. Each color now carries its own single `image` string inside
+    // colors[i].image (handled by colorSchema, opaque to this controller).
+    // 🔑 `productId` intentionally NOT taken from req.body — it's
+    // auto-generated (assumed via a pre("validate") hook on the schema,
+    // since Product.js wasn't shared). If the client sends one anyway, we
+    // ignore it below so nobody can spoof a duplicate/unique productId.
 
     if (!colors || colors.length === 0) {
       return res.status(400).json({
@@ -28,8 +24,19 @@ exports.getAddProducts = async (req, res) => {
       });
     }
 
+    // 🔑 Per-color image presence check now lives here since the old
+    // top-level "at least one image" guard is gone. Adjust the field name
+    // below if colorSchema calls it something other than `image`.
+    const missingImage = colors.find((c) => !c.image);
+    if (missingImage) {
+      return res.status(400).json({
+        success: false,
+        message: "Each color must have an image",
+      });
+    }
+
     const product = new Product({
-      name, description, images,
+      name, description,
       price, oldPrice, colors, bg,
       discount, rating, type,
       category, stock, status,
@@ -38,7 +45,8 @@ exports.getAddProducts = async (req, res) => {
     // 🔑 .save() (not .create() shortcut skipped, not findByIdAndUpdate)
     // is what actually runs colorSchema's pre("validate") stock rollup,
     // the duplicate-color/duplicate-size validators, and productSchema's
-    // pre("save") total-stock rollup. Keep it this way.
+    // pre("save") total-stock rollup (and, presumably, productId
+    // generation). Keep it this way.
     const savedProduct = await product.save();
 
     res.status(201).json({
@@ -56,6 +64,16 @@ exports.getAddProducts = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: Object.values(error.errors)[0]?.message || "Validation failed",
+        error: error.message,
+      });
+    }
+    // 🔑 productId is unique+sparse — a duplicate-key error (code 11000)
+    // would land here, not as a ValidationError. Surface it distinctly
+    // instead of falling through to a generic 500.
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: "Duplicate productId — please retry",
         error: error.message,
       });
     }
@@ -100,13 +118,13 @@ exports.fetchAllProducts = async (req, res) => {
       filter.category = { $regex: `^${category}$`, $options: "i" };
     }
 
-    // 🔑 Color lives inside the colors[] array now, not a top-level field.
-    // Dot-notation on an array path matches if ANY element has that color.
+    // Color lives inside the colors[] array. Dot-notation on an array path
+    // matches if ANY element has that color.
     if (color) {
       filter["colors.color"] = { $regex: `^${color}$`, $options: "i" };
     }
 
-    // 🔑 Same idea for size — nested one level deeper (colors[].sizes[].size).
+    // Same idea for size — nested one level deeper (colors[].sizes[].size).
     // `sizes` can be a comma list ("40,42") from the Filter.jsx toggle grid;
     // $in matches a product that has ANY color offering ANY of these sizes.
     // Note: this does NOT require the matching color and size to be on the
@@ -213,17 +231,29 @@ exports.deleteProduct = async (req, res) => {
 exports.updateProduct = async (req, res) => {
   try {
     const {
-      name, description, images,
+      name, description,
       price, oldPrice, colors, bg,
       discount, rating, type,
       category, stock, status,
     } = req.body;
+    // 🔑 Same as Add: no top-level `images`, no `productId` accepted from
+    // client (it shouldn't change after creation).
 
     if (colors && colors.length === 0) {
       return res.status(400).json({
         success: false,
         message: "At least one color is required",
       });
+    }
+
+    if (colors) {
+      const missingImage = colors.find((c) => !c.image);
+      if (missingImage) {
+        return res.status(400).json({
+          success: false,
+          message: "Each color must have an image",
+        });
+      }
     }
 
     // 🔑 CHANGED from findByIdAndUpdate to fetch → mutate → save().
@@ -244,7 +274,6 @@ exports.updateProduct = async (req, res) => {
 
     if (name !== undefined) product.name = name;
     if (description !== undefined) product.description = description;
-    if (images !== undefined) product.images = images;
     if (price !== undefined) product.price = price;
     if (oldPrice !== undefined) product.oldPrice = oldPrice;
     if (colors !== undefined) product.colors = colors;
@@ -270,6 +299,13 @@ exports.updateProduct = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: Object.values(error.errors)[0]?.message || "Validation failed",
+        error: error.message,
+      });
+    }
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: "Duplicate key error",
         error: error.message,
       });
     }
