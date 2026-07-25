@@ -2,7 +2,7 @@ import { useState } from "react";
 import { LayoutDashboard, Package, ShoppingCart, Users, Menu, X, Home } from "lucide-react";
 import { Link } from "react-router-dom";
 import Dashboard from "./Dashboard";
-import Orders from "./Orders";
+import Orders from "../AdminPanelComponents/AdminOrders/Orders";
 import Products from "../AdminPanelComponents/AdminProducts/Products";
 
 const NAV_ITEMS = [

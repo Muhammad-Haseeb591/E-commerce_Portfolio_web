@@ -19,7 +19,7 @@ import AdminPanel  from "../assets/components/AdminPanelComponents/AdminPanel.js
 import Checkoutpage from "../files/CheckOutPage/CheckoutPage.jsx"
 import CartSync from "../assets/components/Detail_Page/Cartsync.jsx" 
 import Favourite from "../files/Favourite.jsx"
-import Orders from "../assets/components/AdminPanelComponents/Orders.jsx"
+import Orders from "../assets/components/AdminPanelComponents/AdminOrders/Orders.jsx"
 import ProtectedAdminRoute from "../assets/components/AdminPanelComponents/ProtectedAdminRoute.jsx"
 import OAuthSuccess from "../files/Auth_Section/OAuthSuccess.jsx"
 import VerifyOtp from '../files/Auth_Section/Verifyotp.jsx'
