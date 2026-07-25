@@ -85,6 +85,11 @@ const normalizeColors = (rawColors) => {
       color: colorName,
       images: imgs,
       stock: getStockValue(entry),
+      // Har color apna khud ka `sizes` array le kar aata hai (jab backend
+      // per-color sizes bheje). Ye raw form mein rakha jata hai, taake
+      // normalizeSizes() ise selectedColorData.sizes ke through consume
+      // kar sake — global product.sizes par depend nahi karna.
+      sizes: Array.isArray(entry?.sizes) ? entry.sizes : null,
       hex: entry?.hex || entry?.code || null, // optional, swatch dot ke liye
     });
   });
@@ -220,7 +225,20 @@ const Detail_Page = () => {
     ? product.images
     : [""];
 
-  const sizeList = useMemo(() => normalizeSizes(product?.sizes), [product]);
+  // 🔑 FIX: agar product ke colors hain, to sizes (aur unka stock) us
+  // SPECIFIC selected color se aane chahiye — na ke product.sizes se
+  // globally. Har color apna alag size/stock combo rakh sakta hai
+  // (e.g. Red mein size 42 khatam, Blue mein available), is liye
+  // selectedColorData.sizes ko source of truth banaya gaya hai. Agar
+  // color ke against sizes bilkul nahi diye gaye (null), to fallback
+  // ke tor par global product.sizes use hota hai — backward compatible
+  // rehne ke liye un products ke sath jinke colors mein sizes nahi hain.
+  const sizeList = useMemo(() => {
+    const sourceSizes = hasColors
+      ? selectedColorData?.sizes ?? product?.sizes
+      : product?.sizes;
+    return normalizeSizes(sourceSizes);
+  }, [hasColors, selectedColorData, product]);
   const hasSizes = sizeList.length > 0;
   const allSizesOutOfStock = hasSizes && sizeList.every((s) => s.stock === 0);
   const inStockSizes = sizeList.filter((s) => s.stock > 0);
@@ -260,6 +278,10 @@ const Detail_Page = () => {
     setSelectedImage(0);
     setImgLoaded(false);
     setQuantity(1);
+    // Sizes ab selected color ke hisaab se change hote hain (alag color
+    // ke sizes/stock alag ho sakte hain), is liye purani color ki size
+    // selections ko carry-forward karna galat hoga — reset kar dete hain.
+    setSelectedSizes({});
   };
 
   const toggleSize = (size, stock) => {
