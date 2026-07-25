@@ -37,6 +37,13 @@ const CartSync = () => {
     if (!authChecked) dispatch(checkAuth());
   }, [authChecked, dispatch]);
 
+  // 🔑 CHANGED — raw.color / raw.image ab enrich ke baad bhi zinda rehte
+  // hain. Pehle sirf `...fullProduct` spread hota tha, is liye jo color
+  // user ne select kiya tha wo hydration ke baad hamesha kho jata tha
+  // (line dobara "no color" ban jati thi). Ye dono ab explicitly
+  // fullProduct ke UPAR override hote hain — kyunki ye ek SNAPSHOT hain
+  // (add-to-cart ke waqt ka), fullProduct.colors[] se dobara derive nahi
+  // karne (wo array baad mein badal sakta hai).
   const enrichItems = (rawItems, products) => {
     return rawItems.map((raw) => {
       const rawId = raw.productId || getItemId(raw);
@@ -51,6 +58,8 @@ const CartSync = () => {
       return {
         ...fullProduct,
         _id: rawId,
+        color: raw.color || null,
+        image: raw.image || null,
         sizes:
           raw.sizes && raw.sizes.length > 0
             ? raw.sizes
@@ -96,9 +105,15 @@ const CartSync = () => {
   }, [authChecked, dispatch]);
 
   // Builds the exact payload we persist, shared by debounced save + flush.
+  // 🔑 CHANGED — `color` aur `image` ab persist hote hain. Pehle sirf
+  // { productId, sizes } save hota tha, is liye reload ke baad selected
+  // color/image ka snapshot ghayab ho jata tha aur do-alag-color lines
+  // bhi apni pehchaan kho deti thin.
   const buildPersistable = useCallback((rawItems) => {
     return rawItems.map((item) => ({
       productId: getItemId(item),
+      color: item.color || null,
+      image: item.image || null,
       sizes: item.sizes || [],
     }));
   }, []);

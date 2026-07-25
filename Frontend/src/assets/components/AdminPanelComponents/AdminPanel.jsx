@@ -3,7 +3,7 @@ import { LayoutDashboard, Package, ShoppingCart, Users, Menu, X, Home } from "lu
 import { Link } from "react-router-dom";
 import Dashboard from "./Dashboard";
 import Orders from "./Orders";
-import Products from "./Products";
+import Products from "../AdminPanelComponents/AdminProducts/Products";
 
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },

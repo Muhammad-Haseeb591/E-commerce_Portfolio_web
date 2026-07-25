@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   removeFromCart,
@@ -13,6 +13,11 @@ import { getShippingFee, getAmountLeftForFreeDelivery } from "../../../utils/shi
 import { getCurrencyForCountry, getAllowedPaymentMethods, formatAmount } from "../../../utils/formatCurrency";
 
 const getItemId = (item) => item?._id ?? item?.id;
+// 🔑 same product ke 2 alag colors ab 2 alag cart LINES hain (redux
+// level par) — is liye React `key` aur busy/lookup keys ab sirf
+// productId nahi, productId+color hone chahiye — warna dono lines
+// collide kar jayengi.
+const getLineKey = (item) => `${getItemId(item)}::${item.color || ""}`;
 
 const COUNTRY_OPTIONS = [
   { value: "PK", label: "🇵🇰 Pakistan" },
@@ -67,6 +72,28 @@ const Cart = () => {
   const allowedPaymentMethods = getAllowedPaymentMethods(country);
   const formatPrice = (amountPKR) => formatAmount(amountPKR, currency);
 
+  // 🔑 NEW — items ko productId ke hisaab se group kiya, taake same
+  // product ke saare colors EK hi card ke andar, alag-alag rows ke tor
+  // par dikhein — "Perfume" ke 3 alag cards ki jagah ab ek "Perfume"
+  // card hoga jiske andar 3 color-rows honge. Insertion order preserve
+  // kiya (jis order mein pehle add hue), taake cart re-render par items
+  // idhar-udhar na kudein.
+  const groupedItems = useMemo(() => {
+    const order = [];
+    const map = new Map();
+
+    items.forEach((item) => {
+      const pid = getItemId(item);
+      if (!map.has(pid)) {
+        map.set(pid, []);
+        order.push(pid);
+      }
+      map.get(pid).push(item);
+    });
+
+    return order.map((pid) => map.get(pid));
+  }, [items]);
+
   const subtotal = items.reduce(
     (acc, item) =>
       acc +
@@ -108,16 +135,18 @@ const Cart = () => {
     }
   };
 
-  const handleIncreaseQty = (id, size) =>
-    runCartAction(increaseQty({ id, size }), `${id}::${size}`);
+  // 🔑 CHANGED — `color` ab har action ke saath jata hai, taake sirf
+  // USI color ki line update ho, doosre color ki nahi.
+  const handleIncreaseQty = (id, size, color) =>
+    runCartAction(increaseQty({ id, size, color }), `${id}::${color}::${size}`);
 
-  const handleDecreaseQty = (id, size) =>
-    runCartAction(decreaseQty({ id, size }), `${id}::${size}`);
+  const handleDecreaseQty = (id, size, color) =>
+    runCartAction(decreaseQty({ id, size, color }), `${id}::${color}::${size}`);
 
-  const handleRemoveSize = (id, size, label) => {
+  const handleRemoveSize = (id, size, color, label) => {
     const confirmed = window.confirm(`Remove "${label}" from your cart?`);
     if (!confirmed) return;
-    runCartAction(removeFromCart({ id, size }), `${id}::${size}`);
+    runCartAction(removeFromCart({ id, size, color }), `${id}::${color}::${size}`);
   };
 
   const handleClearCart = async () => {
@@ -151,13 +180,21 @@ const Cart = () => {
     // Everything sent in PKR (base currency) — checkout converts for
     // display only, using the SAME shipping logic (imported from
     // utils/shipping.js) so the fee can never drift between pages.
+    //
+    // 🔑 CHANGED — `image` ab item.image (jo color-specific single-image
+    // snapshot hai, add-to-cart ke waqt save hui thi) se aata hai, na ke
+    // purane `item.images?.[0]` se (jo naye schema mein exist hi nahi
+    // karta). `color` bhi ab hamesha sahi jayega, kyunki cartSlice ab
+    // usay properly store karta hai. Matlab: same product ke 2 colors ho
+    // to checkout par 2 ALAG lines jayengi, har ek apni EK image aur apne
+    // color ke sath — dono ki images kabhi mix nahi hongi.
     const checkoutItems = items.flatMap((item) =>
       (item.sizes || []).map((s) => {
         const qty = Number(s.quantity) || 0;
         return {
           productId: getItemId(item),
           name: item.name,
-          image: item.images?.[0] || "",
+          image: item.image || item.images?.[0] || "",
           price: Number(item.price),
           color: item.color || "",
           size: s.size,
@@ -281,86 +318,113 @@ const Cart = () => {
             : `Add ${formatPrice(amountLeftForFreeDelivery)} more to unlock FREE delivery`}
         </div>
 
+        {/* ── Product cards — ONE div per product, each color as its own
+            inner row with its own size/qty controls ── */}
         <div className="space-y-3">
-          {items.map((item) => {
-            const itemId = getItemId(item);
-            const sizes = item.sizes || [];
+          {groupedItems.map((group) => {
+            const first = group[0];
+            const pid = getItemId(first);
 
             return (
-              <div key={itemId} className="bg-white border border-[#333333] rounded-xl p-3">
-                <div className="flex gap-3 sm:gap-4 items-center">
-                  <img
-                    src={item.images?.[0] || ""}
-                    alt={item.name}
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover border border-[#333333] shrink-0 bg-gray-50"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#333333] truncate">{item.name}</p>
-                    <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-                      {formatPrice(item.price)}
-                    </p>
-                  </div>
+              <div key={pid} className="bg-white border border-[#333333] rounded-xl p-3 space-y-3">
+                {/* Product-level header — shared across all color rows */}
+                <div>
+                  <p className="text-sm font-semibold text-[#333333] truncate">{first.name}</p>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-0.5">{formatPrice(first.price)}</p>
                 </div>
 
-                <div className="mt-3 space-y-2">
-                  {sizes.map((s) => {
-                    const busyId = `${itemId}::${s.size}`;
-                    const isBusy = busyKey === busyId;
-                    const qty = Number(s.quantity) || 0;
-                    const isLastUnit = qty <= 1;
-                    const removeLabel = s.size ? `${item.name} — Size ${s.size}` : item.name;
+                {group.map((item) => {
+                  const itemId = getItemId(item);
+                  const lineKey = getLineKey(item);
+                  const sizes = item.sizes || [];
+                  // 🔑 sirf EK image (color-specific snapshot), purane
+                  // `item.images?.[0]` array-based lookup ki jagah.
+                  const thumb = item.image || item.images?.[0] || "";
 
-                    return (
-                      <div
-                        key={busyId}
-                        className={`flex items-center justify-between gap-2 border border-gray-200 rounded-lg px-2.5 py-1.5 transition-opacity ${
-                          isBusy ? "opacity-60 pointer-events-none" : ""
-                        }`}
-                      >
-                        {s.size ? (
-                          <span className="text-xs font-medium text-gray-600">Size {s.size}</span>
+                  return (
+                    <div key={lineKey} className="border border-gray-200 rounded-lg p-2.5">
+                      <div className="flex gap-3 items-center">
+                        <img
+                          src={thumb}
+                          alt={item.name}
+                          className="w-12 h-12 rounded-lg object-cover border border-gray-200 shrink-0 bg-gray-50"
+                        />
+                        {/* 🔑 color ab dikhta hai — same product ke
+                            multiple colors ab isi div ke andar alag rows
+                            hain, is label ke bina user ko pata nahi
+                            chalega ye kaunsa color hai. Color na ho to
+                            "No color" dikhega (legacy items ke liye). */}
+                        {item.color ? (
+                          <p className="text-xs font-medium text-gray-600">Color: {item.color}</p>
                         ) : (
-                          <span className="text-xs font-medium text-gray-400">Quantity</span>
+                          <p className="text-xs font-medium text-gray-400">No color</p>
                         )}
-
-                        <div className="flex items-center gap-2 border border-[#333333] rounded-lg px-1">
-                          {isLastUnit ? (
-                            <button
-                              onClick={() => handleRemoveSize(itemId, s.size, removeLabel)}
-                              disabled={isBusy}
-                              aria-label={`Remove ${removeLabel}`}
-                              className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50 cursor-pointer"
-                            >
-                              <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleDecreaseQty(itemId, s.size)}
-                              disabled={isBusy}
-                              aria-label={`Decrease quantity for ${removeLabel}`}
-                              className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center text-[#333333] hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 cursor-pointer"
-                            >
-                              <Minus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-                            </button>
-                          )}
-
-                          <span className="w-5 text-center text-sm font-medium text-[#333333]">
-                            {qty}
-                          </span>
-
-                          <button
-                            onClick={() => handleIncreaseQty(itemId, s.size)}
-                            disabled={isBusy || qty >= (Number(s.stock) || Infinity)}
-                            aria-label={`Increase quantity for ${removeLabel}`}
-                            className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center text-[#333333] hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 cursor-pointer"
-                          >
-                            <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-                          </button>
-                        </div>
                       </div>
-                    );
-                  })}
-                </div>
+
+                      <div className="mt-2.5 space-y-2">
+                        {sizes.map((s) => {
+                          const busyId = `${itemId}::${item.color || ""}::${s.size}`;
+                          const isBusy = busyKey === busyId;
+                          const qty = Number(s.quantity) || 0;
+                          const isLastUnit = qty <= 1;
+                          const removeLabel = s.size
+                            ? `${item.name}${item.color ? ` (${item.color})` : ""} — Size ${s.size}`
+                            : `${item.name}${item.color ? ` (${item.color})` : ""}`;
+
+                          return (
+                            <div
+                              key={busyId}
+                              className={`flex items-center justify-between gap-2 border border-gray-100 rounded-lg px-2.5 py-1.5 transition-opacity ${
+                                isBusy ? "opacity-60 pointer-events-none" : ""
+                              }`}
+                            >
+                              {s.size ? (
+                                <span className="text-xs font-medium text-gray-600">Size {s.size}</span>
+                              ) : (
+                                <span className="text-xs font-medium text-gray-400">Quantity</span>
+                              )}
+
+                              <div className="flex items-center gap-2 border border-[#333333] rounded-lg px-1">
+                                {isLastUnit ? (
+                                  <button
+                                    onClick={() => handleRemoveSize(itemId, s.size, item.color, removeLabel)}
+                                    disabled={isBusy}
+                                    aria-label={`Remove ${removeLabel}`}
+                                    className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50 cursor-pointer"
+                                  >
+                                    <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleDecreaseQty(itemId, s.size, item.color)}
+                                    disabled={isBusy}
+                                    aria-label={`Decrease quantity for ${removeLabel}`}
+                                    className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center text-[#333333] hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 cursor-pointer"
+                                  >
+                                    <Minus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                                  </button>
+                                )}
+
+                                <span className="w-5 text-center text-sm font-medium text-[#333333]">
+                                  {qty}
+                                </span>
+
+                                <button
+                                  onClick={() => handleIncreaseQty(itemId, s.size, item.color)}
+                                  disabled={isBusy || qty >= (Number(s.stock) || Infinity)}
+                                  aria-label={`Increase quantity for ${removeLabel}`}
+                                  className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center text-[#333333] hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 cursor-pointer"
+                                >
+                                  <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
