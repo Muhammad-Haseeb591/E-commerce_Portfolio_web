@@ -152,6 +152,10 @@ const Detail_Page = () => {
   const loading = useSelector((state) => state.FetchPrducts.loading);
   const favouriteItems = useSelector((state) => state.favourites.items || []);
   const favouriteLoading = useSelector((state) => state.favourites.loading);
+  // 🔑 NEW — cart ka current state, taake add-to-cart se pehle check kiya
+  // ja sake ke ye EXACT (product + color [+ size]) combo already cart me
+  // hai ya nahi.
+  const cartItems = useSelector((state) => state.cart.items || []);
 
   const [imgLoaded, setImgLoaded] = useState(false);
 
@@ -301,13 +305,19 @@ const Detail_Page = () => {
     triggerPulse(size);
   };
 
-  // 🔑 CHANGED — ab `image` bhi cart payload ka hissa hai, `color` ke
-  // sath. Ye is liye zaroori hai kyunke product.colors[] baad mein badal
-  // sakta hai (naya color add/remove ho sakta hai) — agar cart sirf
-  // color NAME store kare aur baad mein dobara product.colors se image
-  // lookup kare, to purani order ki image ghalat/missing ho sakti hai.
-  // Is liye jo image is waqt dikhi hai wahi cart mein "snapshot" ke tor
-  // par save honi chahiye.
+  // 🔑 CHANGED (this update):
+  // Pehle: same product + same color + same size dobara "Add to Cart"
+  // karne par cartSlice khud quantity ko silently merge kar deta tha
+  // (increment). Ab: agar EXACT (productId + color [+ size]) combo
+  // already cart me hai, to hum dispatch hi nahi karte — sirf alert
+  // dete hain "Your item is already in cart." User ko quantity badhani
+  // ho to /cart page par jaake +/- se badhaye, yahan se dobara "Add"
+  // click karke nahi.
+  //
+  // Different color (ya different size, sizes wale products ke liye) ho
+  // to normal add hota hai — cartSlice ka matchesLine() apne aap ek
+  // ALAG line banata hai (color cart item ki identity ka hissa hai),
+  // ye pehle se hi sahi tha, is update mein nahi chheda.
   const handleAddToCart = useCallback(() => {
     if (hasColors && allColorsOutOfStock) {
       alert("This product is out of stock in all colors.");
@@ -330,13 +340,50 @@ const Detail_Page = () => {
 
     const color = hasColors ? selectedColorData?.color : undefined;
     const image = mainImage;
+    const productId = getItemId(product);
+    const normColorVal = color || null;
+
+    // Existing cart line for this EXACT product + color combo (agar koi hai).
+    const existingLine = cartItems.find(
+      (i) => getItemId(i) === productId && (i.color || null) === normColorVal
+    );
 
     if (hasSizes) {
+      const alreadyInCart = [];
+      const toAdd = [];
+
       Object.entries(selectedSizes).forEach(([size, qty]) => {
+        const alreadyHasSize = existingLine?.sizes?.some((s) => s.size === size);
+        if (alreadyHasSize) {
+          alreadyInCart.push(size);
+        } else {
+          toAdd.push([size, qty]);
+        }
+      });
+
+      if (toAdd.length === 0) {
+        alert("Your item is already in cart.");
+        return;
+      }
+
+      toAdd.forEach(([size, qty]) => {
         const stock = sizeList.find((s) => s.size === size)?.stock;
         dispatch(addToCart({ product, size, quantity: qty, stock, color, image }));
       });
+
+      if (alreadyInCart.length > 0) {
+        alert(
+          `Size${alreadyInCart.length > 1 ? "s" : ""} ${alreadyInCart.join(", ")} already in cart — the other selected size(s) were added.`
+        );
+      }
     } else {
+      // No-size product — a { size: null } entry in the existing line
+      // means this exact color was already added.
+      const alreadyAdded = existingLine?.sizes?.some((s) => s.size === null);
+      if (alreadyAdded) {
+        alert("Your item is already in cart.");
+        return;
+      }
       dispatch(addToCart({ product, size: null, quantity, stock: productStock, color, image }));
     }
 
@@ -355,6 +402,7 @@ const Detail_Page = () => {
     sizeList,
     mainImage,
     dispatch,
+    cartItems,
   ]);
 
   const handleToggleFavourite = useCallback(() => {

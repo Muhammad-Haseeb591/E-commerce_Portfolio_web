@@ -89,7 +89,7 @@ const ColorsSection = ({
         disabled={colorBlocks.length >= COLOR_OPTIONS.length}
         className="mt-3 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 hover:underline disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
       >
-        <Plus className="w-3.5 h-3.5" /> Add Color
+        <Plus className="w-3.5 h-3.5" /> Add Image
       </button>
 
       <p className="text-xs text-gray-400 mt-3">Total stock: {totalStock}</p>

@@ -170,9 +170,6 @@ const ProductForm = ({ onClose, onProductAdded }) => {
       )
     );
 
-  // Colors actually worth saving = ones where a color name was picked.
-  // A block left fully empty (user clicked "Add Color" but didn't fill it)
-  // is silently dropped rather than causing a validation error.
   const filledColorBlocks = colorBlocks.filter((b) => b.color.trim() !== "");
 
   const totalStock = colorBlocksTotalStock(filledColorBlocks, sizeOptions);

@@ -5,6 +5,20 @@ import { API_URL } from "../../../config/api";
 
 const getItemId = (item) => item?._id ?? item?.id;
 
+// 🔑 NEW — normalize color for comparisons ("" and null/undefined all
+// mean "no color"). Used everywhere a cart line is looked up, so a
+// no-color product always matches consistently.
+const normColor = (c) => c || null;
+
+// 🔑 NEW — jab tak sirf `productId` se cart line dhoondi jati thi,
+// same product ke 2 ALAG colors ek hi line mein merge ho jate thay
+// (dono ka `sizes[]` mix ho jata, pata nahi chalta kaunsa size kis
+// color ka tha). Ab har cart line `productId + color` ke combo se
+// unique hai — Red aur Blue ki same product do ALAG lines banengi,
+// har ek apni khud ki `color`, `image`, aur `sizes[]` ke sath.
+const matchesLine = (item, productId, color) =>
+  getItemId(item) === productId && normColor(item.color) === normColor(color);
+
 // ← apna actual backend cart endpoint confirm kar lena
 const CART_API_URL = `${API_URL}/cart`;
 const sanitizeCartSizes = (rawSizes) => {
@@ -59,7 +73,7 @@ export const fetchCart = createAsyncThunk(
       const res = await axios.get(CART_API_URL, { withCredentials: true });
 
       // ← backend response shape adjust kar lena agar different hai
-      // e.g. { items: [{ productId, sizes: [{size, quantity}] }] }
+      // e.g. { items: [{ productId, color, image, sizes: [{size, quantity}] }] }
       const rawItems = res.data.items || res.data.cart?.items || [];
 
       const { products } = getState().FetchPrducts; // ← already-fetched product catalog
@@ -77,8 +91,14 @@ export const fetchCart = createAsyncThunk(
             : [{ size: null, quantity: raw.quantity || raw.qty || 1 }];
 
         return {
-          ...fullProduct, // name, price, images, stock, etc.
+          ...fullProduct, // name, price, etc.
           _id: productId,
+          // 🔑 color/image are a SNAPSHOT of what the user actually picked
+          // at add-to-cart time — never re-derived from fullProduct.colors,
+          // since that array can change (colors renamed/removed) after the
+          // item was added.
+          color: raw.color || null,
+          image: raw.image || null,
           sizes: sanitizeCartSizes(sizesSource),
         };
       });
@@ -109,7 +129,7 @@ const cartSlice = createSlice({
       state.hydrated = action.payload;
     },
 
-    // payload: { product, size, quantity, stock? }
+    // payload: { product, size, quantity, stock?, color?, image? }
     // - product:  full product object (from catalog / Detail Page)
     // - size:     the size string being added, or null for a no-size product
     // - quantity: how many pieces of THIS size to add
@@ -117,13 +137,21 @@ const cartSlice = createSlice({
     //             this exact size (e.g. Detail_Page's normalized sizeList) —
     //             pass it in directly. If omitted, we fall back to looking
     //             it up on product.sizes ourselves.
+    // - color:    the color the user had selected (or undefined/null if
+    //             the product has no colors). PART OF THE LINE'S IDENTITY —
+    //             see matchesLine() above.
+    // - image:    the exact image shown for that color at add-time —
+    //             stored as-is, never re-derived later.
     //
     // No matter how many times this is dispatched — same size, different
-    // size, 100 times — each (productId, size) combo only ever has ONE
-    // line inside item.sizes; every call just adds to that line's quantity
-    // (capped at that size's stock) instead of creating a duplicate.
+    // size, 100 times — each (productId, color, size) combo only ever has
+    // ONE line inside item.sizes; every call just adds to that line's
+    // quantity (capped at that size's stock) instead of creating a
+    // duplicate. A DIFFERENT color of the same product always becomes a
+    // separate cart item (own sizes[], own image, own color).
     addToCart: (state, action) => {
-      const { product, size = null, quantity = 1, stock } = action.payload || {};
+      const { product, size = null, quantity = 1, stock, color = null, image = null } =
+        action.payload || {};
       const productId = getItemId(product);
       if (!productId) return;
 
@@ -143,11 +171,20 @@ const cartSlice = createSlice({
 
       const safeQuantity = Number(quantity) || 1;
 
-      let item = state.items.find((i) => getItemId(i) === productId);
+      let item = state.items.find((i) => matchesLine(i, productId, color));
 
       if (!item) {
-        item = { ...product, _id: productId, sizes: [] };
+        item = {
+          ...product,
+          _id: productId,
+          color: normColor(color),
+          image: image || null,
+          sizes: [],
+        };
         state.items.push(item);
+      } else if (image && !item.image) {
+        // keep the first snapshot image, but fill it in if it was missing
+        item.image = image;
       }
 
       const sizeEntry = item.sizes.find((s) => s.size === size);
@@ -167,32 +204,35 @@ const cartSlice = createSlice({
       }
     },
 
-    // payload: { id, size }  — removes ONLY that size's line.
-    // If it was the product's last remaining size, the whole product card
-    // disappears from the cart too (no empty card left behind).
+    // payload: { id, size, color? }  — removes ONLY that size's line, for
+    // that SPECIFIC color's cart item.
+    // If it was the product's last remaining size, the whole product/color
+    // card disappears from the cart too (no empty card left behind).
     removeFromCart: (state, action) => {
-      const { id, size = null } = action.payload || {};
-      const item = state.items.find((i) => getItemId(i) === id);
+      const { id, size = null, color = null } = action.payload || {};
+      const item = state.items.find((i) => matchesLine(i, id, color));
       if (!item) return;
 
       item.sizes = (item.sizes || []).filter((s) => s.size !== size);
 
       if (item.sizes.length === 0) {
-        state.items = state.items.filter((i) => getItemId(i) !== id);
+        state.items = state.items.filter((i) => !matchesLine(i, id, color));
       }
     },
 
-    // Removes an entire product card — every size of it — in one go.
+    // Removes an entire product+color card — every size of it — in one go.
     removeProductFromCart: (state, action) => {
-      const id = action.payload;
-      state.items = state.items.filter((i) => getItemId(i) !== id);
+      const { id, color = null } =
+        typeof action.payload === "object" ? action.payload : { id: action.payload };
+      state.items = state.items.filter((i) => !matchesLine(i, id, color));
     },
 
-    // payload: { id, size } — bumps up ONLY that size's quantity,
-    // respecting that size's own stock ceiling.
+    // payload: { id, size, color? } — bumps up ONLY that size's quantity,
+    // for that SPECIFIC color's line, respecting that size's own stock
+    // ceiling.
     increaseQty: (state, action) => {
-      const { id, size = null } = action.payload || {};
-      const item = state.items.find((i) => getItemId(i) === id);
+      const { id, size = null, color = null } = action.payload || {};
+      const item = state.items.find((i) => matchesLine(i, id, color));
       if (!item) return;
 
       const sizeEntry = item.sizes.find((s) => s.size === size);
@@ -205,12 +245,13 @@ const cartSlice = createSlice({
       }
     },
 
-    // payload: { id, size } — decreases ONLY that size's quantity.
-    // Hitting 1 → 0 removes that size's line (and the whole product if it
+    // payload: { id, size, color? } — decreases ONLY that size's quantity,
+    // for that SPECIFIC color's line.
+    // Hitting 1 → 0 removes that size's line (and the whole card if it
     // was the last size left), matching the old "trash icon at qty 1" feel.
     decreaseQty: (state, action) => {
-      const { id, size = null } = action.payload || {};
-      const item = state.items.find((i) => getItemId(i) === id);
+      const { id, size = null, color = null } = action.payload || {};
+      const item = state.items.find((i) => matchesLine(i, id, color));
       if (!item) return;
 
       const sizeEntry = item.sizes.find((s) => s.size === size);
@@ -220,7 +261,7 @@ const cartSlice = createSlice({
       if (currentQty <= 1) {
         item.sizes = item.sizes.filter((s) => s.size !== size);
         if (item.sizes.length === 0) {
-          state.items = state.items.filter((i) => getItemId(i) !== id);
+          state.items = state.items.filter((i) => !matchesLine(i, id, color));
         }
       } else {
         sizeEntry.quantity = currentQty - 1;
