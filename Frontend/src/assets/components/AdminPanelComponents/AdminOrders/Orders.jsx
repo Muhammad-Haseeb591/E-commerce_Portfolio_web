@@ -5,8 +5,8 @@ import {
   CreditCard, Banknote, CheckCircle2, XCircle,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchAllOrders, updateOrder, deleteOrder } from "../redux_Toolkit/OrderSlice";
-import { downloadGetFile, downloadPostFile } from "../../../utils/downloadFile";
+import { fetchAllOrders, updateOrder, deleteOrder } from "../../redux_Toolkit/OrderSlice";
+import { downloadGetFile, downloadPostFile } from "../../../../utils/downloadFile";
 
 // ── Invoice / export controls ──
 
