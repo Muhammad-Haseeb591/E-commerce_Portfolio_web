@@ -49,7 +49,8 @@ export const COLOR_SWATCH = {
 
 // Shoe size ranges, per category. Sizes only ever apply when Type = "shoes"
 // AND the category has a defined scale below — everything else (type =
-// "other", or a category with no shoe scale) just uses a plain stock number.
+// "other", or a category with no shoe scale) just uses a plain per-color
+// stock number instead of a size grid.
 const range = (start, end) =>
   Array.from({ length: end - start + 1 }, (_, i) => String(start + i));
 
@@ -68,76 +69,104 @@ export const swatchStyle = (color) => {
   return value.startsWith("linear") ? { background: value } : { backgroundColor: value };
 };
 
-// Converts a stored `sizes: [{ size, stock }]` array back into the toggle-box
-// shape the forms use internally: { "40": 5, "42": 2, ... }
-export const sizesArrayToStocks = (sizes = []) =>
-  sizes.reduce((acc, { size, stock }) => {
-    if (size && size !== "One Size") acc[size] = stock;
-    return acc;
-  }, {});
-export const stocksToSizesArray = (sizeStocks, sizeOptions, plainStock) =>
-  sizeOptions
-    ? Object.entries(sizeStocks).map(([size, stock]) => ({
-        size,
-        stock: Number(stock) || 0,
-      }))
-    : [{ size: "One Size", stock: Number(plainStock) || 0 }];
-
 // ── Colors ──────────────────────────────────────────────────────────────
-// Mirrors the sizes helpers above, but for the per-color images+stock
-// blocks used in the Colors section of both the Add and Edit forms.
+// 🔑 SIZES ARE NOW PER-COLOR, not a separate top-level thing. Each color
+// block looks like:
+//   { color: "Red", images: ["..."], stock: "12", sizes: { "40": 5, "41": 7 } }
+//
+// - `sizes` is a toggle-box map (size -> quantity), only meaningful when
+//   sizeOptionsFor(type, category) returns a non-null size scale (i.e.
+//   type = "shoes" and the category has a defined range above).
+// - `stock` is a plain manual number, only meaningful when there's NO size
+//   scale (non-shoe products, or shoe categories without a defined range).
+// A color's own effective stock is whichever of the two actually applies —
+// see colorBlockStock() below. Never both at once.
 
 // Empty block seed — used for the initial state and every "Add Color" click.
-export const emptyColorBlock = () => ({ color: "", images: [""], stock: "" });
+export const emptyColorBlock = () => ({ color: "", images: [""], stock: "", sizes: {} });
+
+// Effective stock for ONE color block, given whether a size scale applies.
+export const colorBlockStock = (block, sizeOptions) =>
+  sizeOptions
+    ? Object.values(block.sizes || {}).reduce((sum, q) => sum + (Number(q) || 0), 0)
+    : Number(block.stock) || 0;
+
+// Total product stock = sum of every color block's effective stock.
+export const colorBlocksTotalStock = (colorBlocks = [], sizeOptions) =>
+  colorBlocks.reduce((sum, c) => sum + colorBlockStock(c, sizeOptions), 0);
 
 // Converts a saved product into the block-shape the forms use internally:
-// [{ color, images: [...], stock }, ...]
+// [{ color, images: [...], stock, sizes: {...} }, ...]
 //
 // 🔑 Handles BOTH shapes a product can currently have in the DB:
-//   - new products: `product.colors = [{ color, hex, images, stock }]`
+//   - new products: `product.colors = [{ color, hex, images, stock, sizes: [{size,stock}] }]`
 //   - old/legacy products (migrated or not yet migrated): a single
-//     `product.color` string, with the product's general `images`/`stock`
-//     used as that one color's images/stock — so editing an old product
-//     doesn't just show a blank Colors section.
+//     `product.color` string, with the product's general `images`/`stock`/
+//     `sizes` used as that one color's images/stock/sizes — so editing an
+//     old product doesn't just show a blank Colors section.
 export const colorsArrayToBlocks = (product) => {
-  if (Array.isArray(product?.colors) && product.colors.length > 0) {
-    return product.colors.map((c) => ({
+  const legacySizesMap = (sizes = []) =>
+    sizes.reduce((acc, { size, stock }) => {
+      if (size && size !== "One Size") acc[size] = stock;
+      return acc;
+    }, {});
+
+  const toBlock = (c) => {
+    const sizesMap = legacySizesMap(c.sizes);
+    const hasSizes = Object.keys(sizesMap).length > 0;
+    return {
       color: c.color || "",
       images: c.images?.length ? c.images : [""],
-      stock: c.stock ?? "",
-    }));
+      stock: hasSizes ? "" : String(c.stock ?? ""),
+      sizes: sizesMap,
+    };
+  };
+
+  if (Array.isArray(product?.colors) && product.colors.length > 0) {
+    return product.colors.map(toBlock);
   }
 
   if (product?.color) {
     return [
-      {
+      toBlock({
         color: product.color,
-        images: product.images?.length ? product.images : [""],
-        stock: product.stock ?? "",
-      },
+        images: product.images,
+        stock: product.stock,
+        sizes: product.sizes,
+      }),
     ];
   }
 
   return [emptyColorBlock()];
 };
 
-// Converts the block-shape back into the `colors: [{ color, hex, images, stock }]`
-// array that actually gets saved. Blocks left fully empty (no color picked)
-// are dropped rather than causing a validation error.
-export const blocksToColorsArray = (colorBlocks = []) =>
+// Converts the block-shape back into the `colors: [{ color, hex, images,
+// sizes, stock }]` array that actually gets saved. Blocks left fully empty
+// (no color picked) are dropped rather than causing a validation error.
+// `sizeOptions` tells us whether this product currently has a size scale,
+// so we know whether to read stock from `sizes` or from the plain `stock`
+// number.
+export const blocksToColorsArray = (colorBlocks = [], sizeOptions) =>
   colorBlocks
     .filter((c) => c.color && c.color.trim() !== "")
-    .map((c) => ({
-      color: c.color,
-      hex:
-        COLOR_SWATCH[c.color] && !COLOR_SWATCH[c.color].startsWith("linear")
-          ? COLOR_SWATCH[c.color]
-          : "",
-      images: c.images.filter((img) => img.trim() !== ""),
-      stock: Number(c.stock) || 0,
-    }));
+    .map((c) => {
+      const sizesArr = sizeOptions
+        ? Object.entries(c.sizes || {}).map(([size, stock]) => ({
+            size,
+            stock: Number(stock) || 0,
+          }))
+        : [];
 
-// Total stock derived from color blocks — same "sum it up" idea as
-// stocksToSizesArray's total, used when a product has colors but no sizes.
-export const colorBlocksTotalStock = (colorBlocks = []) =>
-  blocksToColorsArray(colorBlocks).reduce((sum, c) => sum + (Number(c.stock) || 0), 0);
+      return {
+        color: c.color,
+        hex:
+          COLOR_SWATCH[c.color] && !COLOR_SWATCH[c.color].startsWith("linear")
+            ? COLOR_SWATCH[c.color]
+            : "",
+        images: c.images.filter((img) => img.trim() !== ""),
+        sizes: sizesArr,
+        stock: sizeOptions
+          ? sizesArr.reduce((sum, s) => sum + s.stock, 0)
+          : Number(c.stock) || 0,
+      };
+    });
