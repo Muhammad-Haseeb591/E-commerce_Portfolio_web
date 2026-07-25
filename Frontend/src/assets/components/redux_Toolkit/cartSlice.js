@@ -7,48 +7,6 @@ const getItemId = (item) => item?._id ?? item?.id;
 
 // ← apna actual backend cart endpoint confirm kar lena
 const CART_API_URL = `${API_URL}/cart`;
-
-// ─────────────────────────────────────────────────────
-// 🔑 CART ITEM SHAPE (this is the important part of this file)
-//
-// Every cart item is now grouped BY PRODUCT — one entry per product _id,
-// no matter how many sizes of it are in the cart:
-//
-//   {
-//     _id: "64f...",              // product id
-//     name, price, oldPrice, images, color, category, stock, ...  // full product data
-//     sizes: [
-//       { size: "38", quantity: 2, stock: 5 },   // stock = available stock for THIS size
-//       { size: "42", quantity: 1, stock: 8 },
-//     ],
-//   }
-//
-// Products that DON'T have sizes (type "other") still use this exact same
-// shape, just with a single sizes entry where size is `null`:
-//
-//   sizes: [{ size: null, quantity: 3, stock: 20 }]
-//
-// Keeping this shape uniform means Cart.jsx, CartSync.jsx, and the checkout
-// page never need an "if it has sizes vs not" branch — they just loop over
-// `item.sizes` either way.
-// ─────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────
-// 🔧 sanitizeCartSizes — defensive normalization for whatever the backend
-// hands back.
-//
-// This exists because cart lines can be OLDER than a bugfix (e.g. a line
-// saved back when a product's size field was a combined string like
-// "40,41,42,43,44" with no per-line quantity). Without this, a stale line
-// like that comes back from the backend forever and renders as one glitchy
-// row with `quantity: NaN`.
-//
-// Rules applied per raw size entry:
-//   - "40,41,42,43,44"  -> split into separate "40" / "41" / ... entries
-//   - quantity missing/NaN -> defaults to 1 (never lets NaN through)
-//   - stock missing/NaN    -> defaults to Infinity (don't block a valid
-//                              quantity just because stock wasn't recorded)
-// ─────────────────────────────────────────────────────
 const sanitizeCartSizes = (rawSizes) => {
   if (!Array.isArray(rawSizes) || rawSizes.length === 0) {
     return [{ size: null, quantity: 1 }];
@@ -59,8 +17,6 @@ const sanitizeCartSizes = (rawSizes) => {
 
   rawSizes.forEach((entry) => {
     if (!entry) return;
-
-    // size:null (no-size product) stays as-is, single line.
     if (entry.size === null || entry.size === undefined) {
       const key = "null";
       if (seen.has(key)) return;
@@ -72,9 +28,6 @@ const sanitizeCartSizes = (rawSizes) => {
       });
       return;
     }
-
-    // Split combined "40,41,42" strings into individual sizes. A normal
-    // single size like "40" or "L" just becomes a 1-item array here.
     const sizeParts = String(entry.size)
       .split(",")
       .map((s) => s.trim())
@@ -85,8 +38,6 @@ const sanitizeCartSizes = (rawSizes) => {
       seen.add(size);
       cleaned.push({
         size,
-        // A combined line never had a real per-size quantity, so falling
-        // back to 1 here is the safest guess instead of propagating NaN.
         quantity: Number(entry.quantity) || 1,
         stock: Number(entry.stock) || Infinity,
       });

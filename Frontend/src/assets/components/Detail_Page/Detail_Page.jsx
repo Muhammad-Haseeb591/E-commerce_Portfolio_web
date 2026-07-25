@@ -62,9 +62,10 @@ const normalizeSizes = (rawSizes) => {
   return expanded;
 };
 
-// Color variants ko normalize karta hai. Har entry apni `images` array +
-// apna `stock` la sakta hai. `color`/`stock`/`images` field names
-// flexible hain (jo bhi backend bheje, us shape mein fit ho jata hai).
+// 🔑 CHANGED — schema ab colors[i].image (SINGLE string) bhejta hai, ab
+// `images` array nahi. Ye normalizer dono cases handle karta hai
+// (purana `images` array bhi, naya single `image` bhi) taake kahin na
+// kahin break na ho, lekin practically ab hamesha 1 image hi milegi.
 const normalizeColors = (rawColors) => {
   if (!Array.isArray(rawColors)) return [];
 
@@ -90,27 +91,10 @@ const normalizeColors = (rawColors) => {
       // normalizeSizes() ise selectedColorData.sizes ke through consume
       // kar sake — global product.sizes par depend nahi karna.
       sizes: Array.isArray(entry?.sizes) ? entry.sizes : null,
-      hex: entry?.hex || entry?.code || null, // optional, swatch dot ke liye
     });
   });
 
   return expanded;
-};
-
-// Multicolor jaisi values ke liye gradient support — agar color ka naam
-// "Multicolor" hai aur hex nahi diya gaya, to bhi ek default rainbow
-// gradient dikha dete hain (text label ab kahin show nahi hota, sirf
-// swatch, is liye visually distinguish karna zaroori hai).
-const getSwatchStyle = (colorEntry) => {
-  if (colorEntry.hex) {
-    return colorEntry.hex.startsWith("linear")
-      ? { background: colorEntry.hex }
-      : { backgroundColor: colorEntry.hex };
-  }
-  if (String(colorEntry.color).toLowerCase() === "multicolor") {
-    return { background: "linear-gradient(135deg, red, orange, yellow, green, blue, violet)" };
-  }
-  return { background: "#e5e7eb" };
 };
 
 const FAKE_NAMES = [
@@ -169,7 +153,6 @@ const Detail_Page = () => {
   const favouriteItems = useSelector((state) => state.favourites.items || []);
   const favouriteLoading = useSelector((state) => state.favourites.loading);
 
-  const [selectedImage, setSelectedImage] = useState(0);
   const [imgLoaded, setImgLoaded] = useState(false);
 
   const [selectedColorIndex, setSelectedColorIndex] = useState(0);
@@ -195,7 +178,6 @@ const Detail_Page = () => {
   );
 
   useEffect(() => {
-    setSelectedImage(0);
     setSelectedColorIndex(0);
     setSelectedSizes({});
     setQuantity(1);
@@ -219,11 +201,18 @@ const Detail_Page = () => {
   const allColorsOutOfStock = hasColors && colorList.every((c) => c.stock === 0);
   const selectedColorData = hasColors ? colorList[selectedColorIndex] || colorList[0] : null;
 
-  const images = hasColors && selectedColorData?.images?.length
-    ? selectedColorData.images
-    : product?.images?.length
-    ? product.images
-    : [""];
+  // 🔑 CHANGED — pehle ye "colors ke andar images[] array" se ek gallery
+  // banata tha aur alag se "Colors" dot-swatch section tha. Ab har color
+  // ki sirf EK image hoti hai (colors[i].image), is liye:
+  //   - Main image = selected color ki image (ya, colors na hone par,
+  //     product ki apni image).
+  //   - Neeche jo pehle "extra angles" ki thumbnail-strip thi, wo ab
+  //     color-picker ban gayi hai: har thumbnail ek color hai, click
+  //     karne se wo color select hota hai (dot swatches poori tarah
+  //     hata diye — image hi ab color-picker hai).
+  const mainImage = hasColors
+    ? selectedColorData?.images?.[0] || null
+    : product?.image || product?.images?.[0] || null;
 
   // 🔑 FIX: agar product ke colors hain, to sizes (aur unka stock) us
   // SPECIFIC selected color se aane chahiye — na ke product.sizes se
@@ -275,7 +264,6 @@ const Detail_Page = () => {
   const selectColor = (index, stock) => {
     if (stock === 0) return;
     setSelectedColorIndex(index);
-    setSelectedImage(0);
     setImgLoaded(false);
     setQuantity(1);
     // Sizes ab selected color ke hisaab se change hote hain (alag color
@@ -313,6 +301,13 @@ const Detail_Page = () => {
     triggerPulse(size);
   };
 
+  // 🔑 CHANGED — ab `image` bhi cart payload ka hissa hai, `color` ke
+  // sath. Ye is liye zaroori hai kyunke product.colors[] baad mein badal
+  // sakta hai (naya color add/remove ho sakta hai) — agar cart sirf
+  // color NAME store kare aur baad mein dobara product.colors se image
+  // lookup kare, to purani order ki image ghalat/missing ho sakti hai.
+  // Is liye jo image is waqt dikhi hai wahi cart mein "snapshot" ke tor
+  // par save honi chahiye.
   const handleAddToCart = useCallback(() => {
     if (hasColors && allColorsOutOfStock) {
       alert("This product is out of stock in all colors.");
@@ -334,14 +329,15 @@ const Detail_Page = () => {
     }
 
     const color = hasColors ? selectedColorData?.color : undefined;
+    const image = mainImage;
 
     if (hasSizes) {
       Object.entries(selectedSizes).forEach(([size, qty]) => {
         const stock = sizeList.find((s) => s.size === size)?.stock;
-        dispatch(addToCart({ product, size, quantity: qty, stock, color }));
+        dispatch(addToCart({ product, size, quantity: qty, stock, color, image }));
       });
     } else {
-      dispatch(addToCart({ product, size: null, quantity, stock: productStock, color }));
+      dispatch(addToCart({ product, size: null, quantity, stock: productStock, color, image }));
     }
 
     setAdded(true);
@@ -357,6 +353,7 @@ const Detail_Page = () => {
     productOutOfStock,
     productStock,
     sizeList,
+    mainImage,
     dispatch,
   ]);
 
@@ -424,17 +421,17 @@ const Detail_Page = () => {
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12">
-        {/* ── Images ──
+        {/* ── Image + color picker ──
             🔑 COVER MODE: container ki height fixed hai per breakpoint,
             image object-cover se box ko PURA bharti hai (crop ho sakta
             hai agar image ka aspect-ratio box se match na kare, letterbox
             nahi hoga). ── */}
         <div>
           <div className="relative w-full h-[320px] sm:h-[420px] lg:h-[480px] bg-[#ececec] rounded-xl overflow-hidden">
-            {images[selectedImage] ? (
+            {mainImage ? (
               <img
-                key={images[selectedImage]}
-                src={images[selectedImage]}
+                key={mainImage}
+                src={mainImage}
                 alt={product.name}
                 onLoad={() => setImgLoaded(true)}
                 className={`w-full h-full object-cover transition-opacity duration-200 ${
@@ -459,30 +456,39 @@ const Detail_Page = () => {
                 <FaRegHeart className="text-[#333333] text-lg" />
               )}
             </button>
-
-            {images.length > 1 && (
-              <span className="absolute bottom-3 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full">
-                {selectedImage + 1} / {images.length}
-              </span>
-            )}
           </div>
 
-          {images.length > 1 && (
+          {/* 🔑 CHANGED — ye ab "extra angles" ki strip nahi, COLOR
+              PICKER hai. Har thumbnail ek color ki image hai; click se
+              wahi color select ho jata hai. Purana "Colors" dot-swatch
+              section (neeche) poora hata diya gaya — yehi iski jagah
+              leta hai. */}
+          {hasColors && colorList.length > 1 && (
             <div className="flex gap-2 mt-3 overflow-x-auto pb-1 snap-x snap-mandatory scroll-smooth [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full">
-              {images.map((img, i) => (
-                <button
-                  key={i}
-                  onClick={() => {
-                    setSelectedImage(i);
-                    setImgLoaded(false);
-                  }}
-                  className={`w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-lg overflow-hidden border-2 snap-start bg-[#ececec] transition ${
-                    selectedImage === i ? "border-[#333333]" : "border-transparent opacity-70 hover:opacity-100"
-                  }`}
-                >
-                  <img src={img} alt="" className="w-full h-full object-cover" />
-                </button>
-              ))}
+              {colorList.map((c, i) => {
+                const outOfStock = c.stock === 0;
+                const isSelected = selectedColorIndex === i;
+                return (
+                  <button
+                    key={c.color}
+                    type="button"
+                    disabled={outOfStock}
+                    onClick={() => selectColor(i, c.stock)}
+                    title={outOfStock ? `${c.color} — Out of stock` : c.color}
+                    className={`w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-lg overflow-hidden border-2 snap-start bg-[#ececec] transition ${
+                      isSelected ? "border-[#333333]" : "border-transparent opacity-70 hover:opacity-100"
+                    } ${outOfStock ? "opacity-30 grayscale cursor-not-allowed" : ""}`}
+                  >
+                    {c.images?.[0] ? (
+                      <img src={c.images[0]} alt={c.color} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="w-full h-full flex items-center justify-center text-[10px] text-gray-400 px-1 text-center">
+                        {c.color}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -520,59 +526,19 @@ const Detail_Page = () => {
               : `Add Rs. ${amountLeftForFreeDelivery.toFixed(0)} more to unlock FREE delivery`}
           </div>
 
-          {/* ── Colors (only if product has colors) —
-              🔑 SWATCH ONLY, no text label next to it. ── */}
+          {/* ── Selected color name (dot swatches removed — color ab
+              upar thumbnail-strip se choose hota hai) ── */}
           {hasColors ? (
-            <div className="mt-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold text-[#333333]">
-                  Color:{" "}
-                  <span className="font-normal text-gray-500">
-                    {selectedColorData?.color}
-                  </span>
-                </p>
-                {allColorsOutOfStock && (
-                  <span className="text-xs text-red-600 font-medium">Out of stock</span>
-                )}
-              </div>
-
-              <div className="flex flex-wrap gap-2.5">
-                {colorList.map((c, i) => {
-                  const outOfStock = c.stock === 0;
-                  const isSelected = selectedColorIndex === i;
-                  const isWhite = String(c.color).toLowerCase() === "white";
-                  return (
-                    <button
-                      key={c.color}
-                      type="button"
-                      disabled={outOfStock}
-                      onClick={() => selectColor(i, c.stock)}
-                      title={outOfStock ? `${c.color} — Out of stock` : c.color}
-                      className={`w-[30px] h-[30px] rounded-full flex items-center justify-center transition-all duration-200 shrink-0 ${
-                        isSelected
-                          ? "ring-2 ring-black ring-offset-2"
-                          : "ring-1 ring-gray-200 ring-offset-1 hover:ring-gray-400"
-                      } ${outOfStock ? "opacity-40 cursor-not-allowed" : ""}`}
-                      style={getSwatchStyle(c)}
-                    >
-                      {isSelected && !outOfStock && (
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke={isWhite ? "black" : "white"}
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="mt-4 flex items-center justify-between">
+              <p className="text-sm font-semibold text-[#333333]">
+                Color:{" "}
+                <span className="font-normal text-gray-500">
+                  {selectedColorData?.color}
+                </span>
+              </p>
+              {allColorsOutOfStock && (
+                <span className="text-xs text-red-600 font-medium">Out of stock</span>
+              )}
             </div>
           ) : (
             product.color && (
