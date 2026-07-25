@@ -1,7 +1,7 @@
 import Filter from '../e-Components/Filter'
 import React, { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { setFilters } from '../redux_Toolkit/fetcherSlice' // 🔑 apna actual path confirm kar lena
+import { setFilters } from '../redux_Toolkit/fetcherSlice' 
 
 // 🔑 Dropdown label ko backend ke sortBy/order values se map karta hai
 const SORT_OPTIONS = [
@@ -21,9 +21,7 @@ const Main = ({ children }) => {
   const dispatch = useDispatch();
   const { totalCount, filters } = useSelector((state) => state.FetchPrducts);
 
-  // 🔑 Safe fallback — jab tak fetchData ka pehla response nahi aata,
-  // totalCount redux mein 0 hi hota hai (initialFilters se), is liye
-  // "undefined products" jaisa koi bug/flash nahi aata kisi bhi render par.
+  
   const productCount = totalCount ?? 0;
 
   const currentSortLabel =
