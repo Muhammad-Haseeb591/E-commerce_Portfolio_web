@@ -69,12 +69,39 @@ export const swatchStyle = (color) => {
   return value.startsWith("linear") ? { background: value } : { backgroundColor: value };
 };
 
+// 🔑 Stable id generator for color blocks. Both the Add form and the Edit
+// form build their color blocks through this file (emptyColorBlock /
+// colorsArrayToBlocks), so the id is generated right here — every block
+// that ever exists in either form gets a permanent id at creation time.
+// The forms then track/update blocks by this id instead of by array
+// position, which is what prevents one color's data (image, stock,
+// sizes) from ever landing on a different color block after an add/
+// remove/reorder or a slow image upload resolving late.
 let colorBlockIdCounter = 0;
 export const makeColorBlockId = () => `color-${Date.now()}-${colorBlockIdCounter++}`;
+
+// ── Colors ──────────────────────────────────────────────────────────────
+// 🔑 SIZES ARE NOW PER-COLOR, not a separate top-level thing. Each color
+// block looks like:
+//   { id: "...", color: "Red", image: "...", stock: "12", sizes: { "40": 5, "41": 7 } }
+//
+// - `id` is internal-only (form state tracking), never sent to the backend
+//   — blocksToColorsArray() below strips it back out.
+// - `image` is a SINGLE image string (matches the schema's `colorSchema.image`
+//   — no array, no "add another image for this color").
+// - `sizes` is a toggle-box map (size -> quantity), only meaningful when
+//   sizeOptionsFor(type, category) returns a non-null size scale (i.e.
+//   type = "shoes" and the category has a defined range above).
+// - `stock` is a plain manual number, only meaningful when there's NO size
+//   scale (non-shoe products, or shoe categories without a defined range).
+// A color's own effective stock is whichever of the two actually applies —
+// see colorBlockStock() below. Never both at once.
+
+// Empty block seed — used for the initial state and every "Add Color" click.
 export const emptyColorBlock = () => ({
   id: makeColorBlockId(),
   color: "",
-  images: [""],
+  image: "",
   stock: "",
   sizes: {},
 });
@@ -90,13 +117,13 @@ export const colorBlocksTotalStock = (colorBlocks = [], sizeOptions) =>
   colorBlocks.reduce((sum, c) => sum + colorBlockStock(c, sizeOptions), 0);
 
 // Converts a saved product into the block-shape the forms use internally:
-// [{ id, color, images: [...], stock, sizes: {...} }, ...]
+// [{ id, color, image, stock, sizes: {...} }, ...]
 //
 // 🔑 Handles BOTH shapes a product can currently have in the DB:
-//   - new products: `product.colors = [{ color, hex, images, stock, sizes: [{size,stock}] }]`
+//   - new products: `product.colors = [{ color, hex, image, stock, sizes: [{size,stock}] }]`
 //   - old/legacy products (migrated or not yet migrated): a single
-//     `product.color` string, with the product's general `images`/`stock`/
-//     `sizes` used as that one color's images/stock/sizes — so editing an
+//     `product.color` string, with the product's general `image`/`stock`/
+//     `sizes` used as that one color's image/stock/sizes — so editing an
 //     old product doesn't just show a blank Colors section.
 export const colorsArrayToBlocks = (product) => {
   const legacySizesMap = (sizes = []) =>
@@ -111,7 +138,10 @@ export const colorsArrayToBlocks = (product) => {
     return {
       id: makeColorBlockId(),
       color: c.color || "",
-      images: c.images?.length ? c.images : [""],
+      // 🔑 supports both the new single `image` string AND the old
+      // `images: [...]` array shape (pre-migration documents), so
+      // editing an older product still shows its picture.
+      image: c.image || c.images?.[0] || "",
       stock: hasSizes ? "" : String(c.stock ?? ""),
       sizes: sizesMap,
     };
@@ -125,6 +155,7 @@ export const colorsArrayToBlocks = (product) => {
     return [
       toBlock({
         color: product.color,
+        image: product.image,
         images: product.images,
         stock: product.stock,
         sizes: product.sizes,
@@ -158,7 +189,7 @@ export const blocksToColorsArray = (colorBlocks = [], sizeOptions) =>
           COLOR_SWATCH[c.color] && !COLOR_SWATCH[c.color].startsWith("linear")
             ? COLOR_SWATCH[c.color]
             : "",
-        images: c.images.filter((img) => img.trim() !== ""),
+        image: (c.image || "").trim(),
         sizes: sizesArr,
         stock: sizeOptions
           ? sizesArr.reduce((sum, s) => sum + s.stock, 0)
