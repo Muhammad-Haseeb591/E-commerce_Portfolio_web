@@ -1,4 +1,4 @@
-import Filter from './Filter.jsx'
+import Filter from '../e-Components/Filter'
 import React, { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { setFilters } from '../redux_Toolkit/fetcherSlice' // 🔑 apna actual path confirm kar lena
