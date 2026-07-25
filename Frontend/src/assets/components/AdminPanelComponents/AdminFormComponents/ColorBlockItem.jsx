@@ -39,7 +39,7 @@ const ColorBlockItem = ({
   colorFieldClass,
   baseInput,
 }) => {
-  const image = block.images?.[0] || "";
+  const image = block.image || "";
 
   return (
     <div

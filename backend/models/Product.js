@@ -9,20 +9,25 @@ const sizeSchema = new mongoose.Schema(
   { _id: false }
 );
 
-// 🔑 Colors — har color ki apni images + apni sizes + apna stock.
-// `color` yahi wahi string honi chahiye jo ProductForm.jsx ke COLOR_OPTIONS
-// aur Filter.jsx ke color list me hai (casing match), warna filter query
-// (?color=Black) kabhi match nahi karegi.
+// 🔑 Colors — har color ki apni EK image + apni sizes + apna stock.
+// (Pehlay `images: [String]` array tha, lekin form me har color ka
+// sirf ek hi image slot hota hai — so ab yahan bhi sirf ek `image`
+// string hai. Array nikal dene se "clean architecture" hui: jo UI me
+// hai wahi schema me hai, koi array-of-one nahi.)
+//
+// `color` yahi wahi string honi chahiye jo ProductForm.jsx ke
+// COLOR_OPTIONS aur Filter.jsx ke color list me hai (casing match),
+// warna filter query (?color=Black) kabhi match nahi karegi.
 //
 // Structure example:
 //   colors: [
-//     { color: "Red",  images: [...], sizes: [{size:"M",stock:5},{size:"L",stock:3}] },
-//     { color: "Blue", images: [...], sizes: [{size:"M",stock:2}] },
+//     { color: "Red",  image: "https://...", sizes: [{size:"M",stock:5},{size:"L",stock:3}] },
+//     { color: "Blue", image: "https://...", sizes: [{size:"M",stock:2}] },
 //   ]
 const colorSchema = new mongoose.Schema({
   color: { type: String, required: true },
   hex: { type: String, default: "" }, // optional, swatch dot ke liye (Detail_Page/Filter me use ho sakta)
-  images: { type: [String], default: [] }, // is color ki apni images; empty ho to Detail_Page product.images pe fallback karega
+  image: { type: String, default: "" }, // is color ki apni image; khali ho to Detail_Page product.image pe fallback karega
   sizes: { type: [sizeSchema], default: [] }, // is color ke sizes + unka stock
   stock: { type: Number, default: 0 }, // sizes diye ho to auto-sum hoga (pre-validate), warna manual value use hogi
 });
@@ -43,9 +48,14 @@ colorSchema.pre("validate", function () {
 
 const productSchema = new mongoose.Schema(
   {
+    // 🔑 Clean-searching ke liye — ProductForm.jsx ab har product ke
+    // sath ek stable productId bhi bhejta hai. `unique` + `sparse` so
+    // purane/legacy products (jo is field se pehle bane thay) is index
+    // ko break na karein.
+    productId: { type: String, default: "", trim: true, unique: true, sparse: true },
     name: { type: String, default: "", trim: true },
     description: { type: String, default: "" },
-    images: { type: [String], default: [] }, // general/fallback images (jab kisi color ki apni image na ho)
+    image: { type: String, default: "" }, // general/fallback image (jab kisi color ki apni image na ho)
     price: { type: Number, default: 0 },
     oldPrice: { type: Number, default: null },
     stock: { type: Number, default: 0 }, // total stock — colors[].stock ka sum (auto-calculated)
@@ -55,14 +65,13 @@ const productSchema = new mongoose.Schema(
       enum: ["active", "inactive", "pending"],
     },
     isActive: { type: Boolean, default: true },
-    // 🔑 NEW — ProductForm.jsx already sends this (decides the shoe size
-    // scale via sizeOptionsFor(type, category)), but it was never actually
-    // saved because the schema didn't declare it. Added here so it
-    // persists and Edit can correctly re-derive whether a product uses
-    // per-color sizes or a plain stock number.
+    // ProductForm.jsx sends this (decides the shoe size scale via
+    // sizeOptionsFor(type, category)); persisted here so Edit can
+    // correctly re-derive whether a product uses per-color sizes or a
+    // plain stock number.
     type: { type: String, default: "other", enum: ["shoes", "other"] },
     // Ab sirf `colors[]` hi source of truth hai — har color ke andar
-    // apni images, apni sizes, apna stock. Top-level `sizes` field
+    // apni image, apni sizes, apna stock. Top-level `sizes` field
     // hata diya gaya hai (agar kabhi bina-color simple product chahiye ho
     // jisme sirf sizes hon, to ek "Default" naam ka color banake usme
     // sizes daal dena — structure consistent rahega).
@@ -95,4 +104,4 @@ productSchema.pre("save", function () {
   }
 });
 
-module.exports = mongoose.model("Product", productSchema);
+module.exports = mongoose.model("Product", productSchema);s
