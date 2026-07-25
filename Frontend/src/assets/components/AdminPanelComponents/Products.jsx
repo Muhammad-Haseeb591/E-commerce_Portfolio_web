@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchData, deleteProductAsync, editProductAsync } from "../redux_Toolkit/fetcherSlice";
-import FormData from "./FormData";
+import FormData from "../AdminPanelComponents/AdminFormComponents/FormData";
 import {
   uploadToCloudinary,
   CATEGORY_OPTIONS,
