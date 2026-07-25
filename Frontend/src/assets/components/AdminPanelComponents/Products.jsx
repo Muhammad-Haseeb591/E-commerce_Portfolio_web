@@ -18,7 +18,7 @@ import {
   blocksToColorsArray,
   colorBlockStock,
   colorBlocksTotalStock,
-} from "./Productformhelpers";
+} from "../AdminPanelComponents/AdminFormComponents/Productformhelpers";
 
 // 🎨 Primary action color used across this page
 const PRIMARY = "#333333";

@@ -1,4 +1,4 @@
-import { API_URL } from "../../../config/api";
+import { API_URL } from "../../../../config/api";
 export const uploadToCloudinary = async (file) => {
   const uploadData = new window.FormData();
   uploadData.append("file", file);
@@ -69,21 +69,15 @@ export const swatchStyle = (color) => {
   return value.startsWith("linear") ? { background: value } : { backgroundColor: value };
 };
 
-// ── Colors ──────────────────────────────────────────────────────────────
-// 🔑 SIZES ARE NOW PER-COLOR, not a separate top-level thing. Each color
-// block looks like:
-//   { color: "Red", images: ["..."], stock: "12", sizes: { "40": 5, "41": 7 } }
-//
-// - `sizes` is a toggle-box map (size -> quantity), only meaningful when
-//   sizeOptionsFor(type, category) returns a non-null size scale (i.e.
-//   type = "shoes" and the category has a defined range above).
-// - `stock` is a plain manual number, only meaningful when there's NO size
-//   scale (non-shoe products, or shoe categories without a defined range).
-// A color's own effective stock is whichever of the two actually applies —
-// see colorBlockStock() below. Never both at once.
-
-// Empty block seed — used for the initial state and every "Add Color" click.
-export const emptyColorBlock = () => ({ color: "", images: [""], stock: "", sizes: {} });
+let colorBlockIdCounter = 0;
+export const makeColorBlockId = () => `color-${Date.now()}-${colorBlockIdCounter++}`;
+export const emptyColorBlock = () => ({
+  id: makeColorBlockId(),
+  color: "",
+  images: [""],
+  stock: "",
+  sizes: {},
+});
 
 // Effective stock for ONE color block, given whether a size scale applies.
 export const colorBlockStock = (block, sizeOptions) =>
@@ -96,7 +90,7 @@ export const colorBlocksTotalStock = (colorBlocks = [], sizeOptions) =>
   colorBlocks.reduce((sum, c) => sum + colorBlockStock(c, sizeOptions), 0);
 
 // Converts a saved product into the block-shape the forms use internally:
-// [{ color, images: [...], stock, sizes: {...} }, ...]
+// [{ id, color, images: [...], stock, sizes: {...} }, ...]
 //
 // 🔑 Handles BOTH shapes a product can currently have in the DB:
 //   - new products: `product.colors = [{ color, hex, images, stock, sizes: [{size,stock}] }]`
@@ -115,6 +109,7 @@ export const colorsArrayToBlocks = (product) => {
     const sizesMap = legacySizesMap(c.sizes);
     const hasSizes = Object.keys(sizesMap).length > 0;
     return {
+      id: makeColorBlockId(),
       color: c.color || "",
       images: c.images?.length ? c.images : [""],
       stock: hasSizes ? "" : String(c.stock ?? ""),
@@ -145,7 +140,7 @@ export const colorsArrayToBlocks = (product) => {
 // (no color picked) are dropped rather than causing a validation error.
 // `sizeOptions` tells us whether this product currently has a size scale,
 // so we know whether to read stock from `sizes` or from the plain `stock`
-// number.
+// number. The internal-only `id` is never included in the saved payload.
 export const blocksToColorsArray = (colorBlocks = [], sizeOptions) =>
   colorBlocks
     .filter((c) => c.color && c.color.trim() !== "")

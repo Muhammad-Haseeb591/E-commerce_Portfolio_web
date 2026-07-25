@@ -2,6 +2,9 @@ import React, { useState, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { X } from "lucide-react";
 import { API_URL } from "../../../../config/api";
+// 🔑 Path yahan Filter.jsx ke import se match karayi gayi hai
+// ("../redux_Toolkit/fetcherSlice"). Agar ProductForm kisi aur folder
+// depth par hai to is path ko apne project ke hisaab se adjust kar lena.
 import { fetchData } from "../../redux_Toolkit/fetcherSlice";
 import {
   uploadToCloudinary,
@@ -14,27 +17,27 @@ import {
   blocksToColorsArray,
   colorBlockStock,
   colorBlocksTotalStock,
-} from "../Productformhelpers";
+} from "../AdminFormComponents/Productformhelpers";
 
 import BasicInfoFields from "./BasicInfoFields";
 import GeneralImages from "./GeneralImages";
 import ColorsSection from "./ColorsSection";
 
-let idCounter = 0;
-const makeColorBlockId = () => `color-${Date.now()}-${idCounter++}`;
+// 🔑 emptyColorBlock() (from Productformhelpers) now stamps every color
+// block with a permanent `id` the moment it's created. This is the core
+// fix for the "first color's data shows up on the second (and vice
+// versa)" bug: the old code identified a color block by its position in
+// the array (colorIndex). Positions shift whenever a block is added or
+// removed, so anything asynchronous (an in-flight image upload, a stale
+// closure) could resolve against the *wrong* block after a reorder.
+// Every handler below looks blocks up by `id` instead of by array
+// position — so nothing can land on the wrong color again.
+const createColorBlock = () => emptyColorBlock();
 
 const generateProductId = () => {
   const rand = Math.random().toString(36).slice(2, 7).toUpperCase();
   return `PRD-${Date.now().toString(36).toUpperCase()}-${rand}`;
 };
-
-const createColorBlock = () => ({
-  ...emptyColorBlock(),
-  id: makeColorBlockId(),
-  // 🔑 Exactly one image per color from now on — kept as a 1-item array
-  // so it stays compatible with blocksToColorsArray/colorBlockStock.
-  images: [""],
-});
 
 // 🔑 onProductAdded: optional callback for the parent — call it if the
 // parent wants to force a hard remount of the product page (e.g. via a
