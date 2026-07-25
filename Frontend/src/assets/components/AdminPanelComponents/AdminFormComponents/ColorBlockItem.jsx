@@ -2,23 +2,6 @@ import React from "react";
 import { X, Loader2, ChevronDown } from "lucide-react";
 import StockAdjuster from "./StockAdjuster";
 
-/**
- * 🔑 BUG FIX: this component is keyed and driven entirely by `block.id`
- * (a stable id created once per color block), never by its position
- * in the array. The old code tracked colors by array *index*. That's
- * fine for simple typing, but the moment an async image upload was in
- * flight for one color and the blocks list changed shape in between
- * (a block added/removed, causing every index after it to shift), the
- * upload's `.then()` callback still wrote to the *old* index — landing
- * the image (or any other index-keyed update) on the wrong color block.
- * That's exactly the "first color's data shows up on the second / vice
- * versa" symptom. Using `id` everywhere removes the race entirely,
- * since the id a callback captured stays valid no matter how the list
- * reshuffles.
- *
- * 🔑 Also: each color now has exactly ONE image (no "add another image
- * for this color" button) per the requested behavior.
- */
 const ColorBlockItem = ({
   block,
   hasError,
