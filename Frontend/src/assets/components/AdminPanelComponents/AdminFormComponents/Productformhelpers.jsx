@@ -120,11 +120,13 @@ export const colorBlocksTotalStock = (colorBlocks = [], sizeOptions) =>
 // [{ id, color, image, stock, sizes: {...} }, ...]
 //
 // 🔑 Handles BOTH shapes a product can currently have in the DB:
-//   - new products: `product.colors = [{ color, hex, image, stock, sizes: [{size,stock}] }]`
-//   - old/legacy products (migrated or not yet migrated): a single
-//     `product.color` string, with the product's general `image`/`stock`/
-//     `sizes` used as that one color's image/stock/sizes — so editing an
-//     old product doesn't just show a blank Colors section.
+//   - current products: `product.colors = [{ color, hex, image, stock, sizes: [{size,stock}] }]`
+//   - very old/pre-migration products that predate the `colors[]` array
+//     entirely: a single `product.color` string with the product's own
+//     (now-retired) top-level `image`/`images`/`stock`/`sizes` fields.
+//     There is NO general/product-level image anymore going forward —
+//     this branch exists only so opening an ancient, never-migrated
+//     document doesn't show a blank Colors section.
 export const colorsArrayToBlocks = (product) => {
   const legacySizesMap = (sizes = []) =>
     sizes.reduce((acc, { size, stock }) => {

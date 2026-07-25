@@ -10,10 +10,8 @@ const sizeSchema = new mongoose.Schema(
 );
 
 // 🔑 Colors — har color ki apni EK image + apni sizes + apna stock.
-// (Pehlay `images: [String]` array tha, lekin form me har color ka
-// sirf ek hi image slot hota hai — so ab yahan bhi sirf ek `image`
-// string hai. Array nikal dene se "clean architecture" hui: jo UI me
-// hai wahi schema me hai, koi array-of-one nahi.)
+// Koi product-level "general image" ab nahi hai — image sirf color ke
+// andar hoti hai (khali bhi ho sakti hai agar seller ne skip kar diya).
 //
 // `color` yahi wahi string honi chahiye jo ProductForm.jsx ke
 // COLOR_OPTIONS aur Filter.jsx ke color list me hai (casing match),
@@ -27,7 +25,7 @@ const sizeSchema = new mongoose.Schema(
 const colorSchema = new mongoose.Schema({
   color: { type: String, required: true },
   hex: { type: String, default: "" }, // optional, swatch dot ke liye (Detail_Page/Filter me use ho sakta)
-  image: { type: String, default: "" }, // is color ki apni image; khali ho to Detail_Page product.image pe fallback karega
+  image: { type: String, default: "" }, // is color ki apni image
   sizes: { type: [sizeSchema], default: [] }, // is color ke sizes + unka stock
   stock: { type: Number, default: 0 }, // sizes diye ho to auto-sum hoga (pre-validate), warna manual value use hogi
 });
@@ -55,7 +53,6 @@ const productSchema = new mongoose.Schema(
     productId: { type: String, default: "", trim: true, unique: true, sparse: true },
     name: { type: String, default: "", trim: true },
     description: { type: String, default: "" },
-    image: { type: String, default: "" }, // general/fallback image (jab kisi color ki apni image na ho)
     price: { type: Number, default: 0 },
     oldPrice: { type: Number, default: null },
     stock: { type: Number, default: 0 }, // total stock — colors[].stock ka sum (auto-calculated)
@@ -104,4 +101,4 @@ productSchema.pre("save", function () {
   }
 });
 
-module.exports = mongoose.model("Product", productSchema);s
+module.exports = mongoose.model("Product", productSchema);
