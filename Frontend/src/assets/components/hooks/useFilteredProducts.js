@@ -1,13 +1,26 @@
 import { useMemo } from "react";
 import { useSelector } from "react-redux";
 
-// 🔑 Product.sizes do shapes mein aa sakta hai:
-//   1. Simple strings: ["38", "40", "42"]
-//   2. Objects (jaise cart mein): [{ size: "38", stock: 5 }, ...]
-// Ye helper dono cases se sirf size strings nikal ke deta hai.
+// 🔑 CHANGED: color aur sizes ab top-level (p.color / p.sizes) nahi hain —
+// dono colors[] array ke andar hain (p.colors[i].color, p.colors[i].sizes[]).
+// Pehle wala code p.color (singular) aur p.sizes (top-level) dhoondh raha
+// tha, jo naye schema mein exist hi nahi karte — is wajah se koi bhi
+// product jiska sirf 1 ya 2 colors thay, color/size filter aur search
+// dono mein miss ho jata tha ("aik ati aik ati hi nahi" wala bug). Ye
+// dono helper ab colors[] ke andar se values nikalte hain.
+
+// Ek product ke SAB colors ke color-name strings.
+const getProductColorStrings = (product) => {
+  const colors = Array.isArray(product.colors) ? product.colors : [];
+  return colors.map((c) => c.color).filter(Boolean);
+};
+
+// Ek product ke SAB colors ke SAB sizes — flattened, chahe 1 color ho ya
+// zyada. Sizes do shapes mein aa sakte hain (jaise pehle): plain strings
+// ["38","40"] ya objects [{ size: "38", stock: 5 }].
 const getProductSizeStrings = (product) => {
-  const rawSizes = product.sizes;
-  if (!Array.isArray(rawSizes)) return [];
+  const colors = Array.isArray(product.colors) ? product.colors : [];
+  const rawSizes = colors.flatMap((c) => (Array.isArray(c.sizes) ? c.sizes : []));
 
   return rawSizes
     .map((s) => {
@@ -41,14 +54,15 @@ export const useFilteredProducts = () => {
       );
     }
 
-    // ── Color ──
+    // ── Color ── (colors[] mein se KOI BHI ek color match kare to product qualify)
     if (filters.color) {
-      result = result.filter(
-        (p) => (p.color || "").toLowerCase() === filters.color.toLowerCase()
+      const wanted = filters.color.toLowerCase();
+      result = result.filter((p) =>
+        getProductColorStrings(p).some((c) => c.toLowerCase() === wanted)
       );
     }
 
-    // ── Sizes (multi-select, comma-separated) ──
+    // ── Sizes (multi-select, comma-separated) ── colors[].sizes[] ke across
     if (filters.sizes) {
       const wanted = filters.sizes.split(",").filter(Boolean);
       result = result.filter((p) => {
@@ -67,14 +81,14 @@ export const useFilteredProducts = () => {
       result = result.filter((p) => parsePrice(p.price) <= max);
     }
 
-    // ── Free-text search (name, description, color) ──
+    // ── Free-text search (name, description, ANY color) ──
     if (filters.search) {
       const q = filters.search.toLowerCase();
       result = result.filter(
         (p) =>
           (p.name || "").toLowerCase().includes(q) ||
           (p.description || "").toLowerCase().includes(q) ||
-          (p.color || "").toLowerCase().includes(q)
+          getProductColorStrings(p).some((c) => c.toLowerCase().includes(q))
       );
     }
 
@@ -103,6 +117,22 @@ export const useFilteredProducts = () => {
       const av = Number(a[sortField] || 0);
       const bv = Number(b[sortField] || 0);
       return (av - bv) * dir;
+    });
+
+    // 🔑 NEW: har product ko ek `displayImage` field ke saath return karo,
+    // taake Product listing / Product card ko `product.image` ya
+    // `product.images[0]` (jo ab exist hi nahi karte) parhne ki zaroorat
+    // na pade. Agar color filter active hai aur us color ka match mil
+    // gaya, USI color ki image dikhao (matlab jab user "Navy" filter kare,
+    // card bhi Navy wali image dikhaye, pehle color ki nahi). Warna
+    // default: colors[0].image.
+    result = result.map((p) => {
+      const colors = Array.isArray(p.colors) ? p.colors : [];
+      const matchedColor = filters.color
+        ? colors.find((c) => (c.color || "").toLowerCase() === filters.color.toLowerCase())
+        : null;
+      const displayImage = matchedColor?.image || colors[0]?.image || null;
+      return { ...p, displayImage };
     });
 
     return result;
