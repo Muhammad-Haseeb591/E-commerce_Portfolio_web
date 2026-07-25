@@ -121,6 +121,17 @@ const New = () => {
                 </div>
 
                 <div className="w-full h-auto px-[6px] pt-[8px] pb-[8px]">
+                  {/* 🔑 ADDED — SKU name ke upar. Agar aapke schema mein
+                      field ka naam `sku` nahi hai (e.g. `productCode`,
+                      `styleCode`), yahan sirf `product.sku` ko us naam se
+                      replace kar dena. Agar field missing/undefined ho to
+                      ye line render hi nahi hogi (blank space nahi banega). */}
+                  {product.sku && (
+                    <p className="w-full text-[11px] text-gray-400 tracking-wide truncate">
+                      {product.sku}
+                    </p>
+                  )}
+
                   <h3 className="w-full text-[14px] text-gray-800 truncate">{product.name}</h3>
 
                   {product.article && (
@@ -139,7 +150,7 @@ const New = () => {
                   </span>
                 </div>
 
-                {/* 🔑 CHANGED — jis color ka stock hai wo dot full-opacity
+                {/* CHANGED — jis color ka stock hai wo dot full-opacity
                     dikhta hai, jis color ka stock khatam (0) hai wo dot
                     dimmed/grayscale ho jata hai (hidden nahi — user ko pata
                     chalna chahiye ke color exist karta hai, bas abhi

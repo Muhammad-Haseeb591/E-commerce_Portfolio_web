@@ -156,7 +156,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
       name: dbProduct.name,
       price,
       image: dbProduct.images?.[0] || "",
-      color: item.color || "",
+      color: item.colors?.[0] || "",
       size: item.size ?? null,
       quantity,
     });
