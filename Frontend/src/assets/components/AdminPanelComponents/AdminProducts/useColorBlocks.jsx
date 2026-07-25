@@ -1,9 +1,19 @@
 import { useState } from "react";
 import { uploadToCloudinary, emptyColorBlock } from "../AdminFormComponents/Productformhelpers";
 
+// 🔑 ADDED — kisi bhi incoming color block ka `images` field ko hamesha
+// array me normalize karta hai. Existing product data (EditModal ke
+// initialBlocks) mein `images` missing/string/null ho sakta hai — isse
+// crash hota tha jahan bhi `[...next[colorIndex].images]` spread hota tha.
+const normalizeBlock = (c) => ({
+  ...c,
+  images: Array.isArray(c?.images) ? c.images : c?.images ? [c.images] : [],
+});
 
 export default function useColorBlocks(initialBlocks) {
-  const [colorBlocks, setColorBlocks] = useState(() => initialBlocks ?? [emptyColorBlock()]);
+  const [colorBlocks, setColorBlocks] = useState(() =>
+    initialBlocks?.length ? initialBlocks.map(normalizeBlock) : [emptyColorBlock()]
+  );
   const [colorErrors, setColorErrors] = useState({});
   const [colorImgUploading, setColorImgUploading] = useState({});
   const [colorImgErrors, setColorImgErrors] = useState({});
@@ -28,7 +38,10 @@ export default function useColorBlocks(initialBlocks) {
   const handleColorImageChange = (colorIndex, imgIndex, value) => {
     setColorBlocks((prev) => {
       const next = [...prev];
-      const images = [...next[colorIndex].images];
+      // 🔑 CHANGED — guard: images kabhi bhi non-array na ho, spread se
+      // pehle hamesha array confirm karo.
+      const currentImages = Array.isArray(next[colorIndex].images) ? next[colorIndex].images : [];
+      const images = [...currentImages];
       images[imgIndex] = value;
       next[colorIndex] = { ...next[colorIndex], images };
       return next;
@@ -38,14 +51,18 @@ export default function useColorBlocks(initialBlocks) {
   const addColorImageField = (colorIndex) =>
     setColorBlocks((prev) => {
       const next = [...prev];
-      next[colorIndex] = { ...next[colorIndex], images: [...next[colorIndex].images, ""] };
+      // 🔑 CHANGED — guard
+      const currentImages = Array.isArray(next[colorIndex].images) ? next[colorIndex].images : [];
+      next[colorIndex] = { ...next[colorIndex], images: [...currentImages, ""] };
       return next;
     });
 
   const removeColorImageField = (colorIndex, imgIndex) =>
     setColorBlocks((prev) => {
       const next = [...prev];
-      const images = next[colorIndex].images.filter((_, i) => i !== imgIndex);
+      // 🔑 CHANGED — guard
+      const currentImages = Array.isArray(next[colorIndex].images) ? next[colorIndex].images : [];
+      const images = currentImages.filter((_, i) => i !== imgIndex);
       next[colorIndex] = { ...next[colorIndex], images: images.length ? images : [""] };
       return next;
     });
