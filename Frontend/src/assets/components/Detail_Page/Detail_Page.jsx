@@ -92,6 +92,22 @@ const normalizeColors = (rawColors) => {
   return expanded;
 };
 
+// Multicolor jaisi values ke liye gradient support — agar color ka naam
+// "Multicolor" hai aur hex nahi diya gaya, to bhi ek default rainbow
+// gradient dikha dete hain (text label ab kahin show nahi hota, sirf
+// swatch, is liye visually distinguish karna zaroori hai).
+const getSwatchStyle = (colorEntry) => {
+  if (colorEntry.hex) {
+    return colorEntry.hex.startsWith("linear")
+      ? { background: colorEntry.hex }
+      : { backgroundColor: colorEntry.hex };
+  }
+  if (String(colorEntry.color).toLowerCase() === "multicolor") {
+    return { background: "linear-gradient(135deg, red, orange, yellow, green, blue, violet)" };
+  }
+  return { background: "#e5e7eb" };
+};
+
 const FAKE_NAMES = [
   "Ayesha K.", "Bilal R.", "Sana M.", "Hamza A.", "Zainab T.",
   "Usman F.", "Mahnoor S.", "Ali H.", "Fatima N.", "Talha Q.",
@@ -151,23 +167,11 @@ const Detail_Page = () => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [imgLoaded, setImgLoaded] = useState(false);
 
-  // Which color is currently selected. Index into colorList (below).
   const [selectedColorIndex, setSelectedColorIndex] = useState(0);
-
-  // Multi-size selection: { "40": 2, "42": 1 } — key = size, value = qty
-  // chosen for that size. More than one size can be added to cart in the
-  // same "Add to Cart" click.
   const [selectedSizes, setSelectedSizes] = useState({});
-
-  // Quantity stepper only used for products that DON'T have sizes at all.
   const [quantity, setQuantity] = useState(1);
-
   const [added, setAdded] = useState(false);
-
-  // Tracks which size's remaining-stock number should "pop" right now.
   const [pulsingSize, setPulsingSize] = useState(null);
-
-  // Same pulse idea, but for the plain quantity stepper on non-sized products.
   const [qtyPulsing, setQtyPulsing] = useState(false);
 
   useEffect(() => {
@@ -205,14 +209,11 @@ const Detail_Page = () => {
     [favouriteItems, id]
   );
 
-  // Colors for this product (empty array if product has no colors at all).
   const colorList = useMemo(() => normalizeColors(product?.colors), [product]);
   const hasColors = colorList.length > 0;
   const allColorsOutOfStock = hasColors && colorList.every((c) => c.stock === 0);
   const selectedColorData = hasColors ? colorList[selectedColorIndex] || colorList[0] : null;
 
-  // Images shown = the selected color's own images if it has any,
-  // otherwise fall back to the product's general images.
   const images = hasColors && selectedColorData?.images?.length
     ? selectedColorData.images
     : product?.images?.length
@@ -225,17 +226,12 @@ const Detail_Page = () => {
   const inStockSizes = sizeList.filter((s) => s.stock > 0);
   const outOfStockSizes = sizeList.filter((s) => s.stock === 0);
 
-  // ⚠️ FIXED — stock ab getStockValue() ke fallback field names use karta
-  // hai, isi liye ab ghalat "out of stock" nahi aana chahiye (jab tak
-  // backend field bilkul hi kisi aur naam se na ho — us case mein
-  // getStockValue() ke andar wo naam add karo).
   const productStock = hasColors
     ? Number(selectedColorData?.stock) || 0
     : getStockValue(product);
   const productOutOfStock = !hasSizes && productStock <= 0;
   const remainingProductStock = Math.max(0, productStock - quantity);
 
-  // Total pieces selected across all chosen sizes.
   const totalSelectedQty = useMemo(
     () => Object.values(selectedSizes).reduce((sum, q) => sum + (Number(q) || 0), 0),
     [selectedSizes]
@@ -246,14 +242,11 @@ const Detail_Page = () => {
   const isFreeDelivery = itemTotal >= FREE_DELIVERY_THRESHOLD;
   const amountLeftForFreeDelivery = Math.max(0, FREE_DELIVERY_THRESHOLD - itemTotal);
 
-  // Live "left in stock" for a size = its original stock minus whatever
-  // quantity is currently selected for it.
   const getRemainingStock = (size, stock) => {
     const taken = selectedSizes[size] || 0;
     return Math.max(0, stock - taken);
   };
 
-  // Briefly flags a size as "pulsing" so its remaining-stock number animates.
   const triggerPulse = (size) => {
     setPulsingSize(size);
     setTimeout(() => {
@@ -261,7 +254,6 @@ const Detail_Page = () => {
     }, 280);
   };
 
-  // Switching color: reset which image is shown + reset the quantity stepper.
   const selectColor = (index, stock) => {
     if (stock === 0) return;
     setSelectedColorIndex(index);
@@ -270,7 +262,6 @@ const Detail_Page = () => {
     setQuantity(1);
   };
 
-  // Toggle a size on/off. Turning it on seeds a quantity of 1.
   const toggleSize = (size, stock) => {
     if (stock === 0) return;
     setSelectedSizes((prev) => {
@@ -320,12 +311,6 @@ const Detail_Page = () => {
       return;
     }
 
-    // Merging by product+size lives INSIDE the cartSlice reducer — one
-    // addToCart call per selected size; the reducer guarantees each
-    // (productId, size) pair only ever has one line. `stock` is passed
-    // explicitly (already normalized) so the reducer never has to
-    // re-derive it from a possibly-combined raw string. `color` is
-    // passed the same way whenever the product has colors.
     const color = hasColors ? selectedColorData?.color : undefined;
 
     if (hasSizes) {
@@ -418,19 +403,19 @@ const Detail_Page = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12">
         {/* ── Images ──
-            🔑 FIXED HEIGHT, FULL WIDTH, NO CROP (letterbox):
-            container ki height fixed hai per breakpoint, image
-            object-contain + max-h-full/max-w-full se hamesha box ke
-            ANDAR fit hoti hai — kabhi overflow ya crop nahi hoga. ── */}
+            🔑 COVER MODE: container ki height fixed hai per breakpoint,
+            image object-cover se box ko PURA bharti hai (crop ho sakta
+            hai agar image ka aspect-ratio box se match na kare, letterbox
+            nahi hoga). ── */}
         <div>
-          <div className="relative w-full h-[320px] sm:h-[420px] lg:h-[480px] bg-[#ececec] rounded-xl overflow-hidden flex items-center justify-center">
+          <div className="relative w-full h-[320px] sm:h-[420px] lg:h-[480px] bg-[#ececec] rounded-xl overflow-hidden">
             {images[selectedImage] ? (
               <img
                 key={images[selectedImage]}
                 src={images[selectedImage]}
                 alt={product.name}
                 onLoad={() => setImgLoaded(true)}
-                className={`max-w-full max-h-full w-auto h-auto object-contain transition-opacity duration-200 ${
+                className={`w-full h-full object-cover transition-opacity duration-200 ${
                   imgLoaded ? "opacity-100" : "opacity-0"
                 }`}
               />
@@ -473,7 +458,7 @@ const Detail_Page = () => {
                     selectedImage === i ? "border-[#333333]" : "border-transparent opacity-70 hover:opacity-100"
                   }`}
                 >
-                  <img src={img} alt="" className="w-full h-full object-contain" />
+                  <img src={img} alt="" className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
@@ -513,7 +498,8 @@ const Detail_Page = () => {
               : `Add Rs. ${amountLeftForFreeDelivery.toFixed(0)} more to unlock FREE delivery`}
           </div>
 
-          {/* ── Colors (only if product has colors) ── */}
+          {/* ── Colors (only if product has colors) —
+              🔑 SWATCH ONLY, no text label next to it. ── */}
           {hasColors ? (
             <div className="mt-4">
               <div className="flex items-center justify-between mb-2">
@@ -528,30 +514,39 @@ const Detail_Page = () => {
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2.5">
                 {colorList.map((c, i) => {
                   const outOfStock = c.stock === 0;
                   const isSelected = selectedColorIndex === i;
+                  const isWhite = String(c.color).toLowerCase() === "white";
                   return (
                     <button
                       key={c.color}
                       type="button"
                       disabled={outOfStock}
                       onClick={() => selectColor(i, c.stock)}
-                      title={outOfStock ? "Out of stock" : `${c.stock} in stock`}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition ${
+                      title={outOfStock ? `${c.color} — Out of stock` : c.color}
+                      className={`w-[30px] h-[30px] rounded-full flex items-center justify-center transition-all duration-200 shrink-0 ${
                         isSelected
-                          ? "bg-[#333333] text-white border-[#333333]"
-                          : "border-gray-300 text-[#333333] hover:border-[#333333]"
-                      } ${outOfStock ? "opacity-40 cursor-not-allowed line-through" : ""}`}
+                          ? "ring-2 ring-black ring-offset-2"
+                          : "ring-1 ring-gray-200 ring-offset-1 hover:ring-gray-400"
+                      } ${outOfStock ? "opacity-40 cursor-not-allowed" : ""}`}
+                      style={getSwatchStyle(c)}
                     >
-                      {c.hex && (
-                        <span
-                          className="w-3.5 h-3.5 rounded-full border border-black/10 shrink-0"
-                          style={{ backgroundColor: c.hex }}
-                        />
+                      {isSelected && !outOfStock && (
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke={isWhite ? "black" : "white"}
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
                       )}
-                      {c.color}
                     </button>
                   );
                 })}
