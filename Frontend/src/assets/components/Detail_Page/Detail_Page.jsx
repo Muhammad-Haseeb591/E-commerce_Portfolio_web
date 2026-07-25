@@ -11,12 +11,26 @@ import { FREE_DELIVERY_THRESHOLD } from "../../../utils/shipping";
 
 const getItemId = (item) => item?._id ?? item?.id;
 
-// Detail_Page.jsx — top imports me add karo
+// ⚠️ CRITICAL — stock field ka naam backend mein consistent nahi tha
+// (kabhi `stock`, kabhi `quantity` waghera), isi wajah se "out of stock"
+// ghalat show ho raha tha. Ye function stock ke multiple possible field
+// names try karta hai. Agar in mein se koi match nahi karta, browser
+// console mein `console.log(product)` karke exact field name check karo
+// aur yahan neeche wali list mein add kar do.
+const getStockValue = (source) => {
+  const raw =
+    source?.stock ??
+    source?.quantity ??
+    source?.qty ??
+    source?.available ??
+    source?.inStock;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+};
 
-// Some products come with combined size strings like "40,41,42,43,44"
-// on a single entry (optionally with a matching comma-separated stock string).
-// This expands that into individual { size, stock } entries so each size
-// renders and behaves as its own selectable option.
+// Combined size strings ("40,41,42,43,44") ko individual
+// { size, stock } entries mein todta hai, taake har size apna
+// selectable option ban sake.
 const normalizeSizes = (rawSizes) => {
   if (!Array.isArray(rawSizes)) return [];
 
@@ -31,15 +45,16 @@ const normalizeSizes = (rawSizes) => {
       .map((s) => s.trim())
       .filter(Boolean);
 
+    const rawStock = entry?.stock ?? entry?.quantity ?? entry?.qty ?? entry?.available;
     const stockParts =
-      typeof entry.stock === "string" && entry.stock.includes(",")
-        ? entry.stock.split(",").map((s) => Number(s.trim()))
+      typeof rawStock === "string" && rawStock.includes(",")
+        ? rawStock.split(",").map((s) => Number(s.trim()))
         : null;
 
     sizeParts.forEach((size, i) => {
       if (seen.has(size)) return;
       seen.add(size);
-      const stock = stockParts ? stockParts[i] ?? 0 : Number(entry.stock ?? 0);
+      const stock = stockParts ? stockParts[i] ?? 0 : getStockValue(entry);
       expanded.push({ size, stock: Number.isFinite(stock) ? stock : 0 });
     });
   });
@@ -47,15 +62,9 @@ const normalizeSizes = (rawSizes) => {
   return expanded;
 };
 
-// 🔑 Colors: each entry can carry its own `images` array + its own `stock`.
-// Expects something like:
-//   product.colors = [
-//     { color: "Red",   images: ["r1.jpg","r2.jpg"], stock: 5 },
-//     { color: "Black", images: ["b1.jpg"],           stock: 0 },
-//   ]
-// `color` field name is flexible (color/name/title) and `images` field name
-// is flexible too (images/image/img), so it plugs into whatever shape the
-// product data actually has without extra changes elsewhere.
+// Color variants ko normalize karta hai. Har entry apni `images` array +
+// apna `stock` la sakta hai. `color`/`stock`/`images` field names
+// flexible hain (jo bhi backend bheje, us shape mein fit ho jata hai).
 const normalizeColors = (rawColors) => {
   if (!Array.isArray(rawColors)) return [];
 
@@ -63,7 +72,8 @@ const normalizeColors = (rawColors) => {
   const expanded = [];
 
   rawColors.forEach((entry) => {
-    const colorName = entry?.color ?? entry?.name ?? entry?.title;
+    const colorName =
+      typeof entry === "string" ? entry : entry?.color ?? entry?.name ?? entry?.title;
     if (!colorName || seen.has(colorName)) return;
     seen.add(colorName);
 
@@ -71,13 +81,11 @@ const normalizeColors = (rawColors) => {
     if (!Array.isArray(imgs)) imgs = imgs ? [imgs] : [];
     imgs = imgs.filter(Boolean);
 
-    const stock = Number(entry?.stock ?? 0);
-
     expanded.push({
       color: colorName,
       images: imgs,
-      stock: Number.isFinite(stock) ? stock : 0,
-      hex: entry?.hex || entry?.code || null, // optional, used for swatch dot if present
+      stock: getStockValue(entry),
+      hex: entry?.hex || entry?.code || null, // optional, swatch dot ke liye
     });
   });
 
@@ -141,24 +149,22 @@ const Detail_Page = () => {
   const favouriteLoading = useSelector((state) => state.favourites.loading);
 
   const [selectedImage, setSelectedImage] = useState(0);
+  const [imgLoaded, setImgLoaded] = useState(false);
 
-  // 🔑 Which color is currently selected. Index into colorList (below).
+  // Which color is currently selected. Index into colorList (below).
   const [selectedColorIndex, setSelectedColorIndex] = useState(0);
 
-  // 🔑 Multi-size selection: { "40": 2, "42": 1 } — key = size, value = qty
-  // chosen for that size. Replaces the old single `selectedSize` string so
-  // more than one size can be added to cart in the same "Add to Cart" click.
+  // Multi-size selection: { "40": 2, "42": 1 } — key = size, value = qty
+  // chosen for that size. More than one size can be added to cart in the
+  // same "Add to Cart" click.
   const [selectedSizes, setSelectedSizes] = useState({});
 
   // Quantity stepper only used for products that DON'T have sizes at all.
   const [quantity, setQuantity] = useState(1);
 
   const [added, setAdded] = useState(false);
-  const [imgLoaded, setImgLoaded] = useState(false);
 
-  // 🔑 Tracks which size's remaining-stock number should "pop" right now.
-  // Set true for a size when its selected qty changes, cleared shortly after —
-  // drives the scale/color pulse animation on the stock display.
+  // Tracks which size's remaining-stock number should "pop" right now.
   const [pulsingSize, setPulsingSize] = useState(null);
 
   // Same pulse idea, but for the plain quantity stepper on non-sized products.
@@ -199,16 +205,14 @@ const Detail_Page = () => {
     [favouriteItems, id]
   );
 
-  // 🔑 Colors for this product (empty array if product has no colors at all).
+  // Colors for this product (empty array if product has no colors at all).
   const colorList = useMemo(() => normalizeColors(product?.colors), [product]);
   const hasColors = colorList.length > 0;
   const allColorsOutOfStock = hasColors && colorList.every((c) => c.stock === 0);
   const selectedColorData = hasColors ? colorList[selectedColorIndex] || colorList[0] : null;
 
-  // 🔑 Images shown = the selected color's own images if it has any,
-  // otherwise fall back to the product's general images. Object-contain
-  // (below, in the JSX) keeps whatever size/aspect the image actually is
-  // fitted neatly inside the fixed square box — no extra sizing changes needed.
+  // Images shown = the selected color's own images if it has any,
+  // otherwise fall back to the product's general images.
   const images = hasColors && selectedColorData?.images?.length
     ? selectedColorData.images
     : product?.images?.length
@@ -221,18 +225,17 @@ const Detail_Page = () => {
   const inStockSizes = sizeList.filter((s) => s.stock > 0);
   const outOfStockSizes = sizeList.filter((s) => s.stock === 0);
 
-  // Live stock for products that DON'T use sizes — same "stock going up/down"
-  // idea as the per-size steppers above, just against product.stock directly.
-  // 🔑 When the product has colors (but no sizes), stock is checked against
-  // the SELECTED color's own stock instead of the product's overall stock.
+  // ⚠️ FIXED — stock ab getStockValue() ke fallback field names use karta
+  // hai, isi liye ab ghalat "out of stock" nahi aana chahiye (jab tak
+  // backend field bilkul hi kisi aur naam se na ho — us case mein
+  // getStockValue() ke andar wo naam add karo).
   const productStock = hasColors
     ? Number(selectedColorData?.stock) || 0
-    : Number(product?.stock) || 0;
+    : getStockValue(product);
   const productOutOfStock = !hasSizes && productStock <= 0;
   const remainingProductStock = Math.max(0, productStock - quantity);
 
-  // Total pieces selected across all chosen sizes (used for the price preview
-  // and to know whether the Add to Cart button should be enabled).
+  // Total pieces selected across all chosen sizes.
   const totalSelectedQty = useMemo(
     () => Object.values(selectedSizes).reduce((sum, q) => sum + (Number(q) || 0), 0),
     [selectedSizes]
@@ -244,15 +247,13 @@ const Detail_Page = () => {
   const amountLeftForFreeDelivery = Math.max(0, FREE_DELIVERY_THRESHOLD - itemTotal);
 
   // Live "left in stock" for a size = its original stock minus whatever
-  // quantity is currently selected for it. Plus button → this goes down.
-  // Minus button (or deselecting) → this goes back up.
+  // quantity is currently selected for it.
   const getRemainingStock = (size, stock) => {
     const taken = selectedSizes[size] || 0;
     return Math.max(0, stock - taken);
   };
 
-  // Briefly flags a size as "pulsing" so its remaining-stock number animates
-  // (pop + color flash) every time the selected quantity changes.
+  // Briefly flags a size as "pulsing" so its remaining-stock number animates.
   const triggerPulse = (size) => {
     setPulsingSize(size);
     setTimeout(() => {
@@ -260,9 +261,7 @@ const Detail_Page = () => {
     }, 280);
   };
 
-  // 🔑 Switching color: reset which image is shown + reset the quantity
-  // stepper (since remaining stock changes per color) so nothing carries
-  // over incorrectly from the previous color.
+  // Switching color: reset which image is shown + reset the quantity stepper.
   const selectColor = (index, stock) => {
     if (stock === 0) return;
     setSelectedColorIndex(index);
@@ -271,8 +270,7 @@ const Detail_Page = () => {
     setQuantity(1);
   };
 
-  // Toggle a size on/off. Turning it on seeds a quantity of 1 (capped to
-  // whatever stock is actually available for that size).
+  // Toggle a size on/off. Turning it on seeds a quantity of 1.
   const toggleSize = (size, stock) => {
     if (stock === 0) return;
     setSelectedSizes((prev) => {
@@ -290,8 +288,6 @@ const Detail_Page = () => {
   const setSizeQuantity = (size, qty, stock) => {
     const requested = Number(qty) || 1;
 
-    // 🔑 Trying to go above what's actually in stock → alert instead of
-    // silently capping it, so the user knows exactly why it stopped.
     if (requested > stock) {
       alert(`Quantity is out of stock for size ${size}. Only ${stock} available.`);
       setSelectedSizes((prev) => ({ ...prev, [size]: stock > 0 ? stock : 1 }));
@@ -324,21 +320,12 @@ const Detail_Page = () => {
       return;
     }
 
-    // 🔑 Merging by product+size lives INSIDE the cartSlice reducer (single
-    // source of truth — Cart page's +/- buttons use the exact same
-    // reducer). We dispatch one addToCart call per selected size; the
-    // reducer guarantees each (productId, size) pair only ever has one line.
-    //
-    // 🔧 We also pass `stock` explicitly here — sizeList is already the
-    // NORMALIZED, split-out size list (see normalizeSizes above), so its
-    // stock numbers are correct per individual size. If we didn't pass it,
-    // the reducer would have to re-derive stock from the raw product.sizes,
-    // which may still contain the original combined "40,41,42" string and
-    // wouldn't match — passing it directly avoids that mismatch entirely.
-    //
-    // 🔑 `color` is passed the same way whenever the product has colors, so
-    // cart lines stay distinct per (productId, size, color) if the reducer
-    // chooses to key on it.
+    // Merging by product+size lives INSIDE the cartSlice reducer — one
+    // addToCart call per selected size; the reducer guarantees each
+    // (productId, size) pair only ever has one line. `stock` is passed
+    // explicitly (already normalized) so the reducer never has to
+    // re-derive it from a possibly-combined raw string. `color` is
+    // passed the same way whenever the product has colors.
     const color = hasColors ? selectedColorData?.color : undefined;
 
     if (hasSizes) {
@@ -430,19 +417,20 @@ const Detail_Page = () => {
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12">
-        {/* ── Images ── */}
+        {/* ── Images ──
+            🔑 FIXED HEIGHT, FULL WIDTH, NO CROP (letterbox):
+            container ki height fixed hai per breakpoint, image
+            object-contain + max-h-full/max-w-full se hamesha box ke
+            ANDAR fit hoti hai — kabhi overflow ya crop nahi hoga. ── */}
         <div>
-          {/* 🔑 Fixed square box (aspect-square) + object-contain: whatever
-              size/aspect the actual image file is, it fits neatly INSIDE the
-              box without cropping or overflow, for every color/size. */}
-          <div className="relative w-full aspect-square max-w-[480px] mx-auto lg:max-w-none bg-[#ececec] rounded-xl overflow-hidden">
+          <div className="relative w-full h-[320px] sm:h-[420px] lg:h-[480px] bg-[#ececec] rounded-xl overflow-hidden flex items-center justify-center">
             {images[selectedImage] ? (
               <img
                 key={images[selectedImage]}
                 src={images[selectedImage]}
                 alt={product.name}
                 onLoad={() => setImgLoaded(true)}
-                className={`w-full h-full object-contain transition-opacity duration-200 ${
+                className={`max-w-full max-h-full w-auto h-auto object-contain transition-opacity duration-200 ${
                   imgLoaded ? "opacity-100" : "opacity-0"
                 }`}
               />
@@ -473,7 +461,7 @@ const Detail_Page = () => {
           </div>
 
           {images.length > 1 && (
-            <div className="flex gap-2 mt-3 overflow-x-auto pb-1 max-w-[480px] mx-auto lg:max-w-none snap-x snap-mandatory scroll-smooth [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full">
+            <div className="flex gap-2 mt-3 overflow-x-auto pb-1 snap-x snap-mandatory scroll-smooth [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full">
               {images.map((img, i) => (
                 <button
                   key={i}
@@ -525,8 +513,7 @@ const Detail_Page = () => {
               : `Add Rs. ${amountLeftForFreeDelivery.toFixed(0)} more to unlock FREE delivery`}
           </div>
 
-          {/* ── Colors (only if product has colors) — selecting a color
-               swaps the images shown above AND checks that color's own stock. ── */}
+          {/* ── Colors (only if product has colors) ── */}
           {hasColors ? (
             <div className="mt-4">
               <div className="flex items-center justify-between mb-2">
@@ -578,8 +565,7 @@ const Detail_Page = () => {
             )
           )}
 
-          {/* ── Sizes (only if product has sizes) — MULTI-select now, each
-               chosen size gets its own quantity stepper ── */}
+          {/* ── Sizes (only if product has sizes) — MULTI-select ── */}
           {hasSizes && (
             <div className="mt-5">
               <div className="flex items-center justify-between mb-2">
@@ -617,7 +603,6 @@ const Detail_Page = () => {
                 })}
               </div>
 
-              {/* Per-size quantity steppers for whichever sizes are selected */}
               {Object.keys(selectedSizes).length > 0 && (
                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {Object.entries(selectedSizes)
@@ -653,8 +638,6 @@ const Detail_Page = () => {
                               +
                             </button>
                           </div>
-                          {/* Live remaining stock — shrinks on +, grows back on −,
-                              with a quick pop + color flash each time it changes. */}
                           <span
                             className={`text-xs font-semibold ml-auto shrink-0 transition-transform duration-300 ease-out inline-block ${
                               isPulsing ? "scale-125" : "scale-100"
@@ -682,7 +665,6 @@ const Detail_Page = () => {
                 </div>
               )}
 
-              {/* ── Stock table — every size with its available stock ── */}
               <div className="mt-4 border border-gray-200 rounded-xl overflow-hidden">
                 <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
                   <p className="text-xs font-semibold text-gray-600">Stock per size</p>
@@ -722,9 +704,7 @@ const Detail_Page = () => {
             </div>
           )}
 
-          {/* ── Quantity stepper — only shown for products WITHOUT sizes,
-               since sized products get a quantity per size above. When the
-               product also has colors, this checks the SELECTED color's stock. ── */}
+          {/* ── Quantity stepper — only for products WITHOUT sizes ── */}
           {!hasSizes && (
             <div className="mt-5">
               <div className="flex items-center gap-3">
@@ -748,9 +728,6 @@ const Detail_Page = () => {
                     +
                   </button>
                 </div>
-                {/* Live remaining stock — same pop + color-flash animation as
-                    the per-size steppers, just tracking the active stock
-                    (selected color's stock, or product.stock if no colors). */}
                 <span
                   className={`text-xs font-semibold transition-transform duration-300 ease-out inline-block ${
                     qtyPulsing ? "scale-125" : "scale-100"
