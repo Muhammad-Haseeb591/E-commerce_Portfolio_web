@@ -241,12 +241,12 @@ export default function Home() {
 
   return (
     <div className="w-full min-h-screen bg-white text-[#333333]">
-      <SEO>
+      <SEO
       title="Shop Men, Women, Kids, Fragrances & Accessories"
   description="Discover the latest collections for Men, Women, Kids, Fragrances, and Accessories. Shop new arrivals and exclusive sales at STORE."
   keywords="fashion, clothing, men, women, kids, fragrances, accessories, sales, new arrivals"
   path="/"
-      </SEO>
+  />
 
       <style>{`
         @keyframes marquee-scroll {

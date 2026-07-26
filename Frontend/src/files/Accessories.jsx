@@ -73,13 +73,13 @@ const Accessories = () => {
 
   return (
     <div className="max-lg:w-full min-h-[80px] mt-[16px] lg:px-[30px] font-sans px-[12px] md:px-[24px] max-w-[1280px] min-[1350px]:max-w-[1800px] mx-auto">
-<SEO>
+<SEO
 title="Accessories"
   description="Complete your look with STORE's collection of accessories — bags, jewelry, watches, and more."
   keywords="accessories, bags, jewelry, watches, fashion accessories"
   image="https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600"
   path="/accessories"
-</SEO>
+/>
       {showNewIn && (
         <div className='h-[102px] w-full px-[20px] max-[380px]:px-[12px] flex items-center justify-center outline-none backdrop-blur-sm'>
           <h1 className='text-[38px] max-sm:text-[28px] max-[380px]:text-[22px] font-semibold leading-[1.0px] tracking-[1.6px]'>New In</h1>

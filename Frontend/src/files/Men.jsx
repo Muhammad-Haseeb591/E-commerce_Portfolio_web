@@ -74,13 +74,13 @@ const Men = () => {
 
   return (
     <div className="max-lg:w-full min-h-[80px] mt-[16px] lg:px-[30px] font-sans px-[12px] md:px-[24px] max-w-[1280px] min-[1350px]:max-w-[1800px] mx-auto">
-<SEO>
+<SEO
 title="Men's Collection"
   description="Shop the latest men's fashion at STORE. Stylish outfits, accessories, and more for every occasion."
   keywords="men fashion, men clothing, men's wear, menswear"
   image="https://images.unsplash.com/photo-1490114538077-0a7f8cb49891?w=600"
   path="/men"
-</SEO>
+  />
       {showNewIn && (
         <div className='h-[102px] w-full px-[20px] max-[380px]:px-[12px] flex items-center justify-center outline-none backdrop-blur-sm'>
           <h1 className='text-[38px] max-sm:text-[28px] max-[380px]:text-[22px] font-semibold leading-[1.0px] tracking-[1.6px]'>New In</h1>
