@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useDispatch } from "react-redux";
 import ReactRouter from "./routes/ReactRouter.jsx";
 import { checkAuth } from "./assets/components/redux_Toolkit/authSlice";
+import { HelmetProvider } from 'react-helmet-async'
 
 const App = () => {
   const dispatch = useDispatch();
@@ -12,7 +13,9 @@ const App = () => {
 
   return (
     <>
-      <ReactRouter />
+       <HelmetProvider>
+    <ReactRouter />
+  </HelmetProvider>
     </>
   );
 };

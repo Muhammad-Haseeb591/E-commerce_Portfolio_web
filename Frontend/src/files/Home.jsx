@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import SEO from "../assets/components/SEO/SEO"
 
 const categories = [
   {
@@ -89,7 +90,8 @@ const featuredReviews = [
 // highlighted (dark) rehta hai, hover ki tarah sirf mouse ke waqt nahi.
 function RevealCard({ cat, index, open, selected }) {
   return (
-    <Link
+    <>
+        <Link
       to={`/${cat.slug}`}
       aria-current={selected ? "true" : undefined}
       className={`
@@ -115,6 +117,7 @@ function RevealCard({ cat, index, open, selected }) {
         <span className="text-xs sm:text-sm md:text-base font-medium">{cat.name}</span>
       </div>
     </Link>
+    </>
   );
 }
 
@@ -238,6 +241,13 @@ export default function Home() {
 
   return (
     <div className="w-full min-h-screen bg-white text-[#333333]">
+      <SEO>
+      title="Shop Men, Women, Kids, Fragrances & Accessories"
+  description="Discover the latest collections for Men, Women, Kids, Fragrances, and Accessories. Shop new arrivals and exclusive sales at STORE."
+  keywords="fashion, clothing, men, women, kids, fragrances, accessories, sales, new arrivals"
+  path="/"
+      </SEO>
+
       <style>{`
         @keyframes marquee-scroll {
           from { transform: translateX(0); }

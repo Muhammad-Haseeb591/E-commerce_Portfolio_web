@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { fetchCatalog, setFilter, setFilters } from "../assets/components/redux_Toolkit/fetcherSlice";
 import { useFilteredProducts } from "../assets/components/hooks/useFilteredProducts";
 import { getColorHex } from "../utils/Colormap";
-
+import SEO from "../assets/components/SEO/SEO"
 const Getinspired = () => {
   const dispatch = useDispatch();
   const { filters, catalog, catalogLoading } = useSelector((state) => state.FetchPrducts);
@@ -44,7 +44,13 @@ const Getinspired = () => {
 
   return (
     <div className="max-lg:w-full min-h-[80px] mt-[16px] lg:px-[30px] font-sans px-[12px] md:px-[24px] max-w-[1280px] min-[1350px]:max-w-[1800px] mx-auto">
-
+<SEO>
+  title="Get Inspired"
+  description="Get inspired with the latest style guides, lookbooks, and fashion trends from STORE."
+  keywords="fashion inspiration, style guide, lookbook, trends"
+  image="https://images.unsplash.com/photo-1539185441755-769473a23570?q=80&w=2071&auto=format&fit=crop"
+  path="/getinspired"
+</SEO>
       {!catalogLoading && products.length === 0 && (
         <p className="text-center text-gray-500 py-[40px]">No products found.</p>
       )}

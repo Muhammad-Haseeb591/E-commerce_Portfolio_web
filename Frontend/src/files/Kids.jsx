@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { fetchCatalog, setFilter, setFilters, setTotalCount } from "../assets/components/redux_Toolkit/fetcherSlice";
 import { useFilteredProducts } from "../assets/components/hooks/useFilteredProducts";
 import { getColorHex } from "../utils/Colormap";
-
+import SEO from "../assets/components//SEO/SEO"
 const Kids = () => {
   const dispatch = useDispatch();
   const { filters, catalog, catalogLoading } = useSelector((state) => state.FetchPrducts);
@@ -16,8 +16,8 @@ const Kids = () => {
       category: "kids",
       color: "",
       sizes: "",
-      minPrice: "1000",
-      maxPrice: "5000",
+      minPrice: "",
+      maxPrice: "",
     }));
   }, [dispatch]);
 
@@ -30,15 +30,6 @@ const Kids = () => {
 
   const filteredProducts = useFilteredProducts();
 
-  // 🔑 FIX — Main.jsx ka product-count header sirf Redux ke `totalCount`
-  // se aata hai, jo sirf `fetchData` (server-side pagination) update
-  // karta hai. Ye page fetchData KABHI call nahi karta — sirf poora
-  // catalog uthata hai aur khud client-side filter/paginate karta hai
-  // (useFilteredProducts). Is wajah se totalCount kabhi sync hi nahi hota
-  // tha, aur refresh ke baad hamesha 0 (ya kisi purani page ka stale
-  // number) atka reh jata tha. Ab jab bhi client-side filtered count
-  // badalta hai (catalog load hone par, ya filters change hone par),
-  // Redux ka totalCount usi ke barabar set kar dete hain.
   useEffect(() => {
     dispatch(setTotalCount(filteredProducts.length));
   }, [dispatch, filteredProducts.length]);
@@ -56,18 +47,39 @@ const Kids = () => {
     setPageChanging(true);
     dispatch(setFilter({ key: "page", value: page }));
     window.scrollTo({ top: 0, behavior: "smooth" });
-    setTimeout(() => setPageChanging(false), 400); // slice instant hai, sirf visual feedback ke liye
+    setTimeout(() => setPageChanging(false), 400);
   };
 
-  // Real loading (pehli fetch) YA page-change ka fake flash
   const showNewIn = catalogLoading || pageChanging;
+
+
+  const getProductColors = (product) => {
+    const normalize = (c) => {
+      if (typeof c === "string") return { name: c, stock: null };
+      if (c && typeof c === "object") {
+        return {
+          name: c.color || c.name || c.value || "",
+          stock: c.stock != null ? Number(c.stock) : null,
+        };
+      }
+      return { name: "", stock: null };
+    };
+
+    if (Array.isArray(product.colors) && product.colors.length > 0) {
+      return product.colors.map(normalize).filter((c) => c.name);
+    }
+    return product.color ? [normalize(product.color)] : [];
+  };
 
   return (
     <div className="max-lg:w-full min-h-[80px] mt-[16px] lg:px-[30px] font-sans px-[12px] md:px-[24px] max-w-[1280px] min-[1350px]:max-w-[1800px] mx-auto">
-
-      {/* ── "New In" loader ─────────────────────────────
-          Pehli catalog fetch ke waqt (real) YA page-change
-          button click hone par (fake, sirf UX feedback ke liye) dikhega */}
+<SEO>
+title="Kids' Collection"
+  description="Shop fun and comfortable kids' fashion at STORE. Quality clothing for boys and girls of all ages."
+  keywords="kids fashion, kids clothing, children's wear, boys, girls"
+  image="https://images.unsplash.com/photo-1742390671765-c87aaed67ad8?q=80&w=1025&auto=format&fit=crop"
+  path="/kids"
+</SEO>
       {showNewIn && (
         <div className='h-[102px] w-full px-[20px] max-[380px]:px-[12px] flex items-center justify-center outline-none backdrop-blur-sm'>
           <h1 className='text-[38px] max-sm:text-[28px] max-[380px]:text-[22px] font-semibold leading-[1.0px] tracking-[1.6px]'>New In</h1>
@@ -78,69 +90,92 @@ const Kids = () => {
         <p className="text-center text-gray-500 py-[40px]">No products found.</p>
       )}
 
-      {/* ── Product Grid ─────────────────────────────
-          default/sm: 2 col | md: 3 col | lg/xl/2xl: 4 col */}
-    {!catalogLoading && products.length > 0 && (
-  <ul className="w-full grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 gap-[10px] xl:gap-[6px] 2xl:gap-[4px]">
-    {products.map((product) => (
-      <li
-        key={product._id}
-        className="w-full h-auto relative cursor-pointer group border border-transparent rounded-[4px] overflow-hidden transition-colors"
-      >
-        {/* 🔑 Fixed min-h ki jagah aspect-ratio use kiya —
-            ab image container width ke sath proportionally
-            shrink/grow hoga (filter open/close, grid columns
-            change hone par bhi ratio maintain rahega, blank
-            gray space nahi banega) */}
-        <div className="bg-[#f2f2f2] w-full aspect-[3/4] relative overflow-hidden">
-          {product.discount && (
-            <p className="bg-[#cc0000] text-center text-white text-[13px] font-medium w-[84.13px] h-[24.33px] absolute z-40 top-[10px] left-[6px] rounded-[5px] pt-[1px] shadow-sm">
-              {product.discount}
-            </p>
-          )}
-          <Link to={`/products/${product._id}`} className="overflow-hidden w-full h-full block">
-            <img
-              className="w-full h-full object-cover transition-transform duration-500 ease-in-out group-hover:scale-105"
-              src={product.images?.[0]}
-              alt={product.name}
-              loading="lazy"
-              onError={(e) => (e.target.src = "/placeholder.png")}
-            />
-          </Link>
-        </div>
+      {!catalogLoading && products.length > 0 && (
+        <ul className="w-full grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 gap-[10px] xl:gap-[6px] 2xl:gap-[4px]">
+          {products.map((product) => {
+            const productColors = getProductColors(product);
+            return (
+              <li
+                key={product._id}
+                className="w-full h-auto relative cursor-pointer group border border-transparent rounded-[4px] overflow-hidden transition-colors"
+              >
+                <div className="bg-[#f2f2f2] w-full aspect-[3/4] relative overflow-hidden">
+                  {product.discount && (
+                    <p className="bg-[#cc0000] text-center text-white text-[13px] font-medium w-[84.13px] h-[24.33px] absolute z-40 top-[10px] left-[6px] rounded-[5px] pt-[1px] shadow-sm">
+                      {product.discount}
+                    </p>
+                  )}
+                  <Link to={`/products/${product._id}`} className="overflow-hidden w-full h-full block">
+                    <img
+                      className="w-full h-full object-cover transition-transform duration-500 ease-in-out group-hover:scale-105"
+                      src={product.displayImage || product.images?.[0]}
+                      alt={product.name}
+                      loading="lazy"
+                      onError={(e) => (e.target.src = "/placeholder.png")}
+                    />
+                  </Link>
+                </div>
 
-        <div className="w-full h-auto px-[6px] pt-[8px] pb-[8px]">
-          <h3 className="w-full text-[14px] text-gray-800 truncate">{product.name}</h3>
+                <div className="w-full h-auto px-[6px] pt-[8px] pb-[8px]">
+                  {/* 🔑 ADDED — SKU name ke upar. Agar aapke schema mein
+                      field ka naam `sku` nahi hai (e.g. `productCode`,
+                      `styleCode`), yahan sirf `product.sku` ko us naam se
+                      replace kar dena. Agar field missing/undefined ho to
+                      ye line render hi nahi hogi (blank space nahi banega). */}
+                  {product.sku && (
+                    <p className="w-full text-[11px] text-gray-400 tracking-wide truncate">
+                      {product.sku}
+                    </p>
+                  )}
 
-          {product.article && (
-            <p className="w-full text-[12px] text-gray-400 truncate">
-              Art. {product.article}
-            </p>
-          )}
+                  <h3 className="w-full text-[14px] text-gray-800 truncate">{product.name}</h3>
 
-          <span className="flex items-center w-full mt-[4px]">
-            <p className="mr-[10px] text-red-700 font-semibold text-[14px]">
-              Rs. {product.price}
-            </p>
-            {product.oldPrice && (
-              <del className="text-gray-400 text-[13px]">Rs. {product.oldPrice}</del>
-            )}
-          </span>
-        </div>
+                  {product.article && (
+                    <p className="w-full text-[12px] text-gray-400 truncate">
+                      Art. {product.article}
+                    </p>
+                  )}
 
-        {product.color && (
-          <div
-            title={product.color}
-            style={{ backgroundColor: getColorHex(product.color) }}
-            className="size-[20px] rounded-[50%] outline outline-black outline-offset-1 m-[6px] absolute bottom-0 right-0"
-          />
-        )}
-      </li>
-    ))}
-  </ul>
+                  <span className="flex items-center w-full mt-[4px]">
+                    <p className="mr-[10px] text-red-700 font-semibold text-[14px]">
+                      Rs. {product.price}
+                    </p>
+                    {product.oldPrice && (
+                      <del className="text-gray-400 text-[13px]">Rs. {product.oldPrice}</del>
+                    )}
+                  </span>
+                </div>
+
+                {/* CHANGED — jis color ka stock hai wo dot full-opacity
+                    dikhta hai, jis color ka stock khatam (0) hai wo dot
+                    dimmed/grayscale ho jata hai (hidden nahi — user ko pata
+                    chalna chahiye ke color exist karta hai, bas abhi
+                    available nahi). Stock unknown (null) hone par bhi
+                    normal dikhaya jata hai, kyunke hum confirm nahi kar
+                    sakte ke out of stock hai ya nahi. */}
+                {productColors.length > 0 && (
+                  <div className="flex items-center absolute bottom-[6px] right-[6px]">
+                    {productColors.map((c, idx) => {
+                      const outOfStock = c.stock != null && c.stock <= 0;
+                      return (
+                        <div
+                          key={`${product._id}-${c.name}-${idx}`}
+                          title={outOfStock ? `${c.name} — Out of stock` : c.name}
+                          style={{ backgroundColor: getColorHex(c.name) }}
+                          className={`size-[14px] rounded-full outline outline-1 outline-black outline-offset-1 bg-white transition-opacity ${
+                            idx > 0 ? "-ml-[6px]" : ""
+                          } ${outOfStock ? "opacity-30 grayscale" : ""}`}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
 
-      {/* ── Pagination ───────────────────────────── */}
       {totalPages > 1 && (
         <div className="flex justify-center items-center gap-[8px] mt-[24px] mb-[24px]">
           {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (

@@ -7,16 +7,10 @@ import { fetchFavourites, toggleFavourite } from "../redux_Toolkit/Favouriteslic
 import { IoArrowBack, IoStar, IoStarHalf, IoStarOutline } from "react-icons/io5";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
 import ReviewSection from "../e-Components/Reviewsection";
-import { FREE_DELIVERY_THRESHOLD } from "../../../utils/shipping";
-
+import { FREE_DELIVERY_THRESHOLD } from "../../../utils/shipping"; 
+import SEO from "../SEO/SEO"
 const getItemId = (item) => item?._id ?? item?.id;
 
-// ⚠️ CRITICAL — stock field ka naam backend mein consistent nahi tha
-// (kabhi `stock`, kabhi `quantity` waghera), isi wajah se "out of stock"
-// ghalat show ho raha tha. Ye function stock ke multiple possible field
-// names try karta hai. Agar in mein se koi match nahi karta, browser
-// console mein `console.log(product)` karke exact field name check karo
-// aur yahan neeche wali list mein add kar do.
 const getStockValue = (source) => {
   const raw =
     source?.stock ??
@@ -28,9 +22,7 @@ const getStockValue = (source) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-// Combined size strings ("40,41,42,43,44") ko individual
-// { size, stock } entries mein todta hai, taake har size apna
-// selectable option ban sake.
+
 const normalizeSizes = (rawSizes) => {
   if (!Array.isArray(rawSizes)) return [];
 
@@ -62,10 +54,6 @@ const normalizeSizes = (rawSizes) => {
   return expanded;
 };
 
-// 🔑 CHANGED — schema ab colors[i].image (SINGLE string) bhejta hai, ab
-// `images` array nahi. Ye normalizer dono cases handle karta hai
-// (purana `images` array bhi, naya single `image` bhi) taake kahin na
-// kahin break na ho, lekin practically ab hamesha 1 image hi milegi.
 const normalizeColors = (rawColors) => {
   if (!Array.isArray(rawColors)) return [];
 
@@ -86,10 +74,6 @@ const normalizeColors = (rawColors) => {
       color: colorName,
       images: imgs,
       stock: getStockValue(entry),
-      // Har color apna khud ka `sizes` array le kar aata hai (jab backend
-      // per-color sizes bheje). Ye raw form mein rakha jata hai, taake
-      // normalizeSizes() ise selectedColorData.sizes ke through consume
-      // kar sake — global product.sizes par depend nahi karna.
       sizes: Array.isArray(entry?.sizes) ? entry.sizes : null,
     });
   });
@@ -152,9 +136,7 @@ const Detail_Page = () => {
   const loading = useSelector((state) => state.FetchPrducts.loading);
   const favouriteItems = useSelector((state) => state.favourites.items || []);
   const favouriteLoading = useSelector((state) => state.favourites.loading);
-  // 🔑 NEW — cart ka current state, taake add-to-cart se pehle check kiya
-  // ja sake ke ye EXACT (product + color [+ size]) combo already cart me
-  // hai ya nahi.
+
   const cartItems = useSelector((state) => state.cart.items || []);
 
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -205,27 +187,10 @@ const Detail_Page = () => {
   const allColorsOutOfStock = hasColors && colorList.every((c) => c.stock === 0);
   const selectedColorData = hasColors ? colorList[selectedColorIndex] || colorList[0] : null;
 
-  // 🔑 CHANGED — pehle ye "colors ke andar images[] array" se ek gallery
-  // banata tha aur alag se "Colors" dot-swatch section tha. Ab har color
-  // ki sirf EK image hoti hai (colors[i].image), is liye:
-  //   - Main image = selected color ki image (ya, colors na hone par,
-  //     product ki apni image).
-  //   - Neeche jo pehle "extra angles" ki thumbnail-strip thi, wo ab
-  //     color-picker ban gayi hai: har thumbnail ek color hai, click
-  //     karne se wo color select hota hai (dot swatches poori tarah
-  //     hata diye — image hi ab color-picker hai).
   const mainImage = hasColors
     ? selectedColorData?.images?.[0] || null
     : product?.image || product?.images?.[0] || null;
 
-  // 🔑 FIX: agar product ke colors hain, to sizes (aur unka stock) us
-  // SPECIFIC selected color se aane chahiye — na ke product.sizes se
-  // globally. Har color apna alag size/stock combo rakh sakta hai
-  // (e.g. Red mein size 42 khatam, Blue mein available), is liye
-  // selectedColorData.sizes ko source of truth banaya gaya hai. Agar
-  // color ke against sizes bilkul nahi diye gaye (null), to fallback
-  // ke tor par global product.sizes use hota hai — backward compatible
-  // rehne ke liye un products ke sath jinke colors mein sizes nahi hain.
   const sizeList = useMemo(() => {
     const sourceSizes = hasColors
       ? selectedColorData?.sizes ?? product?.sizes
@@ -270,9 +235,6 @@ const Detail_Page = () => {
     setSelectedColorIndex(index);
     setImgLoaded(false);
     setQuantity(1);
-    // Sizes ab selected color ke hisaab se change hote hain (alag color
-    // ke sizes/stock alag ho sakte hain), is liye purani color ki size
-    // selections ko carry-forward karna galat hoga — reset kar dete hain.
     setSelectedSizes({});
   };
 
@@ -305,19 +267,6 @@ const Detail_Page = () => {
     triggerPulse(size);
   };
 
-  // 🔑 CHANGED (this update):
-  // Pehle: same product + same color + same size dobara "Add to Cart"
-  // karne par cartSlice khud quantity ko silently merge kar deta tha
-  // (increment). Ab: agar EXACT (productId + color [+ size]) combo
-  // already cart me hai, to hum dispatch hi nahi karte — sirf alert
-  // dete hain "Your item is already in cart." User ko quantity badhani
-  // ho to /cart page par jaake +/- se badhaye, yahan se dobara "Add"
-  // click karke nahi.
-  //
-  // Different color (ya different size, sizes wale products ke liye) ho
-  // to normal add hota hai — cartSlice ka matchesLine() apne aap ek
-  // ALAG line banata hai (color cart item ki identity ka hissa hai),
-  // ye pehle se hi sahi tha, is update mein nahi chheda.
   const handleAddToCart = useCallback(() => {
     if (hasColors && allColorsOutOfStock) {
       alert("This product is out of stock in all colors.");
@@ -343,7 +292,7 @@ const Detail_Page = () => {
     const productId = getItemId(product);
     const normColorVal = color || null;
 
-    // Existing cart line for this EXACT product + color combo (agar koi hai).
+
     const existingLine = cartItems.find(
       (i) => getItemId(i) === productId && (i.color || null) === normColorVal
     );
@@ -470,7 +419,7 @@ const Detail_Page = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12">
         {/* ── Image + color picker ──
-            🔑 COVER MODE: container ki height fixed hai per breakpoint,
+             COVER MODE: container ki height fixed hai per breakpoint,
             image object-cover se box ko PURA bharti hai (crop ho sakta
             hai agar image ka aspect-ratio box se match na kare, letterbox
             nahi hoga). ── */}
@@ -506,7 +455,7 @@ const Detail_Page = () => {
             </button>
           </div>
 
-          {/* 🔑 CHANGED — ye ab "extra angles" ki strip nahi, COLOR
+          {/*  CHANGED — ye ab "extra angles" ki strip nahi, COLOR
               PICKER hai. Har thumbnail ek color ki image hai; click se
               wahi color select ho jata hai. Purana "Colors" dot-swatch
               section (neeche) poora hata diya gaya — yehi iski jagah

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { fetchCatalog, setFilter, setFilters, setTotalCount } from "../assets/components/redux_Toolkit/fetcherSlice";
 import { useFilteredProducts } from "../assets/components/hooks/useFilteredProducts";
 import { getColorHex } from "../utils/Colormap";
+import SEO from "../assets/components/SEO/SEO";
 
 const New = () => {
   const dispatch = useDispatch();
@@ -51,18 +52,6 @@ const New = () => {
   };
 
   const showNewIn = catalogLoading || pageChanging;
-
-  // 🔑 CHANGED — ab sirf color name nahi, { name, stock } dono nikal rahe
-  // hain. Stock ke bina hum ye decide nahi kar sakte ke dot ko dimmed
-  // karna hai ya nahi.
-  // ⚠️ CONFIRM THIS: color-level stock ka field name `c.stock` assume
-  // kiya hai (colorSchema ke pre-validate rollup se aane wala total).
-  // Agar aapke schema mein ye field kisi aur naam se hai
-  // (e.g. `totalStock`, `qty`), neeche sirf `c.stock` ko us naam se
-  // replace kar dena.
-  // Agar `colors` array nahi milta, ye automatically single
-  // `product.color` pe fallback ho jata hai (stock: null → dimmed nahi
-  // hoga, kyunke us case mein stock pata hi nahi).
   const getProductColors = (product) => {
     const normalize = (c) => {
       if (typeof c === "string") return { name: c, stock: null };
@@ -83,7 +72,13 @@ const New = () => {
 
   return (
     <div className="max-lg:w-full min-h-[80px] mt-[16px] lg:px-[30px] font-sans px-[12px] md:px-[24px] max-w-[1280px] min-[1350px]:max-w-[1800px] mx-auto">
-
+<SEO>
+title="New Arrivals"
+  description="Explore the newest arrivals at STORE. Fresh styles across Men, Women, Kids, Fragrances, and Accessories."
+  keywords="new arrivals, latest fashion, new collection, trending clothes"
+  image="https://plus.unsplash.com/premium_photo-1664202526744-516d0dd22932?q=80&w=1170&auto=format&fit=crop"
+  path="/new"
+</SEO>
       {showNewIn && (
         <div className='h-[102px] w-full px-[20px] max-[380px]:px-[12px] flex items-center justify-center outline-none backdrop-blur-sm'>
           <h1 className='text-[38px] max-sm:text-[28px] max-[380px]:text-[22px] font-semibold leading-[1.0px] tracking-[1.6px]'>New In</h1>
