@@ -1,18 +1,9 @@
 import { useState } from "react";
 import { uploadToCloudinary, emptyColorBlock } from "../AdminFormComponents/Productformhelpers";
 
-// 🔑 ADDED — kisi bhi incoming color block ka `images` field ko hamesha
-// array me normalize karta hai. Existing product data (EditModal ke
-// initialBlocks) mein `images` missing/string/null ho sakta hai — isse
-// crash hota tha jahan bhi `[...next[colorIndex].images]` spread hota tha.
-const normalizeBlock = (c) => ({
-  ...c,
-  images: Array.isArray(c?.images) ? c.images : c?.images ? [c.images] : [],
-});
-
 export default function useColorBlocks(initialBlocks) {
   const [colorBlocks, setColorBlocks] = useState(() =>
-    initialBlocks?.length ? initialBlocks.map(normalizeBlock) : [emptyColorBlock()]
+    initialBlocks?.length ? initialBlocks : [emptyColorBlock()]
   );
   const [colorErrors, setColorErrors] = useState({});
   const [colorImgUploading, setColorImgUploading] = useState({});
@@ -35,48 +26,27 @@ export default function useColorBlocks(initialBlocks) {
     setColorErrors((prev) => (prev[colorIndex] ? { ...prev, [colorIndex]: false } : prev));
   };
 
-  const handleColorImageChange = (colorIndex, imgIndex, value) => {
+  // 🔑 CHANGED — ab ek hi image field hai per color (schema se match: `image`
+  // string, `images` array nahi). Isse EditModal me save karte waqt
+  // blocksToColorsArray ko sahi value milti hai aur URL gayab nahi hota.
+  const handleColorImageChange = (colorIndex, value) => {
     setColorBlocks((prev) => {
       const next = [...prev];
-      // 🔑 CHANGED — guard: images kabhi bhi non-array na ho, spread se
-      // pehle hamesha array confirm karo.
-      const currentImages = Array.isArray(next[colorIndex].images) ? next[colorIndex].images : [];
-      const images = [...currentImages];
-      images[imgIndex] = value;
-      next[colorIndex] = { ...next[colorIndex], images };
+      next[colorIndex] = { ...next[colorIndex], image: value };
       return next;
     });
   };
 
-  const addColorImageField = (colorIndex) =>
-    setColorBlocks((prev) => {
-      const next = [...prev];
-      // 🔑 CHANGED — guard
-      const currentImages = Array.isArray(next[colorIndex].images) ? next[colorIndex].images : [];
-      next[colorIndex] = { ...next[colorIndex], images: [...currentImages, ""] };
-      return next;
-    });
-
-  const removeColorImageField = (colorIndex, imgIndex) =>
-    setColorBlocks((prev) => {
-      const next = [...prev];
-      // 🔑 CHANGED — guard
-      const currentImages = Array.isArray(next[colorIndex].images) ? next[colorIndex].images : [];
-      const images = currentImages.filter((_, i) => i !== imgIndex);
-      next[colorIndex] = { ...next[colorIndex], images: images.length ? images : [""] };
-      return next;
-    });
-
-  const handleColorFileSelect = async (colorIndex, imgIndex, file) => {
+  const handleColorFileSelect = async (colorIndex, file) => {
     if (!file) return;
-    const key = `${colorIndex}-${imgIndex}`;
+    const key = String(colorIndex);
 
     setColorImgUploading((prev) => ({ ...prev, [key]: true }));
     setColorImgErrors((prev) => ({ ...prev, [key]: "" }));
 
     try {
       const url = await uploadToCloudinary(file);
-      handleColorImageChange(colorIndex, imgIndex, url);
+      handleColorImageChange(colorIndex, url);
     } catch (err) {
       console.error(err);
       setColorImgErrors((prev) => ({
@@ -154,8 +124,6 @@ export default function useColorBlocks(initialBlocks) {
     removeColorBlock,
     updateColorField,
     handleColorImageChange,
-    addColorImageField,
-    removeColorImageField,
     handleColorFileSelect,
     toggleColorSize,
     setColorSizeQuantity,
