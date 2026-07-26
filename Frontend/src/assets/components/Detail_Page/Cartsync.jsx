@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { setCart, setHydrated } from "../redux_Toolkit/cartSlice";
 import { checkAuth } from "../redux_Toolkit/authSlice";
 import { fetchCatalog } from "../redux_Toolkit/fetcherSlice";
+import { API_URL } from "../../../config/api";
 
 const getItemId = (item) => item?._id ?? item?.id;
 const CART_STORAGE_KEY = "cart";
@@ -32,6 +33,14 @@ const CartSync = () => {
   useEffect(() => {
     productsRef.current = allProducts;
   }, [allProducts]);
+
+  // 🔑 user ko bhi ref me rakha hai taake flush-on-unload (jo effect ke
+  // bahar/cleanup me chalta hai) ke waqt latest login-status pata ho,
+  // stale closure na ho.
+  const userRef = useRef(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   useEffect(() => {
     if (!authChecked) dispatch(checkAuth());
@@ -118,6 +127,17 @@ const CartSync = () => {
     }));
   }, []);
 
+  // 🔑 NEW — total piece count (sum of all sizes' quantities), used only
+  // to tell the backend "roughly how much is in this cart right now" for
+  // the abandoned-cart reminder email. Not the full cart contents.
+  const countItems = useCallback((rawItems) => {
+    return rawItems.reduce(
+      (acc, item) =>
+        acc + (item.sizes || []).reduce((s, z) => s + (Number(z.quantity) || 0), 0),
+      0
+    );
+  }, []);
+
   // Saves to localStorage only — backend cart storage is not used.
   const performSave = useCallback((persistable) => {
     try {
@@ -126,6 +146,25 @@ const CartSync = () => {
     } catch (err) {
       console.error("Cart sync (localStorage) failed:", err);
       setSyncError("Couldn't save your cart changes on this device.");
+    }
+  }, []);
+
+  // 🔑 NEW — best-effort ping to the backend so it knows "this user's
+  // cart changed just now, with N items" — that's the ONLY data behind
+  // the abandoned-cart reminder job. Never blocks or errors out the
+  // actual cart UX: failures here just mean the reminder email might be
+  // late/missed, nothing user-facing breaks.
+  const syncActivityToBackend = useCallback(async (itemCount) => {
+    if (!userRef.current) return; // reminder only makes sense for logged-in users
+    try {
+      await fetch(`${API_URL}/api/cart/activity`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ itemCount }),
+      });
+    } catch (err) {
+      console.error("Cart activity sync (backend) failed:", err);
     }
   }, []);
 
@@ -143,10 +182,11 @@ const CartSync = () => {
     saveTimer.current = setTimeout(() => {
       const persistable = buildPersistable(items);
       performSave(persistable);
+      syncActivityToBackend(countItems(items));
     }, 500);
 
     return () => clearTimeout(saveTimer.current);
-  }, [items, hydrated, buildPersistable, performSave]);
+  }, [items, hydrated, buildPersistable, performSave, syncActivityToBackend, countItems]);
 
   // 🚨 FLUSH ON RELOAD/CLOSE
   // Without this, a change made inside the 500ms debounce window gets
@@ -163,6 +203,13 @@ const CartSync = () => {
 
       const persistable = buildPersistable(itemsRef.current);
       localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(persistable));
+      // 🔑 Backend ping best-effort hi rehta hai yahan bhi — agar page
+      // unload ho raha ho to fetch beacon-jaisa guaranteed nahi hoga,
+      // lekin agla cart change hone par (ya agli visit pe) ye normal
+      // debounce se sync ho hi jayega, so koi hard dependency nahi is par.
+      if (userRef.current) {
+        syncActivityToBackend(countItems(itemsRef.current));
+      }
     };
 
     // pagehide covers mobile/back-forward-cache cases beforeunload misses.
@@ -174,7 +221,7 @@ const CartSync = () => {
       window.removeEventListener("pagehide", flush);
       flush(); // also flush on route-level unmount, just in case
     };
-  }, [buildPersistable]);
+  }, [buildPersistable, syncActivityToBackend, countItems]);
 
   if (!syncError) return null;
 

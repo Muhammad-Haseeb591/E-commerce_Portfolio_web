@@ -3,9 +3,8 @@ import { useSelector } from "react-redux";
 import { useParams, useNavigate } from "react-router-dom";
 
 import OrderSection from "./Ordersection";
-import ReviewSection from "./Reviewsection"; 
-import SEO from "../SEO/SEO"
-
+import ReviewSection from "./Reviewsection";
+import SEO from "../SEO/SEO";
 
 const VALID_TABS = ["orders", "reviews"];
 
@@ -13,7 +12,8 @@ export default function AccountActivity() {
   const navigate = useNavigate();
   const { tab: tabParam } = useParams();
   const user = useSelector((state) => state.auth?.user);
-  
+
+  const [tab, setTab] = useState(VALID_TABS.includes(tabParam) ? tabParam : "orders");
 
   const tabTitles = {
     reviews: "My Reviews",
@@ -21,8 +21,6 @@ export default function AccountActivity() {
   };
 
   const pageTitle = tabTitles[tab] || "My Account";
-
-  const [tab, setTab] = useState(VALID_TABS.includes(tabParam) ? tabParam : "orders");
 
   useEffect(() => {
     if (!tabParam) {
@@ -44,11 +42,10 @@ export default function AccountActivity() {
       </section>
     );
   }
-  
 
   return (
     <section className="min-h-screen bg-white px-3 py-6 text-[#333333] sm:px-6 sm:py-10">
-       <SEO
+      <SEO
         title={`${pageTitle} | STORE`}
         description={`Manage your ${pageTitle.toLowerCase()} on STORE. View and track your account activity.`}
         url={`https://e-commerce-portfolio-web.vercel.app/account/${tab || ""}`}

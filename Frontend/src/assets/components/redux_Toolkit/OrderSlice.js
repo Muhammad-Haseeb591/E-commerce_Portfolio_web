@@ -3,9 +3,13 @@ import axios from "axios";
 
 import { API_URL } from "../../../config/api";
 
-// 🔑 API_URL ke end mein trailing slash ho ya na ho, dono cases mein
-// URL sahi banega (double slash ya missing slash nahi hoga).
-const BASE_URL = `${API_URL.replace(/\/+$/, "")}/orders`;
+// 🔑 Compute the base URL lazily (inside a function), NOT at module top level.
+// Computing it at import time (`const BASE_URL = ...API_URL...`) can crash
+// with "Cannot access 'X' before initialization" if there is ANY circular
+// import chain that causes this module to be evaluated before API_URL is
+// initialized. A function defers the read until it's actually called,
+// which is always safe.
+const getBaseUrl = () => `${API_URL.replace(/\/+$/, "")}/orders`;
 
 const config = {
   withCredentials: true,
@@ -24,7 +28,7 @@ export const fetchOrders = createAsyncThunk(
   "orders/fetchOrders",
   async (params = {}, thunkAPI) => {
     try {
-      const res = await axios.get(BASE_URL, config);
+      const res = await axios.get(getBaseUrl(), config);
       return res.data.orders;
     } catch (error) {
       return thunkAPI.rejectWithValue(
@@ -57,7 +61,7 @@ export const fetchAllOrders = createAsyncThunk(
   async (params = {}, thunkAPI) => {
     try {
       const { force, ...queryParams } = params;
-      const res = await axios.get(`${BASE_URL}/all`, { ...config, params: queryParams });
+      const res = await axios.get(`${getBaseUrl()}/all`, { ...config, params: queryParams });
       return res.data; // { orders, pagination }
     } catch (error) {
       return thunkAPI.rejectWithValue(
@@ -88,7 +92,7 @@ export const fetchOrderById = createAsyncThunk(
   "orders/fetchOrderById",
   async (id, thunkAPI) => {
     try {
-      const res = await axios.get(`${BASE_URL}/${id}`, config);
+      const res = await axios.get(`${getBaseUrl()}/${id}`, config);
       return res.data.order;
     } catch (error) {
       return thunkAPI.rejectWithValue(
@@ -105,7 +109,7 @@ export const updateOrder = createAsyncThunk(
   "orders/updateOrder",
   async ({ id, ...updates }, thunkAPI) => {
     try {
-      const res = await axios.put(`${BASE_URL}/${id}`, updates, config);
+      const res = await axios.put(`${getBaseUrl()}/${id}`, updates, config);
       return res.data.order;
     } catch (error) {
       return thunkAPI.rejectWithValue(
@@ -122,7 +126,7 @@ export const deleteOrder = createAsyncThunk(
   "orders/deleteOrder",
   async (id, thunkAPI) => {
     try {
-      await axios.delete(`${BASE_URL}/${id}`, config);
+      await axios.delete(`${getBaseUrl()}/${id}`, config);
       return id;
     } catch (error) {
       return thunkAPI.rejectWithValue(
@@ -139,7 +143,7 @@ export const cancelOrder = createAsyncThunk(
   "orders/cancelOrder",
   async (id, thunkAPI) => {
     try {
-      const res = await axios.put(`${BASE_URL}/${id}/cancel`, {}, config);
+      const res = await axios.put(`${getBaseUrl()}/${id}/cancel`, {}, config);
       return res.data.order;
     } catch (error) {
       return thunkAPI.rejectWithValue(
@@ -159,7 +163,7 @@ export const fetchDashboardStats = createAsyncThunk(
   "orders/fetchDashboardStats",
   async (params = {}, thunkAPI) => {
     try {
-      const res = await axios.get(`${BASE_URL}/dashboard-stats`, config);
+      const res = await axios.get(`${getBaseUrl()}/dashboard-stats`, config);
       return res.data.stats;
     } catch (error) {
       return thunkAPI.rejectWithValue(

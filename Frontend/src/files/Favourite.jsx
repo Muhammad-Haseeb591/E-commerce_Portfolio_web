@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchFavourites } from "../assets/components/redux_Toolkit/Favouriteslice"; // ← apna actual path check karna
+import SEO from "../assets/components/SEO/SEO";
 
 const Favourite = () => {
   const dispatch = useDispatch();
@@ -15,6 +16,12 @@ const Favourite = () => {
   if (loading) {
     return (
       <div className="w-full min-h-[400px] flex items-center justify-center text-gray-400 text-sm">
+        <SEO
+          title="Your Favourites | STORE"
+          description="View and manage your favourite products at STORE."
+          url="https://e-commerce-portfolio-web.vercel.app/favourites"
+          noIndex
+        />
         Loading favourites...
       </div>
     );
@@ -23,6 +30,12 @@ const Favourite = () => {
   if (error) {
     return (
       <div className="w-full min-h-[400px] flex items-center justify-center text-red-500 text-sm">
+        <SEO
+          title="Your Favourites | STORE"
+          description="View and manage your favourite products at STORE."
+          url="https://e-commerce-portfolio-web.vercel.app/favourites"
+          noIndex
+        />
         {error}
       </div>
     );
@@ -31,6 +44,12 @@ const Favourite = () => {
   if (!products || products.length === 0) {
     return (
       <div className="w-full min-h-[400px] flex flex-col items-center justify-center gap-2 text-gray-400">
+        <SEO
+          title="Your Favourites | STORE"
+          description="You haven't added any favourite products yet. Browse STORE to find items you love."
+          url="https://e-commerce-portfolio-web.vercel.app/favourites"
+          noIndex
+        />
         <p className="text-sm font-medium">No favourite products found</p>
         <Link to="/new" className="text-xs text-[#333333] hover:underline">
           see all products
@@ -41,6 +60,12 @@ const Favourite = () => {
 
   return (
     <div className="max-lg:w-full min-h-[1000px] mt-[16px] lg:px-[30px] font-sans px-[12px] md:px-[24px] max-w-[1280px] min-[1350px]:max-w-[1800px] mx-auto">
+      <SEO
+        title="Your Favourites | STORE"
+        description="View and manage your favourite products at STORE."
+        url="https://e-commerce-portfolio-web.vercel.app/favourites"
+        noIndex
+      />
       <ul className="w-full min-h-[1000px] grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 min-[1350px]:grid-cols-5 gap-[8px] justify-items-center">
         {products.map((product) => (
           <li key={product._id} className="w-full max-w-[297.693px] h-auto relative cursor-pointer">
