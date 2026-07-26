@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import AnimatedBackground from "../assets/components/AnimatedBackground";
+import ParticleBackground from "../assets/components/ParticleBackground";
 
 const categories = [
   {
@@ -307,6 +309,16 @@ export default function Home() {
             />
           ))}
         </div>
+      </section>
+
+      {/* Animated 3D Background Section */}
+      <section className="w-full">
+        <AnimatedBackground />
+      </section>
+
+      {/* Particle Animation Section */}
+      <section className="w-full">
+        <ParticleBackground />
       </section>
 
       {/* Categories — always visible, and selectable (click keeps a category highlighted) */}
