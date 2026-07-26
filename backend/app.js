@@ -15,6 +15,10 @@ const { paymentRouter, orderRouter, } = require("./routes/order.routes.js");
 const uploadRoutes = require("./routes/upload");
 const { stripeWebhook } = require("./controllers/payment.controller");
 const reviewRoutes = require("./routes/review.routes");
+const cartActivityRoutes = require("./routes/cartactivity.routes");
+const abandonedCartReminder = require("./jobs/Abandonedcartreminder");
+
+// existing app.use(...) lines ke sath
 
 const app = express();
 
@@ -27,17 +31,15 @@ app.post(
 
 // ── CORS: allow multiple known frontend origins ──
 const allowedOrigins = [
-  "https://e-commerce-portfolio-web.vercel.app", 
-  "https://e-commerce-portfolio-ashen.vercel.app",
+  "https://e-commerce-portfolio-web.vercel.app/", 
   "http://localhost:5173",
-
 ];
 
 const corsOptions = {
   origin: function (origin, callback) {
     // allow requests with no origin (Postman, curl, server-to-server)
     if (!origin) return callback(null, true);
-
+    
     // allow whitelisted origins + any Vercel preview deployment of this project
     if (
       allowedOrigins.includes(origin) ||
@@ -46,7 +48,6 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    console.log("Blocked by CORS:", origin);
     return callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
@@ -54,11 +55,10 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// ✅ Express 5-safe wildcard for preflight OPTIONS (bare "*" breaks on Express 5 / path-to-regexp v6+)
+//Express 5-safe wildcard for preflight OPTIONS (bare "*" breaks on Express 5 / path-to-regexp v6+)
 app.options(/(.*)/, cors(corsOptions));
 
-console.log("Allowed origins:", allowedOrigins);
-console.log("NODE_ENV:", process.env.NODE_ENV);
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -74,6 +74,7 @@ app.use("/cart", cartRoutes);
 app.use("/orders", orderRouter); // ⚠️ original me /orders tha, /api/orders nahi — path same rakha
 app.use("/api", uploadRoutes);
 app.use("/reviews", reviewRoutes);
+app.use("/api/cart", cartActivityRoutes);
 
 app.get("/", (req, res) => {
   res.send("API running...");

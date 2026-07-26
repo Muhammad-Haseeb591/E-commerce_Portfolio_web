@@ -1,26 +1,5 @@
 const nodemailer = require("nodemailer");
 
-// ==============================
-// Transporter
-// ==============================
-// .env me ye variables chahiye:
-// SMTP_HOST=smtp.gmail.com
-// SMTP_PORT=465
-// SMTP_USER=your-email@gmail.com
-// SMTP_PASS=your-app-password   (Gmail App Password, normal password nahi chalega)
-// EMAIL_FROM="MyApp <no-reply@myapp.com>"
-// const transporter = nodemailer.createTransport({
-//   host: process.env.SMTP_HOST,
-//   port: Number(process.env.SMTP_PORT) || 465,
-//   secure: Number(process.env.SMTP_PORT) === 465, // true for 465, false for other ports (587)
-//   pool: true,          // reuse SMTP connections instead of a fresh TLS handshake per email
-//   maxConnections: 5,
-//   maxMessages: 100,
-//   auth: {
-//     user: process.env.SMTP_USER,
-//     pass: process.env.SMTP_PASS,
-//   },
-// });
 
 const transporter = nodemailer.createTransport({
   host: "smtp-relay.brevo.com",
@@ -83,4 +62,29 @@ const sendResetPasswordEmail = async (email, resetUrl) => {
   });
 };
 
-module.exports = { sendEmail, sendOtpEmail, sendResetPasswordEmail };
+// ==============================
+// 🔑 NEW — Abandoned Cart Reminder Email
+// ==============================
+// Sent by the abandonedCartReminder cron job when a user's cart has sat
+// untouched for 1+ hour. `cartUrl` should point at your site's /cart
+// page (e.g. `${process.env.FRONTEND_URL}/cart`).
+const sendAbandonedCartEmail = async (email, { itemCount, cartUrl }) => {
+  const itemWord = itemCount === 1 ? "item" : "items";
+
+  await sendEmail({
+    to: email,
+    subject: "You left something in your cart",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto;">
+        <h2>Still thinking it over?</h2>
+        <p>You have ${itemCount} ${itemWord} waiting in your cart. Come back and grab it before it's gone.</p>
+        <a href="${cartUrl}" style="display:inline-block;padding:10px 20px;background:#333333;color:#fff;text-decoration:none;border-radius:6px;">
+          View My Cart
+        </a>
+        <p>If you already checked out or your cart isn't important right now, feel free to ignore this email.</p>
+      </div>
+    `,
+  });
+};
+
+module.exports = { sendEmail, sendOtpEmail, sendResetPasswordEmail, sendAbandonedCartEmail };
