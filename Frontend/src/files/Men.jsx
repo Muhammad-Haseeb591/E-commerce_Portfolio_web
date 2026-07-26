@@ -5,6 +5,7 @@ import { fetchCatalog, setFilter, setFilters, setTotalCount } from "../assets/co
 import { useFilteredProducts } from "../assets/components/hooks/useFilteredProducts";
 import { getColorHex } from "../utils/Colormap";
 import { SaveOff } from "lucide-react";
+import SEO from "../assets/components/SEO/SEO"
 
 
 const Men = () => {

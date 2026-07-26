@@ -1,13 +1,19 @@
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import CheckoutForm from "./CheckoutForm";
-
-// Loaded once, outside the component so it isn't re-created on every render.
+import SEO from "../../assets/components/SEO/SEO"
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 export default function CheckoutPage() {
   return (
     <Elements stripe={stripePromise}>
+       
+      <SEO
+        title="Checkout | STORE"
+        description="Complete your purchase securely at STORE."
+        url="https://e-commerce-portfolio-web.vercel.app/checkout"
+        noIndex
+      />
       <CheckoutForm />
     </Elements>
   );

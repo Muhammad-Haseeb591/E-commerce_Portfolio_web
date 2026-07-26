@@ -7,8 +7,8 @@ import {
 import { useDispatch, useSelector } from "react-redux";
 import { fetchAllOrders, updateOrder, deleteOrder } from "../../redux_Toolkit/OrderSlice";
 import { downloadGetFile, downloadPostFile } from "../../../../utils/downloadFile";
+import SEO from "../../SEO/SEO"
 
-// ── Invoice / export controls ──
 
 const InvoiceButton = ({ orderId }) => {
   const [downloading, setDownloading] = useState(false);
@@ -694,7 +694,11 @@ const Orders = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-3 sm:p-6 overflow-x-hidden">
-
+     <SEO
+        title="Manage Orders | STORE Admin"
+        description="View and manage all customer orders in the STORE admin panel."
+        noIndex
+      />
       <DetailsModal order={viewingOrder} onClose={() => setViewingOrder(null)} />
 
       {editingOrder && (

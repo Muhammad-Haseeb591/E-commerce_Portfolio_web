@@ -7,8 +7,9 @@ import { fetchFavourites, toggleFavourite } from "../redux_Toolkit/Favouriteslic
 import { IoArrowBack, IoStar, IoStarHalf, IoStarOutline } from "react-icons/io5";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
 import ReviewSection from "../e-Components/Reviewsection";
-import { FREE_DELIVERY_THRESHOLD } from "../../../utils/shipping"; 
-import SEO from "../SEO/SEO"
+import { FREE_DELIVERY_THRESHOLD } from "../../../utils/shipping";
+import SEO from "../SEO/SEO";
+
 const getItemId = (item) => item?._id ?? item?.id;
 
 const getStockValue = (source) => {
@@ -21,7 +22,6 @@ const getStockValue = (source) => {
   const n = Number(raw);
   return Number.isFinite(n) ? n : 0;
 };
-
 
 const normalizeSizes = (rawSizes) => {
   if (!Array.isArray(rawSizes)) return [];
@@ -292,7 +292,6 @@ const Detail_Page = () => {
     const productId = getItemId(product);
     const normColorVal = color || null;
 
-
     const existingLine = cartItems.find(
       (i) => getItemId(i) === productId && (i.color || null) === normColorVal
     );
@@ -326,8 +325,6 @@ const Detail_Page = () => {
         );
       }
     } else {
-      // No-size product — a { size: null } entry in the existing line
-      // means this exact color was already added.
       const alreadyAdded = existingLine?.sizes?.some((s) => s.size === null);
       if (alreadyAdded) {
         alert("Your item is already in cart.");
@@ -383,6 +380,7 @@ const Detail_Page = () => {
   if (loading && !product) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
+        <SEO title="Loading Product... | STORE" noIndex />
         <p className="text-gray-500 text-sm">Loading product...</p>
       </div>
     );
@@ -391,6 +389,7 @@ const Detail_Page = () => {
   if (!product) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-4">
+        <SEO title="Product Not Found | STORE" noIndex />
         <p className="text-gray-500 text-sm text-center">Product not found.</p>
         <button
           onClick={() => navigate("/")}
@@ -410,6 +409,18 @@ const Detail_Page = () => {
 
   return (
     <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-[30px] py-4 sm:py-6 font-sans pb-28 sm:pb-6">
+      <SEO
+        title={`${product.name} | STORE`}
+        description={
+          product.description
+            ? product.description.slice(0, 150)
+            : `Buy ${product.name} at STORE. Price: Rs. ${product.price}.`
+        }
+        keywords={`${product.name}, ${product.color || ""}, fashion, STORE`}
+        image={mainImage || undefined}
+        url={`https://e-commerce-portfolio-web.vercel.app/products/${getItemId(product)}`}
+      />
+
       <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#333333] mb-4 sm:mb-6"
@@ -418,11 +429,7 @@ const Detail_Page = () => {
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12">
-        {/* ── Image + color picker ──
-             COVER MODE: container ki height fixed hai per breakpoint,
-            image object-cover se box ko PURA bharti hai (crop ho sakta
-            hai agar image ka aspect-ratio box se match na kare, letterbox
-            nahi hoga). ── */}
+        {/* ── Image + color picker ── */}
         <div>
           <div className="relative w-full h-[320px] sm:h-[420px] lg:h-[480px] bg-[#ececec] rounded-xl overflow-hidden">
             {mainImage ? (
@@ -455,11 +462,6 @@ const Detail_Page = () => {
             </button>
           </div>
 
-          {/*  CHANGED — ye ab "extra angles" ki strip nahi, COLOR
-              PICKER hai. Har thumbnail ek color ki image hai; click se
-              wahi color select ho jata hai. Purana "Colors" dot-swatch
-              section (neeche) poora hata diya gaya — yehi iski jagah
-              leta hai. */}
           {hasColors && colorList.length > 1 && (
             <div className="flex gap-2 mt-3 overflow-x-auto pb-1 snap-x snap-mandatory scroll-smooth [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full">
               {colorList.map((c, i) => {
@@ -523,8 +525,6 @@ const Detail_Page = () => {
               : `Add Rs. ${amountLeftForFreeDelivery.toFixed(0)} more to unlock FREE delivery`}
           </div>
 
-          {/* ── Selected color name (dot swatches removed — color ab
-              upar thumbnail-strip se choose hota hai) ── */}
           {hasColors ? (
             <div className="mt-4 flex items-center justify-between">
               <p className="text-sm font-semibold text-[#333333]">
@@ -545,7 +545,6 @@ const Detail_Page = () => {
             )
           )}
 
-          {/* ── Sizes (only if product has sizes) — MULTI-select ── */}
           {hasSizes && (
             <div className="mt-5">
               <div className="flex items-center justify-between mb-2">
@@ -684,7 +683,6 @@ const Detail_Page = () => {
             </div>
           )}
 
-          {/* ── Quantity stepper — only for products WITHOUT sizes ── */}
           {!hasSizes && (
             <div className="mt-5">
               <div className="flex items-center gap-3">

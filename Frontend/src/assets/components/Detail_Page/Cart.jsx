@@ -11,12 +11,9 @@ import { Trash2, ShoppingBag, Plus, Minus, AlertCircle, X, LogIn } from "lucide-
 import { useNavigate } from "react-router-dom";
 import { getShippingFee, getAmountLeftForFreeDelivery } from "../../../utils/shipping";
 import { getCurrencyForCountry, getAllowedPaymentMethods, formatAmount } from "../../../utils/formatCurrency";
+import SEO from "../SEO/SEO";
 
 const getItemId = (item) => item?._id ?? item?.id;
-// 🔑 same product ke 2 alag colors ab 2 alag cart LINES hain (redux
-// level par) — is liye React `key` aur busy/lookup keys ab sirf
-// productId nahi, productId+color hone chahiye — warna dono lines
-// collide kar jayengi.
 const getLineKey = (item) => `${getItemId(item)}::${item.color || ""}`;
 
 const COUNTRY_OPTIONS = [
@@ -29,12 +26,20 @@ const COUNTRY_OPTIONS = [
   { value: "OTHER", label: "🌍 Other" },
 ];
 
+const CartSEO = () => (
+  <SEO
+    title="Your Cart | STORE"
+    description="Review the items in your shopping cart before checkout at STORE."
+    url="https://e-commerce-portfolio-web.vercel.app/cart"
+    noIndex
+  />
+);
+
 const Cart = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   const { items, hydrated } = useSelector((state) => state.cart);
-
   const user = useSelector((state) => state.auth?.user ?? null);
   const authChecked = useSelector((state) => state.auth?.authChecked ?? false);
 
@@ -42,11 +47,8 @@ const Cart = () => {
   const [busyKey, setBusyKey] = useState(null);
   const [clearing, setClearing] = useState(false);
 
-  // ── Delivery country -> decides currency + which payment methods
-  // are allowed at checkout. COD is Pakistan-only.
   const [country, setCountry] = useState("PK");
   const prevCountryRef = useRef("PK");
-
   const hasAlerted = useRef(false);
 
   useEffect(() => {
@@ -57,8 +59,6 @@ const Cart = () => {
     }
   }, [authChecked, user, navigate]);
 
-  // Alert the moment they pick a non-Pakistan country — COD won't be
-  // available for them at checkout, only card payment in USD.
   useEffect(() => {
     if (country !== "PK" && prevCountryRef.current !== country) {
       alert(
@@ -72,16 +72,9 @@ const Cart = () => {
   const allowedPaymentMethods = getAllowedPaymentMethods(country);
   const formatPrice = (amountPKR) => formatAmount(amountPKR, currency);
 
-  // 🔑 NEW — items ko productId ke hisaab se group kiya, taake same
-  // product ke saare colors EK hi card ke andar, alag-alag rows ke tor
-  // par dikhein — "Perfume" ke 3 alag cards ki jagah ab ek "Perfume"
-  // card hoga jiske andar 3 color-rows honge. Insertion order preserve
-  // kiya (jis order mein pehle add hue), taake cart re-render par items
-  // idhar-udhar na kudein.
   const groupedItems = useMemo(() => {
     const order = [];
     const map = new Map();
-
     items.forEach((item) => {
       const pid = getItemId(item);
       if (!map.has(pid)) {
@@ -90,7 +83,6 @@ const Cart = () => {
       }
       map.get(pid).push(item);
     });
-
     return order.map((pid) => map.get(pid));
   }, [items]);
 
@@ -118,7 +110,6 @@ const Cart = () => {
   const runCartAction = async (action, busyId = null) => {
     setError("");
     if (busyId) setBusyKey(busyId);
-
     try {
       const result = dispatch(action);
       if (result?.unwrap) {
@@ -135,8 +126,6 @@ const Cart = () => {
     }
   };
 
-  // 🔑 CHANGED — `color` ab har action ke saath jata hai, taake sirf
-  // USI color ki line update ho, doosre color ki nahi.
   const handleIncreaseQty = (id, size, color) =>
     runCartAction(increaseQty({ id, size, color }), `${id}::${color}::${size}`);
 
@@ -177,17 +166,6 @@ const Cart = () => {
       return;
     }
 
-    // Everything sent in PKR (base currency) — checkout converts for
-    // display only, using the SAME shipping logic (imported from
-    // utils/shipping.js) so the fee can never drift between pages.
-    //
-    // 🔑 CHANGED — `image` ab item.image (jo color-specific single-image
-    // snapshot hai, add-to-cart ke waqt save hui thi) se aata hai, na ke
-    // purane `item.images?.[0]` se (jo naye schema mein exist hi nahi
-    // karta). `color` bhi ab hamesha sahi jayega, kyunki cartSlice ab
-    // usay properly store karta hai. Matlab: same product ke 2 colors ho
-    // to checkout par 2 ALAG lines jayengi, har ek apni EK image aur apne
-    // color ke sath — dono ki images kabhi mix nahi hongi.
     const checkoutItems = items.flatMap((item) =>
       (item.sizes || []).map((s) => {
         const qty = Number(s.quantity) || 0;
@@ -220,6 +198,7 @@ const Cart = () => {
   if (!authChecked || (authChecked && !user)) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center px-4">
+        <CartSEO />
         {authChecked && !user && (
           <div className="text-center space-y-4 text-gray-400">
             <LogIn className="w-14 h-14 mx-auto" />
@@ -239,12 +218,17 @@ const Cart = () => {
   }
 
   if (!hydrated) {
-    return <div className="min-h-screen bg-white" />;
+    return (
+      <div className="min-h-screen bg-white">
+        <CartSEO />
+      </div>
+    );
   }
 
   if (items.length === 0) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center px-4">
+        <CartSEO />
         <div className="text-center space-y-4 text-gray-400">
           <ShoppingBag className="w-14 h-14 sm:w-16 sm:h-16 mx-auto" />
           <p className="text-[#333333] font-medium text-sm sm:text-base">Cart is empty</p>
@@ -261,6 +245,7 @@ const Cart = () => {
 
   return (
     <div className="min-h-screen bg-white">
+      <CartSEO />
       <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6 pb-40 lg:pb-6">
 
         {error && (
@@ -287,7 +272,6 @@ const Cart = () => {
           </button>
         </div>
 
-        {/* ── Delivery country selector — decides currency + COD availability ── */}
         <div className="border border-[#333333] rounded-xl px-3 sm:px-4 py-3 flex items-center justify-between gap-3">
           <label className="text-xs sm:text-sm font-medium text-[#333333] shrink-0">
             Delivery Country
@@ -318,8 +302,6 @@ const Cart = () => {
             : `Add ${formatPrice(amountLeftForFreeDelivery)} more to unlock FREE delivery`}
         </div>
 
-        {/* ── Product cards — ONE div per product, each color as its own
-            inner row with its own size/qty controls ── */}
         <div className="space-y-3">
           {groupedItems.map((group) => {
             const first = group[0];
@@ -327,7 +309,6 @@ const Cart = () => {
 
             return (
               <div key={pid} className="bg-white border border-[#333333] rounded-xl p-3 space-y-3">
-                {/* Product-level header — shared across all color rows */}
                 <div>
                   <p className="text-sm font-semibold text-[#333333] truncate">{first.name}</p>
                   <p className="text-xs sm:text-sm text-gray-500 mt-0.5">{formatPrice(first.price)}</p>
@@ -337,8 +318,6 @@ const Cart = () => {
                   const itemId = getItemId(item);
                   const lineKey = getLineKey(item);
                   const sizes = item.sizes || [];
-                  // 🔑 sirf EK image (color-specific snapshot), purane
-                  // `item.images?.[0]` array-based lookup ki jagah.
                   const thumb = item.image || item.images?.[0] || "";
 
                   return (
@@ -349,11 +328,6 @@ const Cart = () => {
                           alt={item.name}
                           className="w-12 h-12 rounded-lg object-cover border border-gray-200 shrink-0 bg-gray-50"
                         />
-                        {/* 🔑 color ab dikhta hai — same product ke
-                            multiple colors ab isi div ke andar alag rows
-                            hain, is label ke bina user ko pata nahi
-                            chalega ye kaunsa color hai. Color na ho to
-                            "No color" dikhega (legacy items ke liye). */}
                         {item.color ? (
                           <p className="text-xs font-medium text-gray-600">Color: {item.color}</p>
                         ) : (

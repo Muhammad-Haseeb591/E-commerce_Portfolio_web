@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+
+# Private / transactional / admin routes — do not crawl
+Disallow: /account
+Disallow: /account/
+Disallow: /cart
+Disallow: /checkout
+Disallow: /admin
+Disallow: /admin/
+Disallow: /order
+Disallow: /login
+Disallow: /signup
+Disallow: /verify-otp
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /oauth-success
+
+Sitemap: https://e-commerce-portfolio-web.vercel.app/sitemap.xml

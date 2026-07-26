@@ -6,6 +6,7 @@ import {
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchSalesReport, setReportFilters } from "../redux_Toolkit/reportSlice";
+import SEO from "../SEO/SEO"
 
 const tooltipStyle = {
   contentStyle: { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12 },
@@ -66,13 +67,10 @@ function SalesReportPage() {
   }, [dispatch, filters]);
 
   const isFetching = status === "loading";
-  // Sirf pehli baar (jab tak koi data screen pe na ho) full skeleton dikhao.
-  // Filter change pe purana data screen pe rehne do — sirf ek subtle progress
-  // bar dikhao. Isse UI "fast" feel hota hai, poora page flash nahi karta.
   const showFullSkeleton = isFetching && !hasFetchedOnce;
 
   const handleGroupByChange = (groupBy) => {
-    if (groupBy === filters?.groupBy || isFetching) return; // same value / in-flight pe dobara fetch mat karo
+    if (groupBy === filters?.groupBy || isFetching) return; 
     dispatch(setReportFilters({ groupBy }));
   };
 
@@ -83,6 +81,11 @@ function SalesReportPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-3 sm:p-6 space-y-4 max-w-3xl mx-auto">
+       <SEO 
+         title="Admin Dashboard | STORE"
+        description="Admin dashboard for managing STORE's products, orders, and reports."
+        noIndex
+      />
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-gray-700">Sales Report</h2>
         <GroupByToggle

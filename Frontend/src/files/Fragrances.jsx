@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { fetchCatalog, setFilter, setFilters, setTotalCount } from "../assets/components/redux_Toolkit/fetcherSlice";
 import { useFilteredProducts } from "../assets/components/hooks/useFilteredProducts";
 import { getColorHex } from "../utils/Colormap";
-
+import SEO from "../assets/components/SEO/SEO"
 const Fragrances = () => {
   const dispatch = useDispatch();
   const { filters, catalog, catalogLoading } = useSelector((state) => state.FetchPrducts);

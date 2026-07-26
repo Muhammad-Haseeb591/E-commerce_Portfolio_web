@@ -3,8 +3,8 @@ import { useSelector } from "react-redux";
 import { useParams, useNavigate } from "react-router-dom";
 
 import OrderSection from "./Ordersection";
-import ReviewSection from "./Reviewsection"; // 🔧 adjust paths to match your project
-
+import ReviewSection from "./Reviewsection"; 
+import SEO from "../SEO/SEO"
 
 
 const VALID_TABS = ["orders", "reviews"];
@@ -13,6 +13,14 @@ export default function AccountActivity() {
   const navigate = useNavigate();
   const { tab: tabParam } = useParams();
   const user = useSelector((state) => state.auth?.user);
+  
+
+  const tabTitles = {
+    reviews: "My Reviews",
+    orders: "My Orders",
+  };
+
+  const pageTitle = tabTitles[tab] || "My Account";
 
   const [tab, setTab] = useState(VALID_TABS.includes(tabParam) ? tabParam : "orders");
 
@@ -36,9 +44,16 @@ export default function AccountActivity() {
       </section>
     );
   }
+  
 
   return (
     <section className="min-h-screen bg-white px-3 py-6 text-[#333333] sm:px-6 sm:py-10">
+       <SEO
+        title={`${pageTitle} | STORE`}
+        description={`Manage your ${pageTitle.toLowerCase()} on STORE. View and track your account activity.`}
+        url={`https://e-commerce-portfolio-web.vercel.app/account/${tab || ""}`}
+        noIndex
+      />
       <div className="mx-auto w-full max-w-2xl">
         <h1 className="text-xl font-semibold sm:text-2xl">My Activity</h1>
         <p className="mt-1 text-sm text-[#777777]">Track orders and manage the reviews you've left</p>
