@@ -1,6 +1,4 @@
 const nodemailer = require("nodemailer");
-
-
 const transporter = nodemailer.createTransport({
   host: "smtp-relay.brevo.com",
   port: 2525,      
@@ -87,4 +85,45 @@ const sendAbandonedCartEmail = async (email, { itemCount, cartUrl }) => {
   });
 };
 
-module.exports = { sendEmail, sendOtpEmail, sendResetPasswordEmail, sendAbandonedCartEmail };
+// ==============================
+// 🔑 NEW — Order Confirmation Email
+// ==============================
+// Sent right when an order is successfully placed. `trackUrl` should
+// point at the account orders page (e.g. `${FRONTEND_URL}/account/orders`)
+// — but only pass/use it when the order was placed by a LOGGED-IN user,
+// since /account/orders requires login (guest checkouts have nothing to
+// show there yet). When `isLoggedIn` is false, the tracking button is
+// simply left out of the email.
+const sendOrderConfirmationEmail = async (email, { orderId, total, isLoggedIn, trackUrl }) => {
+  const trackButton =
+    isLoggedIn && trackUrl
+      ? `
+        <a href="${trackUrl}" style="display:inline-block;padding:10px 20px;background:#333333;color:#fff;text-decoration:none;border-radius:6px;margin-top:12px;">
+          Check / Track My Order
+        </a>
+      `
+      : "";
+
+  await sendEmail({
+    to: email,
+    subject: "Your order was placed successfully",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto;">
+        <h2>Order confirmed 🎉</h2>
+        <p>Thanks for your order! It's been placed successfully.</p>
+        <p><strong>Order ID:</strong> ${orderId}</p>
+        <p><strong>Total:</strong> ${total}</p>
+        ${trackButton}
+        <p style="margin-top:16px;">We'll let you know once it's on its way.</p>
+      </div>
+    `,
+  });
+};
+
+module.exports = {
+  sendEmail,
+  sendOtpEmail,
+  sendResetPasswordEmail,
+  sendAbandonedCartEmail,
+  sendOrderConfirmationEmail,
+};

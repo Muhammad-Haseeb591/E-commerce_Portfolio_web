@@ -2,12 +2,34 @@ const mongoose = require("mongoose");
 const Order = require("../models/Order");
 const Product = require("../models/Product");
 const stripe = require("../config/stripe");
+const { sendOrderConfirmationEmail } = require("../utils/sendEmail");
 
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch((error) => {
     console.error(`${req.method} ${req.originalUrl} —`, error.message);
     res.status(500).json({ success: false, message: "Server Error" });
   });
+};
+
+// 🔑 /account/orders requires login (AccountActivity.jsx), and createOrder
+// itself is a `protect`-only route with its own req.userId guard — so
+// every order made through this controller IS a logged-in user's order.
+// Track link is therefore always safe to include.
+const ACCOUNT_ORDERS_URL = `${
+  process.env.FRONTEND_URL || "https://e-commerce-portfolio-web.vercel.app"
+}/account/orders`;
+
+// Fire-and-forget: the order itself already succeeded (COD confirmed /
+// payment captured) by the time this is called, so an email hiccup must
+// never turn into a 500 for the customer or delay the response. Errors
+// are just logged.
+const notifyOrderConfirmed = (order, email) => {
+  sendOrderConfirmationEmail(email, {
+    orderId: order.orderNumber,
+    total: `$${Number(order.totalAmount).toFixed(2)}`,
+    isLoggedIn: true,
+    trackUrl: ACCOUNT_ORDERS_URL,
+  }).catch((err) => console.error("Order confirmation email failed:", err.message));
 };
 
 // ==========================
@@ -32,31 +54,50 @@ async function validateCoupon(couponCode, subtotal) {
 }
 
 // ==========================
-// Stock helpers (size-aware, with rollback)
+// Stock helpers (color + size-aware, with rollback)
 // ==========================
-const decrementStockForItem = async ({ productId, size, quantity }) => {
+// 🔑 FIXED — Product schema no longer has a top-level `sizes` array;
+// sizes now live inside colors[i].sizes, and each color also has its own
+// colors[i].stock (used when that color has no size scale). Both branches
+// below now locate the right color via `color` first (arrayFilters "c"),
+// then the right size within it (arrayFilters "s") when one applies —
+// and keep colors[i].stock + the top-level stock in sync manually, since
+// findOneAndUpdate skips the pre-save rollup hooks.
+const decrementStockForItem = async ({ productId, color, size, quantity }) => {
   if (size) {
     return Product.findOneAndUpdate(
       {
         _id: productId,
-        sizes: { $elemMatch: { size, stock: { $gte: quantity } } },
+        colors: {
+          $elemMatch: {
+            color,
+            sizes: { $elemMatch: { size, stock: { $gte: quantity } } },
+          },
+        },
       },
       {
         $inc: {
-          "sizes.$[elem].stock": -quantity,
-          // findOneAndUpdate skips the pre-save hook that recalculates the
-          // total, so the top-level stock is kept in sync manually here.
+          "colors.$[c].sizes.$[s].stock": -quantity,
+          "colors.$[c].stock": -quantity,
           stock: -quantity,
         },
       },
-      { arrayFilters: [{ "elem.size": size }], new: true }
+      { arrayFilters: [{ "c.color": color }, { "s.size": size }], new: true }
     );
   }
 
   return Product.findOneAndUpdate(
-    { _id: productId, stock: { $gte: quantity } },
-    { $inc: { stock: -quantity } },
-    { new: true }
+    {
+      _id: productId,
+      colors: { $elemMatch: { color, stock: { $gte: quantity } } },
+    },
+    {
+      $inc: {
+        "colors.$[c].stock": -quantity,
+        stock: -quantity,
+      },
+    },
+    { arrayFilters: [{ "c.color": color }], new: true }
   );
 };
 
@@ -65,21 +106,31 @@ const decrementStockForItem = async ({ productId, size, quantity }) => {
 // wrong.
 const rollbackDecrements = async (decremented) => {
   await Promise.all(
-    decremented.map(async ({ productId, size, quantity }) => {
+    decremented.map(async ({ productId, color, size, quantity }) => {
       try {
         if (size) {
           await Product.findOneAndUpdate(
             { _id: productId },
-            { $inc: { "sizes.$[elem].stock": quantity, stock: quantity } },
-            { arrayFilters: [{ "elem.size": size }] }
+            {
+              $inc: {
+                "colors.$[c].sizes.$[s].stock": quantity,
+                "colors.$[c].stock": quantity,
+                stock: quantity,
+              },
+            },
+            { arrayFilters: [{ "c.color": color }, { "s.size": size }] }
           );
         } else {
-          await Product.findOneAndUpdate({ _id: productId }, { $inc: { stock: quantity } });
+          await Product.findOneAndUpdate(
+            { _id: productId },
+            { $inc: { "colors.$[c].stock": quantity, stock: quantity } },
+            { arrayFilters: [{ "c.color": color }] }
+          );
         }
       } catch (err) {
         // Rollback itself failing shouldn't hide the original error —
         // just log it, don't throw.
-        console.error("Stock rollback failed for", productId, size, err.message);
+        console.error("Stock rollback failed for", productId, color, size, err.message);
       }
     })
   );
@@ -151,12 +202,16 @@ exports.createOrder = asyncHandler(async (req, res) => {
 
     subtotal += price * quantity;
 
+    // 🔑 No top-level product.images anymore — image lives on the
+    // specific color the customer picked (colors[].image).
+    const matchedColor = dbProduct.colors?.find((c) => c.color === item.color);
+
     verifiedItems.push({
       productId: dbProduct._id,
       name: dbProduct.name,
       price,
-      image: dbProduct.images?.[0] || "",
-      color: item.colors?.[0] || "",
+      image: matchedColor?.image || "",
+      color: item.color || "",
       size: item.size ?? null,
       quantity,
     });
@@ -194,6 +249,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
     for (const item of verifiedItems) {
       const updated = await decrementStockForItem({
         productId: item.productId,
+        color: item.color,
         size: item.size,
         quantity: item.quantity,
       });
@@ -206,7 +262,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
         });
       }
 
-      decremented.push({ productId: item.productId, size: item.size, quantity: item.quantity });
+      decremented.push({ productId: item.productId, color: item.color, size: item.size, quantity: item.quantity });
     }
 
     let order;
@@ -228,6 +284,9 @@ exports.createOrder = asyncHandler(async (req, res) => {
       await rollbackDecrements(decremented);
       throw orderErr; // caught by asyncHandler -> clean 500
     }
+
+    // 🔑 Order confirmed (COD) — let the customer know it went through.
+    notifyOrderConfirmed(order, email);
 
     return res.status(201).json({ success: true, order });
   }
@@ -275,6 +334,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
   for (const item of verifiedItems) {
     const updated = await decrementStockForItem({
       productId: item.productId,
+      color: item.color,
       size: item.size,
       quantity: item.quantity,
     });
@@ -288,7 +348,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
       });
     }
 
-    decremented.push({ productId: item.productId, size: item.size, quantity: item.quantity });
+    decremented.push({ productId: item.productId, color: item.color, size: item.size, quantity: item.quantity });
   }
 
   let order;
@@ -315,6 +375,9 @@ exports.createOrder = asyncHandler(async (req, res) => {
     await safeRefund(paymentIntent.id);
     throw orderErr;
   }
+
+  // 🔑 Order confirmed (card, payment captured) — let the customer know.
+  notifyOrderConfirmed(order, email);
 
   return res.status(201).json({ success: true, order });
 });
@@ -694,7 +757,7 @@ exports.cancelOrder = asyncHandler(async (req, res) => {
   // rahein (ek se zyada alag rollback implementations mix karna bug ki
   // sabse badi wajah hai) ──
   await rollbackDecrements(
-    order.items.map((i) => ({ productId: i.productId, size: i.size, quantity: i.quantity }))
+    order.items.map((i) => ({ productId: i.productId, color: i.color, size: i.size, quantity: i.quantity }))
   );
 
   order.status = "cancelled";
