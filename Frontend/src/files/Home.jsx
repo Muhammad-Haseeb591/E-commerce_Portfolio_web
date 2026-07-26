@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import AnimatedBackground from "../assets/components/AnimatedBackground";
 import ParticleBackground from "../assets/components/ParticleBackground";
+import { useScrollAnimation } from "../assets/hooks/useScrollAnimation";
 
 const categories = [
   {
@@ -89,7 +90,7 @@ const featuredReviews = [
 
 // 🔑 `selected` = category jo user ne click/select kiya hai — permanently
 // highlighted (dark) rehta hai, hover ki tarah sirf mouse ke waqt nahi.
-function RevealCard({ cat, index, open, selected }) {
+function RevealCard({ cat, index, open, selected, isVisible }) {
   return (
     <Link
       to={`/${cat.slug}`}
@@ -97,10 +98,10 @@ function RevealCard({ cat, index, open, selected }) {
       className={`
         group block w-full border border-[#333333] bg-white
         transition-all duration-500 ease-out
-        ${open ? "opacity-100 translate-y-0 translate-x-0" : "opacity-0 translate-y-6 -translate-x-4"}
+        ${isVisible || open ? "opacity-100 translate-y-0 translate-x-0" : "opacity-0 translate-y-6 -translate-x-4"}
         ${selected ? "bg-[#333333] border-[#333333]" : "hover:bg-[#333333] hover:border-[#333333]"}
       `}
-      style={{ transitionDelay: open ? `${index * 90}ms` : "0ms" }}
+      style={{ transitionDelay: isVisible || open ? `${index * 90}ms` : "0ms" }}
     >
       <div className="w-full aspect-square overflow-hidden border-b border-[#333333]">
         <img
@@ -174,6 +175,10 @@ export default function Home() {
   // rahega, chahe wahan kaise bhi pahunche ho (click, back button, reload).
   const location = useLocation();
   const selectedSlug = location.pathname.replace(/^\/+/, "");
+
+  // Scroll animation hooks
+  const [categoriesRef, categoriesVisible] = useScrollAnimation({ threshold: 0.2 });
+  const [reviewsRef, reviewsVisible] = useScrollAnimation({ threshold: 0.2 });
 
   const [slideIndex, setSlideIndex] = useState(0);
   const bannerRef = useRef(null);
@@ -259,6 +264,36 @@ export default function Home() {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes slideUpFade {
+          from { 
+            opacity: 0; 
+            transform: translateY(30px); 
+          }
+          to { 
+            opacity: 1; 
+            transform: translateY(0); 
+          }
+        }
+        @keyframes slideDownFade {
+          from { 
+            opacity: 0; 
+            transform: translateY(-30px); 
+          }
+          to { 
+            opacity: 1; 
+            transform: translateY(0); 
+          }
+        }
+        @keyframes scaleInFade {
+          from { 
+            opacity: 0; 
+            transform: scale(0.95); 
+          }
+          to { 
+            opacity: 1; 
+            transform: scale(1); 
+          }
+        }
       `}</style>
 
       {/* Header */}
@@ -322,7 +357,7 @@ export default function Home() {
       </section>
 
       {/* Categories — always visible, and selectable (click keeps a category highlighted) */}
-      <main className="px-4 py-6 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16">
+      <main className="px-4 py-6 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16" ref={categoriesRef}>
         <div
           className="
             grid gap-4
@@ -341,6 +376,7 @@ export default function Home() {
               index={index}
               open={categoriesRevealed}
               selected={selectedSlug === cat.slug}
+              isVisible={categoriesVisible}
             />
           ))}
         </div>
@@ -348,13 +384,19 @@ export default function Home() {
 
       {/* Reviews Marquee (scrolling) */}
       {featuredReviews.length > 0 && (
-        <section className="py-8 border-t border-[#333333] bg-white">
-          <h2 className="text-base sm:text-lg md:text-xl font-semibold mb-5 px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16 fade-in">
+        <section className="py-8 border-t border-[#333333] bg-white" ref={reviewsRef}>
+          <h2 className={`text-base sm:text-lg md:text-xl font-semibold mb-5 px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16 transition-all duration-700 ease-out ${
+            reviewsVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+          }`}>
             What our customers say
           </h2>
 
-          <div className="overflow-hidden">
-            <div className="marquee-track flex gap-4 w-max">
+          <div className={`overflow-hidden transition-all duration-1000 ease-out ${
+            reviewsVisible ? "opacity-100" : "opacity-0"
+          }`}>
+            <div className={`marquee-track flex gap-4 w-max transition-all duration-1000 ease-out ${
+              reviewsVisible ? "translate-x-0" : "translate-x-full"
+            }`}>
               {marqueeReviews.map((review, index) => (
                 <div
                   key={`${review._id}-${index}`}
