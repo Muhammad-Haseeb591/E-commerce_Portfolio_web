@@ -8,6 +8,9 @@ export const InvoiceButton = ({ orderId }) => {
     e.stopPropagation();
     setDownloading(true);
     try {
+      // 🔑 CORRECTED: no "/orders" prefix here — downloadFile.js's BASE_URL
+      // already equals `${API_URL}/orders`. Adding it again here would have
+      // requested /orders/orders/:id/invoice, which is wrong.
       await downloadGetFile(`/${orderId}/invoice`, `invoice-${orderId}.pdf`);
     } catch (err) {
       console.error("Invoice download failed:", err);

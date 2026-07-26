@@ -3,6 +3,7 @@ const Order = require("../models/Order");
 const Product = require("../models/Product");
 const stripe = require("../config/stripe");
 const { sendOrderConfirmationEmail } = require("../utils/sendEmail");
+const { formatCurrency } = require("../services/Invoicerenderer"); // 🔑 verify this path matches your actual file location
 
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch((error) => {
@@ -19,6 +20,19 @@ const ACCOUNT_ORDERS_URL = `${
   process.env.FRONTEND_URL || "https://e-commerce-portfolio-web.vercel.app"
 }/account/orders`;
 
+// 🔑 CRITICAL: your store's prices are in PKR, but Stripe is charging in
+// "usd" — meaning `totalAmount` (a PKR number) was being sent to Stripe
+// as if it were dollars. A PKR 2000 order was charging $2000 USD.
+//
+// This rate is a STOPGAP, not a production-safe solution. A hardcoded
+// rate drifts from the real market rate over time, which either
+// overcharges or undercharges every card customer. Before this goes live
+// with real money, replace this with a live exchange-rate API call
+// (e.g. exchangerate-api.com, Open Exchange Rates) cached for a short
+// TTL (e.g. 1 hour), not a constant.
+const PKR_TO_USD_RATE = 1 / 278; // TODO: replace with live FX rate lookup
+const STRIPE_CHARGE_CURRENCY = "usd"; // change to "pkr" instead IF your Stripe account supports PKR settlement — verify in Stripe Dashboard → Settings → Payouts first
+
 // Fire-and-forget: the order itself already succeeded (COD confirmed /
 // payment captured) by the time this is called, so an email hiccup must
 // never turn into a 500 for the customer or delay the response. Errors
@@ -26,7 +40,10 @@ const ACCOUNT_ORDERS_URL = `${
 const notifyOrderConfirmed = (order, email) => {
   sendOrderConfirmationEmail(email, {
     orderId: order.orderNumber,
-    total: `$${Number(order.totalAmount).toFixed(2)}`,
+    // 🔑 FIX: was hardcoded `$${...}` — now uses the order's actual
+    // currency (PKR by default) via the same formatter the invoice uses,
+    // so the email and the PDF invoice always agree.
+    total: formatCurrency(order.totalAmount, order.currency || "PKR"),
     isLoggedIn: true,
     trackUrl: ACCOUNT_ORDERS_URL,
   }).catch((err) => console.error("Order confirmation email failed:", err.message));
@@ -160,6 +177,9 @@ const CANCELLABLE_STATUSES = ["pending", "placed", "processing"];
 //  - Card via Stripe PaymentIntent, including 3D Secure (requires_action)
 // Price/subtotal/shipping/discount/totalAmount are ALWAYS computed
 // server-side from the DB — never trust values sent from the frontend.
+// All prices/totals stored on the Order are in PKR (store currency).
+// Stripe charges are converted to USD only at the moment of charging —
+// see PKR_TO_USD_RATE above.
 // ==========================
 exports.createOrder = asyncHandler(async (req, res) => {
   if (!req.userId) {
@@ -198,7 +218,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
       return res.status(400).json({ success: false, message: `Invalid product: ${item.productId}` });
     }
     const quantity = Number(item.quantity) || 1;
-    const price = dbProduct.price; // ← DB se, frontend se nahi
+    const price = dbProduct.price; // ← DB se, frontend se nahi (PKR)
 
     subtotal += price * quantity;
 
@@ -223,7 +243,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
     ? await validateCoupon(couponCode, subtotal)
     : { discount: 0 };
 
-  const totalAmount = Math.max(0, subtotal - discount) + shippingFee;
+  const totalAmount = Math.max(0, subtotal - discount) + shippingFee; // PKR
 
   // ── 3. Duplicate-request guard (double click / network retry) — agar
   // pichle 30 second me isi email + totalAmount + same item-count wala
@@ -276,6 +296,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
         shippingFee,
         discount,
         totalAmount,
+        currency: "PKR", // 🔑 was missing here — now explicit on both payment paths
         paymentMethod: "cod",
         paymentStatus: "unpaid",
         status: "pending",
@@ -297,16 +318,27 @@ exports.createOrder = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "paymentMethodId is required for card payment." });
   }
 
+  // 🔑 THE FIX: convert PKR totalAmount to USD before charging Stripe.
+  // Previously `totalAmount` (a PKR number) was sent to Stripe labeled as
+  // "usd" — meaning a PKR 2000 order charged the card $2000 USD instead
+  // of the correct ~$7.19 USD equivalent.
+  const amountInUsd = totalAmount * PKR_TO_USD_RATE;
+
   let paymentIntent;
   try {
     paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(totalAmount * 100),
-      currency: "usd",
+      amount: Math.round(amountInUsd * 100), // Stripe wants the smallest unit (cents)
+      currency: STRIPE_CHARGE_CURRENCY,
       payment_method: paymentMethodId,
       confirm: true,
       automatic_payment_methods: { enabled: true, allow_redirects: "never" },
       receipt_email: email,
-      metadata: { userId: String(req.userId) },
+      metadata: {
+        userId: String(req.userId),
+        // 🔑 store the PKR amount too, for reconciliation — Stripe's
+        // dashboard alone won't show what the customer saw at checkout.
+        pkrTotalAmount: String(totalAmount),
+      },
     });
   } catch (err) {
     return res.status(402).json({ success: false, message: err.message || "Payment failed." });
@@ -350,7 +382,6 @@ exports.createOrder = asyncHandler(async (req, res) => {
 
     decremented.push({ productId: item.productId, color: item.color, size: item.size, quantity: item.quantity });
   }
-
   let order;
   try {
     order = await Order.create({
@@ -361,7 +392,8 @@ exports.createOrder = asyncHandler(async (req, res) => {
       subtotal,
       shippingFee,
       discount,
-      totalAmount,
+      totalAmount, // PKR — what the customer saw and agreed to
+      currency: "PKR",
       paymentMethod: "card",
       paymentStatus: "paid",
       status: "processing",
@@ -381,7 +413,6 @@ exports.createOrder = asyncHandler(async (req, res) => {
 
   return res.status(201).json({ success: true, order });
 });
-
 // ==========================
 // Get logged-in user's own orders
 // ==========================
@@ -599,8 +630,8 @@ exports.updateOrder = asyncHandler(async (req, res) => {
     trackingNumber,
     carrier,
     estimatedDelivery,
-     paymentMethod,   // 👈 add
-  paymentStatus,  
+    paymentMethod,
+    paymentStatus,
     note, // optional note attached to this status change (e.g. "Left warehouse")
   } = req.body;
 
@@ -613,8 +644,9 @@ exports.updateOrder = asyncHandler(async (req, res) => {
   if (trackingNumber !== undefined) order.trackingNumber = trackingNumber;
   if (carrier !== undefined) order.carrier = carrier;
   if (estimatedDelivery !== undefined) order.estimatedDelivery = estimatedDelivery;
-if (paymentMethod !== undefined) order.paymentMethod = paymentMethod;   
-if (paymentStatus !== undefined) order.paymentStatus = paymentStatus;
+  if (paymentMethod !== undefined) order.paymentMethod = paymentMethod;
+  if (paymentStatus !== undefined) order.paymentStatus = paymentStatus;
+
   // If the status actually changed and a note was sent, attach it to the
   // newest statusHistory entry that the pre-save hook is about to push.
   const willAddNote = note !== undefined && status !== undefined && status !== order.status;

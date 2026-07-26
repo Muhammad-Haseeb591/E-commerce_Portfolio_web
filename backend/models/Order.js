@@ -1,5 +1,24 @@
 const mongoose = require("mongoose");
 
+// 🔑 UPDATED SHAPE — matches EditOrderModal.jsx exactly:
+// firstName, lastName, phone, line1, city, state, zip, country.
+// Every place that builds shippingAddress (checkout controller, admin
+// edit modal, invoice renderer) MUST use these exact field names, or
+// Mongoose will silently strip unknown fields on save.
+const shippingAddressSchema = new mongoose.Schema(
+  {
+    firstName: { type: String, default: "N/A" },
+    lastName: { type: String, default: "N/A" },
+    phone: { type: String, default: "N/A" },
+    line1: { type: String, default: "N/A" },
+    city: { type: String, default: "N/A" },
+    state: { type: String, default: "" }, // optional field in the modal
+    zip: { type: String, default: "N/A" },
+    country: { type: String, default: "PK" }, // modal defaults to "PK"
+  },
+  { _id: false }
+);
+
 const orderSchema = new mongoose.Schema(
   {
     orderNumber: { type: Number, required: true, unique: true, index: true },
@@ -7,7 +26,16 @@ const orderSchema = new mongoose.Schema(
     email: String,
     items: [],
     totalAmount: Number,
-    shippingAddress: Object,
+
+    // 🔑 Currency the order was actually placed/charged in. Set explicitly
+    // in the checkout controller — never re-derive it later from geolocation.
+    currency: {
+      type: String,
+      enum: ["PKR", "USD", "EUR", "GBP"],
+      default: "PKR",
+    },
+
+    shippingAddress: { type: shippingAddressSchema, default: () => ({}) },
     status: { type: String, default: "pending" },
 
     // ── Order Tracking ──

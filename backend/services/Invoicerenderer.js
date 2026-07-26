@@ -8,12 +8,23 @@ const PRIMARY_COLOR = "#1f2937";
 const GRAY_COLOR = "#6b7280";
 const PAGE_BOTTOM_LIMIT = 700; // y-position past which we start a new page
 
+const CURRENCY_SYMBOLS = {
+  PKR: "Rs.",
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+};
+
 function formatDate(date) {
   return date ? new Date(date).toLocaleDateString() : "—";
 }
 
-function formatCurrency(amount) {
-  return `Rs. ${(Number(amount) || 0).toLocaleString()}`;
+// 🔑 FIX: reads the order's actual currency instead of hardcoding "Rs.".
+// Falls back to PKR only if somehow missing (shouldn't happen — schema
+// default already covers it, this is just a safety net for old data).
+function formatCurrency(amount, currency = "PKR") {
+  const symbol = CURRENCY_SYMBOLS[currency] || CURRENCY_SYMBOLS.PKR;
+  return `${symbol} ${(Number(amount) || 0).toLocaleString()}`;
 }
 
 // Normalizes an order's items into a flat, safe-to-read shape regardless of
@@ -31,7 +42,15 @@ function normalizeItems(order) {
   }));
 }
 
+// 🔑 FIX: prioritizes the checkout-entered shipping name over the account
+// name. Guest orders have userId: null, and even logged-in users may have
+// shipped to someone else — the shipping address is the source of truth
+// for "who is this order addressed to", not the account holder.
 function customerName(order) {
+  const addr = order.shippingAddress;
+  if (addr?.firstName || addr?.lastName) {
+    return [addr.firstName, addr.lastName].filter(Boolean).join(" ");
+  }
   return order.userId?.fullName || order.customerName || "Customer";
 }
 
@@ -39,10 +58,30 @@ function customerEmail(order) {
   return order.userId?.email || order.email || "";
 }
 
+// 🔑 NEW: formats the shipping address block for invoice printing.
+// Returns an array of lines so callers can lay them out with doc.text().
+function addressLines(order) {
+  const addr = order.shippingAddress;
+  if (!addr) return [];
+
+  const lines = [];
+  if (addr.line1) lines.push(addr.line1);
+
+  const cityLine = [addr.city, addr.state, addr.zip].filter(Boolean).join(", ");
+  if (cityLine) lines.push(cityLine);
+
+  if (addr.country) lines.push(addr.country);
+  if (addr.phone) lines.push(addr.phone);
+
+  return lines;
+}
+
 // ─────────────────────────────────────────────────────────────
 // FULL PAGE INVOICE — used for single-order download
 // ─────────────────────────────────────────────────────────────
 function renderFullInvoice(doc, order) {
+  const currency = order.currency || "PKR";
+
   doc.fontSize(20).fillColor(PRIMARY_COLOR).text("INVOICE", 50, 50, { align: "left" });
 
   doc
@@ -58,9 +97,21 @@ function renderFullInvoice(doc, order) {
     .fillColor(GRAY_COLOR)
     .text(customerEmail(order), 350, 65, { align: "right", width: 200 });
 
-  doc.moveTo(50, 130).lineTo(550, 130).strokeColor("#e5e7eb").stroke();
+  // 🔑 NEW: shipping address block, right-aligned under the customer name/email
+  const shipLines = addressLines(order);
+  let addrY = 80;
+  if (shipLines.length) {
+    doc.fontSize(9).fillColor(GRAY_COLOR);
+    shipLines.forEach((line) => {
+      doc.text(line, 350, addrY, { align: "right", width: 200 });
+      addrY += 12;
+    });
+  }
 
-  let y = 150;
+  const headerBottom = Math.max(130, addrY + 10);
+  doc.moveTo(50, headerBottom).lineTo(550, headerBottom).strokeColor("#e5e7eb").stroke();
+
+  let y = headerBottom + 20;
 
   const drawTableHeader = () => {
     doc.fontSize(10).fillColor(PRIMARY_COLOR);
@@ -87,8 +138,8 @@ function renderFullInvoice(doc, order) {
     doc.fontSize(9).fillColor(PRIMARY_COLOR);
     doc.text(item.name, 50, y, { width: 230 });
     doc.text(String(item.qty), 300, y);
-    doc.text(formatCurrency(item.price), 370, y);
-    doc.text(formatCurrency(item.total), 470, y);
+    doc.text(formatCurrency(item.price, currency), 370, y);
+    doc.text(formatCurrency(item.total, currency), 470, y);
 
     y += 25;
   });
@@ -105,7 +156,7 @@ function renderFullInvoice(doc, order) {
     .fontSize(11)
     .fillColor(PRIMARY_COLOR)
     .text("Grand Total", 370, y)
-    .text(formatCurrency(order.totalAmount), 470, y);
+    .text(formatCurrency(order.totalAmount, currency), 470, y);
 
   doc
     .fontSize(8)
@@ -117,6 +168,8 @@ function renderFullInvoice(doc, order) {
 // HALF-PAGE INVOICE — 2 per A4 page, used for bulk export
 // ─────────────────────────────────────────────────────────────
 function renderHalfInvoice(doc, order, offsetY) {
+  const currency = order.currency || "PKR";
+
   doc.fontSize(14).fillColor(PRIMARY_COLOR).text("INVOICE", 50, offsetY);
   doc
     .fontSize(8)
@@ -131,6 +184,17 @@ function renderHalfInvoice(doc, order, offsetY) {
     .fillColor(GRAY_COLOR)
     .text(customerEmail(order), 350, offsetY + 12, { align: "right", width: 200 });
 
+  // 🔑 NEW: compact shipping address (city/country/phone only — half page
+  // doesn't have room for the full multi-line block).
+  const addr = order.shippingAddress;
+  if (addr) {
+    const compact = [addr.city, addr.country].filter(Boolean).join(", ");
+    doc.fontSize(7).fillColor(GRAY_COLOR).text(compact, 350, offsetY + 24, { align: "right", width: 200 });
+    if (addr.phone) {
+      doc.text(addr.phone, 350, offsetY + 34, { align: "right", width: 200 });
+    }
+  }
+
   let y = offsetY + 55;
 
   const items = normalizeItems(order).slice(0, 6); // half-page fits ~6 rows
@@ -138,7 +202,7 @@ function renderHalfInvoice(doc, order, offsetY) {
   items.forEach((item) => {
     doc.fontSize(8).fillColor(PRIMARY_COLOR);
     doc.text(`${item.name} x${item.qty}`, 50, y, { width: 300 });
-    doc.text(formatCurrency(item.total), 470, y);
+    doc.text(formatCurrency(item.total, currency), 470, y);
     y += 15;
   });
 
@@ -146,7 +210,7 @@ function renderHalfInvoice(doc, order, offsetY) {
     .fontSize(9)
     .fillColor(PRIMARY_COLOR)
     .text("Total:", 400, y + 5)
-    .text(formatCurrency(order.totalAmount), 470, y + 5);
+    .text(formatCurrency(order.totalAmount, currency), 470, y + 5);
 }
 
 module.exports = {
@@ -157,4 +221,5 @@ module.exports = {
   formatCurrency,
   customerName,
   customerEmail,
+  addressLines,
 };
