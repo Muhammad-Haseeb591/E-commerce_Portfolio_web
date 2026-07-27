@@ -1,5 +1,13 @@
 # Enterprise E-Commerce Platform
+## Live Demo
 
+Frontend:
+https://e-commerce-portfolio-web.vercel.app/
+
+Backend API:
+https://e-commerce-portfolio-web.onrender.com
+
+ 
 A full-stack enterprise-level e-commerce application built with modern web technologies. This project includes a complete customer shopping experience, an administrative dashboard, secure authentication, online payments, inventory management, and production-ready architecture.
 
 ---
@@ -89,13 +97,13 @@ server/
 Clone the repository
 
 ```bash
-git clone <repository-url>
+git clone repository-url-(https://github.com/Muhammad-Haseeb591/E-commerce_Portfolio_web)>
 ```
 
 Go to the project directory
 
 ```bash
-cd <project-name>
+cd project-name-E-commerce_Portfolio_web
 ```
 
 Install dependencies
@@ -146,7 +154,7 @@ EMAIL_PASS=
 Start the backend
 
 ```bash
-npm run dev
+node app.js
 ```
 
 Start the frontend
