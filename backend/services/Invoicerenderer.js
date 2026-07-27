@@ -27,9 +27,6 @@ function formatCurrency(amount, currency = "PKR") {
   return `${symbol} ${(Number(amount) || 0).toLocaleString()}`;
 }
 
-// Normalizes an order's items into a flat, safe-to-read shape regardless of
-// whether `product` was populated, or the item stores its own name/price
-// snapshot (which is what your schema-less `items: []` array likely does).
 function normalizeItems(order) {
   const items = Array.isArray(order.items) ? order.items : [];
   return items.map((item) => ({
