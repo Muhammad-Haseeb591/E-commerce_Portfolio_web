@@ -79,10 +79,6 @@ const ProductForm = ({ onClose, onProductAdded }) => {
     clearFieldError(name);
   };
 
-  // Category and Type together decide the size scale, so changing either
-  // one resets any sizes already picked on every color block (they may no
-  // longer be valid), and clears each color's manual stock too so stale
-  // numbers from the "no size scale" mode don't linger silently.
   const resetAllColorSizesAndStock = () =>
     setColorBlocks((prev) => prev.map((b) => ({ ...b, sizes: {}, stock: "" })));
 

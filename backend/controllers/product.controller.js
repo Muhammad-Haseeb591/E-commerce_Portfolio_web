@@ -9,10 +9,10 @@ exports.getAddProducts = async (req, res) => {
       discount, rating, type,
       category, stock, status,
     } = req.body;
-    // 🔑 Top-level `images` REMOVED — General Image concept doesn't exist
+    // Top-level `images` REMOVED — General Image concept doesn't exist
     // anymore. Each color now carries its own single `image` string inside
     // colors[i].image (handled by colorSchema, opaque to this controller).
-    // 🔑 `productId` intentionally NOT taken from req.body — it's
+    // `productId` intentionally NOT taken from req.body — it's
     // auto-generated (assumed via a pre("validate") hook on the schema,
     // since Product.js wasn't shared). If the client sends one anyway, we
     // ignore it below so nobody can spoof a duplicate/unique productId.
@@ -42,7 +42,7 @@ exports.getAddProducts = async (req, res) => {
       category, stock, status,
     });
 
-    // 🔑 .save() (not .create() shortcut skipped, not findByIdAndUpdate)
+    //  .save() (not .create() shortcut skipped, not findByIdAndUpdate)
     // is what actually runs colorSchema's pre("validate") stock rollup,
     // the duplicate-color/duplicate-size validators, and productSchema's
     // pre("save") total-stock rollup (and, presumably, productId
@@ -85,17 +85,6 @@ exports.getAddProducts = async (req, res) => {
   }
 };
 
-// ── 2. Fetch All Products (category + color + size + price + search + sort + pagination) ──
-// Query params, sab optional:
-//   category=women                → sirf usi category ke products
-//   color=Black                   → colors[].color match (case-insensitive)
-//   sizes=40,42                   → colors[].sizes[].size mein se koi bhi match
-//   minPrice=1000&maxPrice=5000   → price range
-//   search=shirt                  → name/description mein match
-//   sortBy=price                  → price | name | rating | discount | createdAt
-//   order=asc | desc              → default: desc
-//   page=1                        → default: 1
-//   size=20                       → per-page count, default: 20
 exports.fetchAllProducts = async (req, res) => {
   try {
     const {
@@ -144,11 +133,12 @@ exports.fetchAllProducts = async (req, res) => {
     }
 
     if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
-      ];
-    }
+  filter.$or = [
+    { name: { $regex: search, $options: "i" } },
+    { description: { $regex: search, $options: "i" } },
+    { productId: { $regex: search, $options: "i" } },
+  ];
+}
 
     // ── Sorting ───────────────────────────────────
     const allowedSortFields = ["price", "name", "rating", "discount", "createdAt"];

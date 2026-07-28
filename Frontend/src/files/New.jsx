@@ -116,17 +116,12 @@ title="New Arrivals"
                 </div>
 
                 <div className="w-full h-auto px-[6px] pt-[8px] pb-[8px]">
-                  {/* 🔑 ADDED — SKU name ke upar. Agar aapke schema mein
-                      field ka naam `sku` nahi hai (e.g. `productCode`,
-                      `styleCode`), yahan sirf `product.sku` ko us naam se
-                      replace kar dena. Agar field missing/undefined ho to
-                      ye line render hi nahi hogi (blank space nahi banega). */}
-                  {product.sku && (
+                        {product.productId && (
                     <p className="w-full text-[11px] text-gray-400 tracking-wide truncate">
-                      {product.sku}
+                      {product.productId}
                     </p>
                   )}
-
+          
                   <h3 className="w-full text-[14px] text-gray-800 truncate">{product.name}</h3>
 
                   {product.article && (

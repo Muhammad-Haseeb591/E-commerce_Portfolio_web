@@ -1,9 +1,8 @@
-import { Plus, X, Loader2, ChevronDown } from "lucide-react";
+import { X, Loader2, ChevronDown, Plus } from "lucide-react";
 import { COLOR_OPTIONS, swatchStyle, colorBlockStock } from "../AdminFormComponents/Productformhelpers";
 
 const baseInput =
   "w-full px-4 py-2.5 rounded-xl border bg-gray-50 text-gray-800 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:bg-white transition border-gray-200 focus:ring-gray-300 focus:border-gray-300";
-
 
 const ColorsSection = ({
   colorBlocks,
@@ -17,8 +16,6 @@ const ColorsSection = ({
   onAddBlock,
   onImageChange,
   onFileSelect,
-  onAddImageField,
-  onRemoveImageField,
   onToggleSize,
   onSetSizeQty,
   totalStock,
@@ -36,7 +33,7 @@ const ColorsSection = ({
         Colors <span className="text-red-500">*</span>
       </label>
       <p className="text-xs text-gray-400 mb-3">
-        Add at least one color. Each color has its own photos, and its own
+        Add at least one color. Each color has its own photo, and its own
         {sizeOptions ? " size-wise stock." : " stock count."}
       </p>
       {showTypeCategoryHint && (
@@ -46,22 +43,71 @@ const ColorsSection = ({
         </p>
       )}
 
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         {colorBlocks.map((block, colorIndex) => {
           const usedElsewhere = colorsUsedElsewhere(colorIndex);
           const availableOptions = COLOR_OPTIONS.filter(
             (c) => c === block.color || !usedElsewhere.has(c)
           );
           const blockStock = colorBlockStock(block, sizeOptions);
+          const imgKey = String(colorIndex);
 
           return (
             <div
               key={colorIndex}
-              className={`border rounded-xl p-3 space-y-3 ${
+              className={`border rounded-xl p-3 sm:p-4 space-y-3 ${
                 colorErrors[colorIndex] ? "border-red-300 bg-red-50/40" : "border-gray-100"
               }`}
             >
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              {/* Image — shown first so the color's photo is the first thing
+                  seen/edited, ahead of the color picker and size/stock. */}
+              <div className="space-y-2">
+                <p className="text-[11px] font-medium text-gray-500">Image for this color</p>
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                  {colorImgUploading[imgKey] ? (
+                    <div className="w-14 h-14 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 shrink-0">
+                      <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                    </div>
+                  ) : block.image ? (
+                    <img
+                      src={block.image}
+                      alt={`${block.color || "color"}-preview`}
+                      className="w-14 h-14 sm:w-12 sm:h-12 object-cover rounded-lg border border-gray-200 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg border border-dashed border-gray-300 text-[9px] text-gray-400 text-center shrink-0">
+                      No image
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <label className="text-xs text-gray-600 hover:text-gray-900 cursor-pointer bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg shrink-0">
+                      {block.image ? "Change" : "Upload"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => onFileSelect(colorIndex, e.target.files[0])}
+                      />
+                    </label>
+
+                    <input
+                      type="text"
+                      placeholder="...or paste image URL"
+                      value={block.image || ""}
+                      onChange={(e) => onImageChange(colorIndex, e.target.value)}
+                      className={`${baseInput} flex-1 py-1.5`}
+                    />
+                  </div>
+                </div>
+
+                {colorImgErrors[imgKey] && (
+                  <p className="text-[10px] text-red-500">{colorImgErrors[imgKey]}</p>
+                )}
+              </div>
+
+              {/* Color + stock row */}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center border-t border-gray-100 pt-3">
                 <div className="relative w-full sm:flex-1">
                   <select
                     value={block.color}
@@ -124,7 +170,7 @@ const ColorsSection = ({
               {sizeOptions && (
                 <div className="pl-1 space-y-2 border-t border-gray-100 pt-3">
                   <p className="text-[11px] font-medium text-gray-500">Sizes for this color</p>
-                  <div className="grid grid-cols-4 xs:grid-cols-5 sm:grid-cols-6 gap-2">
+                  <div className="grid grid-cols-4 xs:grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-8 2xl:grid-cols-10 gap-2">
                     {sizeOptions.map((size) => {
                       const active = size in block.sizes;
                       return (
@@ -178,75 +224,6 @@ const ColorsSection = ({
                 </div>
               )}
 
-              {/* Per-color images */}
-              <div className="pl-1 space-y-2 border-t border-gray-100 pt-3">
-                <p className="text-[11px] font-medium text-gray-500">Images for this color</p>
-                {(block.images ?? []).map((img, imgIndex) => {
-                  const key = `${colorIndex}-${imgIndex}`;
-                  return (
-                    <div key={imgIndex} className="flex flex-wrap items-center gap-2">
-                      {colorImgUploading[key] ? (
-                        <div className="w-12 h-12 flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 shrink-0">
-                          <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
-                        </div>
-                      ) : img ? (
-                        <img
-                          src={img}
-                          alt={`${block.color || "color"}-preview-${imgIndex}`}
-                          className="w-12 h-12 object-cover rounded-lg border border-gray-200 shrink-0"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 flex items-center justify-center rounded-lg border border-dashed border-gray-300 text-[9px] text-gray-400 text-center shrink-0">
-                          No image
-                        </div>
-                      )}
-
-                      <label className="text-xs text-gray-600 hover:text-gray-900 cursor-pointer bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg shrink-0">
-                        {img ? "Change" : "Upload"}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => onFileSelect(colorIndex, imgIndex, e.target.files[0])}
-                        />
-                      </label>
-
-                      <input
-                        type="text"
-                        placeholder="...or paste image URL"
-                        value={img}
-                        onChange={(e) => onImageChange(colorIndex, imgIndex, e.target.value)}
-                        className={`${baseInput} w-full sm:flex-1 sm:w-auto py-1.5`}
-                      />
-
-                      {block.images.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => onRemoveImageField(colorIndex, imgIndex)}
-                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-500 shrink-0"
-                          aria-label="Remove color image"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-
-                      {colorImgErrors[key] && (
-                        <p className="text-[10px] text-red-500 shrink-0 w-full">
-                          {colorImgErrors[key]}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-
-                <button
-                  type="button"
-                  onClick={() => onAddImageField(colorIndex)}
-                  className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 hover:underline"
-                >
-                  <Plus className="w-3 h-3" /> Add image for this color
-                </button>
-              </div>
             </div>
           );
         })}
@@ -258,7 +235,7 @@ const ColorsSection = ({
         disabled={colorBlocks.length >= COLOR_OPTIONS.length}
         className="mt-3 w-full sm:w-auto inline-flex items-center justify-center gap-1 text-sm text-gray-500 hover:text-gray-800 hover:underline disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
       >
-        <Plus className="w-3.5 h-3.5" /> Add Image
+        <Plus className="w-3.5 h-3.5" /> Add Color
       </button>
 
       <p className="text-xs text-gray-400 mt-3">Total stock: {totalStock}</p>

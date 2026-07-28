@@ -19,7 +19,7 @@ const categories = [
       "https://images.unsplash.com/photo-1585129351701-304867c8f2e8?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     stock: 2140,
   },
-  { name: "Men", slug: "men", image: "https://images.unsplash.com/photo-1490114538077-0a7f8cb49891?w=600", stock: 1284 },
+  { name: "Men", slug: "men", image: "https://cdn.pixabay.com/photo/2019/12/11/08/43/nike-4687824_1280.jpg", stock: 1284 },
   {
     name: "Kids",
     slug: "kids",
@@ -41,17 +41,17 @@ const categories = [
 const bannerSlides = [
   {
     image:
-      "https://plus.unsplash.com/premium_photo-1664202526744-516d0dd22932?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "https://cdn.pixabay.com/photo/2013/04/27/09/30/shoes-107401_1280.jpg",
     slug: "new",
   },
   {
     image:
-      "https://images.unsplash.com/photo-1585129351701-304867c8f2e8?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "https://cdn.pixabay.com/photo/2015/01/03/03/51/sandals-587185_1280.jpg",
     slug: "women",
   },
   {
     image:
-      "https://images.unsplash.com/photo-1539185441755-769473a23570?q=80&w=2071&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "https://cdn.pixabay.com/photo/2017/03/16/22/19/jeans-2150408_1280.jpg",
     slug: "men",
   },
   {
@@ -308,50 +308,85 @@ function TrustStats({ stats }) {
 
 /* -------------------------------------------------------------- live stock */
 
+// Each item gets its own 50vh "scene": it slides in from alternating sides
+// (left/right) as it enters the viewport, and — since `once: false` — fades
+// and slides back out the same way when it scrolls back past the top, giving
+// the "hides again on scroll" effect the rest of the page's reveals don't have.
+function LiveStockCard({ item, index }) {
+  const fromLeft = index % 2 === 0;
+  const { ref, visible } = useReveal({ threshold: 0.4, once: false });
+  const pct = Math.max(6, Math.min(100, item.left));
+  const low = item.left <= 10;
+
+  return (
+    <div
+      ref={ref}
+      className={cx(
+        "flex h-[50vh] w-full items-stretch overflow-hidden border-b border-[#333333] last:border-b-0",
+        fromLeft ? "flex-row" : "flex-row-reverse",
+      )}
+    >
+      {/* Stat panel — big number, alternates side with the item */}
+      <div
+        className={cx(
+          "group relative flex w-2/5 shrink-0 flex-col items-center justify-center gap-2 bg-[#333333] text-white sm:w-1/3 sm:gap-3",
+          "transition-all duration-700 ease-out motion-reduce:transition-none motion-reduce:transform-none",
+          visible
+            ? "translate-x-0 opacity-100"
+            : cx("opacity-0", fromLeft ? "-translate-x-16" : "translate-x-16"),
+        )}
+      >
+        <CornerFold dark />
+        <span className="text-3xl font-semibold tabular-nums sm:text-5xl md:text-6xl">{item.left}</span>
+        <span className="text-center text-[9px] uppercase tracking-widest text-gray-300 sm:text-xs">
+          {low ? "Almost gone" : "Units left"}
+        </span>
+      </div>
+
+      {/* Detail panel — name, price, sold-out bar */}
+      <div
+        className={cx(
+          "flex flex-1 flex-col justify-center gap-2 px-5 sm:gap-3 sm:px-8 md:px-12",
+          "transition-all delay-100 duration-700 ease-out motion-reduce:transition-none motion-reduce:transform-none",
+          visible
+            ? "translate-x-0 opacity-100"
+            : cx("opacity-0", fromLeft ? "translate-x-16" : "-translate-x-16"),
+        )}
+      >
+        <p className="text-lg font-semibold sm:text-2xl md:text-3xl">{item.name}</p>
+        <span className="text-base font-medium text-gray-500 sm:text-lg">{item.price}</span>
+        <div className="mt-1 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-gray-200 shadow-inner">
+          <span
+            style={{ width: visible ? `${pct}%` : "0%" }}
+            className={cx(
+              "block h-full rounded-full transition-[width] duration-1000 ease-out",
+              low ? "animate-pulse bg-red-600" : "bg-[#333333]",
+            )}
+          />
+        </div>
+        <p className="text-[10px] uppercase tracking-widest text-gray-500 sm:text-xs">
+          {item.sold.toLocaleString()} sold
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function LiveStock({ items }) {
   return (
-    <section className="w-full px-4 py-8 sm:px-6 sm:py-14 md:px-8 lg:px-10 xl:px-12 2xl:px-16">
-      <Reveal>
-        <h2 className="text-base font-semibold sm:text-lg md:text-xl">Live stock levels</h2>
-        <p className="mt-1 text-xs text-gray-500 sm:text-sm">Updated every few minutes as orders come in.</p>
-      </Reveal>
+    <section className="w-full">
+      <div className="px-4 py-8 sm:px-6 sm:py-10 md:px-8 lg:px-10 xl:px-12 2xl:px-16">
+        <Reveal>
+          <h2 className="text-base font-semibold sm:text-lg md:text-xl">Live stock levels</h2>
+          <p className="mt-1 text-xs text-gray-500 sm:text-sm">Updated every few minutes as orders come in.</p>
+        </Reveal>
+      </div>
 
-      <ul className="mt-5 grid gap-3 sm:mt-6 sm:grid-cols-2 sm:gap-4">
-        {items.map((item, i) => {
-          const pct = Math.max(6, Math.min(100, item.left));
-          const low = item.left <= 10;
-          return (
-            <li key={item.id}>
-              <Reveal delay={i * 90} direction={i % 2 === 0 ? "left" : "right"}>
-                <div
-                  className={cx(
-                    "group relative overflow-hidden rounded-sm border border-[#333333]/80 bg-white p-4 sm:p-5",
-                    CARD_3D,
-                  )}
-                >
-                  <CornerFold />
-                  <div className="flex items-baseline justify-between gap-4">
-                    <p className="text-sm font-medium sm:text-base">{item.name}</p>
-                    <span className="text-base font-semibold sm:text-lg">{item.price}</span>
-                  </div>
-                  <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 shadow-inner">
-                    <span
-                      style={{ width: `${pct}%` }}
-                      className={cx(
-                        "block h-full rounded-full transition-[width] duration-1000 ease-out",
-                        low ? "animate-pulse bg-red-600" : "bg-[#333333]",
-                      )}
-                    />
-                  </div>
-                  <p className="mt-2 text-[10px] uppercase tracking-widest text-gray-500 sm:text-xs">
-                    {low ? `Only ${item.left} left` : `${item.left} in stock`} · {item.sold.toLocaleString()} sold
-                  </p>
-                </div>
-              </Reveal>
-            </li>
-          );
-        })}
-      </ul>
+      <div className="w-full border-t border-[#333333]">
+        {items.map((item, i) => (
+          <LiveStockCard key={item.id} item={item} index={i} />
+        ))}
+      </div>
     </section>
   );
 }
@@ -759,7 +794,7 @@ export default function Home() {
             </div>
           </div>
         </section>
-      )}
+      )}                                          
       <WhatsAppButton />
     </div>
   );

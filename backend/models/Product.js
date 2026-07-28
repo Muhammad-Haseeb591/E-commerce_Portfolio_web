@@ -62,16 +62,7 @@ const productSchema = new mongoose.Schema(
       enum: ["active", "inactive", "pending"],
     },
     isActive: { type: Boolean, default: true },
-    // ProductForm.jsx sends this (decides the shoe size scale via
-    // sizeOptionsFor(type, category)); persisted here so Edit can
-    // correctly re-derive whether a product uses per-color sizes or a
-    // plain stock number.
     type: { type: String, default: "other", enum: ["shoes", "other"] },
-    // Ab sirf `colors[]` hi source of truth hai — har color ke andar
-    // apni image, apni sizes, apna stock. Top-level `sizes` field
-    // hata diya gaya hai (agar kabhi bina-color simple product chahiye ho
-    // jisme sirf sizes hon, to ek "Default" naam ka color banake usme
-    // sizes daal dena — structure consistent rahega).
     colors: { type: [colorSchema], default: [] },
     bg: { type: String, default: "" },
     discount: { type: String, default: "" },

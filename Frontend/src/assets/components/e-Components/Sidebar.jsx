@@ -7,7 +7,7 @@ import useAuth from '../hooks/useAuth'
 import { logoutUser } from '../redux_Toolkit/authSlice'
 
 const menuItems = [
-  { name: 'NEW', to: '/new', img: 'https://res.cloudinary.com/dxqs4sg8j/image/upload/v1783365556/NewShoes_dv0vkn.webp' },
+  { name: 'NEW', to: '/new', img: 'https://cdn.pixabay.com/photo/2013/04/27/09/30/shoes-107401_1280.jpg' },
   { name: 'WOMEN', to: '/women', img: 'https://res.cloudinary.com/dxqs4sg8j/image/upload/v1783365564/LadiesShoes_ltocgd.jpg' },
   { name: 'MEN', to: '/men', img: 'https://res.cloudinary.com/dxqs4sg8j/image/upload/v1765427130/cld-sample-5.jpg' },
   { name: 'KIDS', to: '/kids', img: 'https://images.unsplash.com/photo-1522771930-78848d9293e8?w=200&h=200&fit=crop' },

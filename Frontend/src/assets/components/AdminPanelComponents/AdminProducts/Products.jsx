@@ -122,8 +122,8 @@ const EditModal = ({ product, onClose, onSave }) => {
 
   // 🔑 Pre-fill straight from the DB product — colorsArrayToBlocks handles
   // both the new colors[] schema and legacy single-color documents, so
-  // opening Edit on ANY existing product shows its real saved
-  // color/images/stock (or size grid) already selected.
+  // opening Edit on ANY existing product shows its real saved color +
+  // its saved image (block.image) + size grid / stock already selected.
   const {
     colorBlocks,
     colorErrors,
@@ -133,8 +133,6 @@ const EditModal = ({ product, onClose, onSave }) => {
     removeColorBlock,
     updateColorField,
     handleColorImageChange,
-    addColorImageField,
-    removeColorImageField,
     handleColorFileSelect,
     toggleColorSize,
     setColorSizeQuantity,
@@ -284,9 +282,9 @@ const EditModal = ({ product, onClose, onSave }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center px-4 py-6" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center px-3 sm:px-4 py-4 sm:py-6" onClick={onClose}>
       <div
-        className="relative bg-white rounded-2xl w-full max-w-2xl max-h-[95vh] overflow-y-auto"
+        className="relative bg-white rounded-2xl w-full max-w-2xl 2xl:max-w-3xl max-h-[95vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -322,8 +320,6 @@ const EditModal = ({ product, onClose, onSave }) => {
             onAddBlock={addColorBlock}
             onImageChange={handleColorImageChange}
             onFileSelect={handleColorFileSelect}
-            onAddImageField={addColorImageField}
-            onRemoveImageField={removeColorImageField}
             onToggleSize={toggleColorSize}
             onSetSizeQty={setColorSizeQuantity}
             totalStock={totalStock}
@@ -501,7 +497,7 @@ const Products = () => {
   const emptyOrStateContent = renderContent();
 
   return (
-    <div className="min-h-screen bg-gray-50 p-3 sm:p-6 overflow-x-hidden">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-6 2xl:p-8 overflow-x-hidden">
 
       <ImageModal
         selectedImage={selectedImage}
@@ -520,11 +516,11 @@ const Products = () => {
         />
       )}
 
-      <div className="max-w-7xl mx-auto space-y-3 sm:space-y-6">
+      <div className="max-w-7xl 2xl:max-w-[96rem] mx-auto space-y-3 sm:space-y-6">
 
         {/* Header bar */}
         <div className="bg-white rounded-2xl shadow-sm sm:shadow-lg p-4 sm:p-6 border border-gray-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-          <h1 className="text-lg sm:text-3xl font-bold text-gray-900">Product Management</h1>
+          <h1 className="text-lg sm:text-2xl 2xl:text-3xl font-bold text-gray-900">Product Management</h1>
           <button
             onClick={() => setShowAddProduct(true)}
             style={{ backgroundColor: PRIMARY }}
@@ -551,8 +547,8 @@ const Products = () => {
           </div>
         </div>
 
-        {/* ── Mobile: card list (< sm) ── */}
-        <div className="sm:hidden bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* ── Mobile / small tablet: card list (< md) ── */}
+        <div className="md:hidden bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {showSkeleton ? (
             <CardSkeletonList />
           ) : (
@@ -568,8 +564,8 @@ const Products = () => {
           )}
         </div>
 
-        {/* ── Desktop: table (sm and up) ── */}
-        <div className="hidden sm:block bg-white rounded-2xl shadow-lg border border-gray-100 overflow-x-auto">
+        {/* ── Tablet and up: table (md+) ── */}
+        <div className="hidden md:block bg-white rounded-2xl shadow-lg border border-gray-100 overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
