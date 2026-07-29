@@ -27,11 +27,6 @@ const SearchBar = () => {
   }, []);
 
   const trimmedQuery = query.trim().toLowerCase();
-
-  // 🔑 CHANGED — search ab SIRF productId par hoti hai (name/description/
-  // category hata diye). Exact match ko priority milti hai, phir partial
-  // ("starts with"), phir "contains" — professional SKU-search jaisa
-  // behavior (jaise Shopify/admin panels mein hota hai).
   const results = trimmedQuery
     ? (catalog || [])
         .filter((p) => (p.productId || "").toLowerCase().includes(trimmedQuery))

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import SEO from "../assets/components/SEO/SEO";
 
@@ -308,13 +308,12 @@ function TrustStats({ stats }) {
 
 /* -------------------------------------------------------------- live stock */
 
-// Each item gets its own 50vh "scene": it slides in from alternating sides
-// (left/right) as it enters the viewport, and — since `once: false` — fades
-// and slides back out the same way when it scrolls back past the top, giving
-// the "hides again on scroll" effect the rest of the page's reveals don't have.
+// Each item animates in ONCE per page visit (once: true). The observer
+// disconnects after the first reveal, so it plays exactly one time per
+// page load and then stays visible/static for the rest of the visit.
 function LiveStockCard({ item, index }) {
   const fromLeft = index % 2 === 0;
-  const { ref, visible } = useReveal({ threshold: 0.4, once: false });
+  const { ref, visible } = useReveal({ threshold: 0.4, once: true });
   const pct = Math.max(6, Math.min(100, item.left));
   const low = item.left <= 10;
 
@@ -560,12 +559,12 @@ export default function Home() {
   const location = useLocation();
   const selectedSlug = location.pathname.replace(/^\/+/, "");
 
+  // FIX: banner is now driven purely by `slideIndex` state — no scroll
+  // container, no drag refs, no pointer handlers at all. The track below
+  // is positioned with a CSS transform based on this index, and the ONLY
+  // two things that can change it are the autoplay interval and the dot
+  // buttons. There is nothing left for a mouse or finger to grab and drag.
   const [slideIndex, setSlideIndex] = useState(0);
-  const bannerRef = useRef(null);
-  const isDragging = useRef(false);
-  const didDrag = useRef(false);
-  const dragStartX = useRef(0);
-  const dragStartScroll = useRef(0);
 
   const progress = useScrollProgress();
   const scrollY = useScrollY();
@@ -573,53 +572,12 @@ export default function Home() {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      if (isDragging.current) return;
-      const node = bannerRef.current;
-      if (!node) return;
-      const nextIndex = (slideIndex + 1) % bannerSlides.length;
-      node.scrollTo({ left: nextIndex * node.clientWidth, behavior: "smooth" });
-      setSlideIndex(nextIndex);
-    }, 5000);
+      setSlideIndex((prev) => (prev + 1) % bannerSlides.length);
+    }, 9000);
     return () => clearInterval(timer);
-  }, [slideIndex]);
-
-  const handleBannerScroll = () => {
-    const node = bannerRef.current;
-    if (!node) return;
-    const index = Math.round(node.scrollLeft / node.clientWidth);
-    if (index !== slideIndex) setSlideIndex(index);
-  };
-
-  const handleMouseMove = useCallback((e) => {
-    if (!isDragging.current) return;
-    const node = bannerRef.current;
-    if (!node) return;
-    const walk = e.pageX - dragStartX.current;
-    if (Math.abs(walk) > 5) didDrag.current = true;
-    node.scrollLeft = dragStartScroll.current - walk;
   }, []);
 
-  const handleMouseUp = useCallback(() => {
-    isDragging.current = false;
-    window.removeEventListener("mousemove", handleMouseMove);
-    window.removeEventListener("mouseup", handleMouseUp);
-  }, [handleMouseMove]);
-
-  const handleMouseDown = (e) => {
-    const node = bannerRef.current;
-    if (!node) return;
-    isDragging.current = true;
-    didDrag.current = false;
-    dragStartX.current = e.pageX;
-    dragStartScroll.current = node.scrollLeft;
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-  };
-
   const goToSlide = (i) => {
-    const node = bannerRef.current;
-    if (!node) return;
-    node.scrollTo({ left: i * node.clientWidth, behavior: "smooth" });
     setSlideIndex(i);
   };
 
@@ -628,7 +586,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="w-full min-h-screen bg-white text-[#333333]">
+    <div className="w-full min-h-screen bg-white text-[#333333] relative top-[15px]">
       <SEO
         title="Shop Men, Women, Kids, Fragrances & Accessories"
         description="Discover the latest collections for Men, Women, Kids, Fragrances, and Accessories. Shop new arrivals and exclusive sales at STORE."
@@ -647,7 +605,6 @@ export default function Home() {
         .marquee-track:hover {
           animation-play-state: paused;
         }
-        .banner-scroll::-webkit-scrollbar { display: none; }
         .fade-in {
           animation: fadeIn 0.8s ease-out;
         }
@@ -705,24 +662,18 @@ export default function Home() {
         </h1>
       </header>
 
-      {/* Banner — mobile-first height, static images (no hover/parallax translate) */}
+      {/* Banner — no scroll container, no drag. A flex track shifted with
+          a CSS transform. Only the autoplay timer and the dots move it. */}
       <section className="relative h-[42vh] w-full overflow-hidden border-b border-[#333333] sm:h-[55vh] md:h-[80vh]">
         <div
-          ref={bannerRef}
-          onScroll={handleBannerScroll}
-          onMouseDown={handleMouseDown}
-          className="banner-scroll flex h-full w-full cursor-grab select-none snap-x snap-mandatory overflow-x-auto scroll-smooth active:cursor-grabbing"
-          style={{ scrollbarWidth: "none" }}
+          className="flex h-full w-full transition-transform duration-700 ease-out"
+          style={{ transform: `translateX(-${slideIndex * 100}%)` }}
         >
           {bannerSlides.map((slide, i) => (
             <Link
               key={i}
               to={`/${slide.slug}`}
-              draggable={false}
-              onClickCapture={(e) => {
-                if (didDrag.current) e.preventDefault();
-              }}
-              className="group relative block h-full w-full shrink-0 snap-center"
+              className="group relative block h-full w-full shrink-0"
             >
               <img
                 src={slide.image || "/placeholder.svg"}
@@ -734,7 +685,7 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Dots — pop with a small 3D bounce on activation */}
+        {/* Dots — the only way to change slides by hand */}
         <div className="absolute bottom-3 left-0 flex w-full justify-center gap-2 sm:bottom-4">
           {bannerSlides.map((_, i) => (
             <button
