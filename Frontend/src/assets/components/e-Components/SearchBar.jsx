@@ -4,10 +4,8 @@ import { useSelector } from "react-redux";
 
 const MAX_RESULTS = 6;
 
-// 🔑 FIXED — product-level `images[]` doesn't exist in the schema anymore
-// (Product.js: colors[] is the only place an image lives, one per color).
-// Reading `product.colors?.[0]?.image` was always undefined, hence the broken
-// image icon in results. `images[0]` kept as a legacy fallback only.
+// product-level `images[]` ab schema mein nahi hai — image sirf colors[]
+// ke andar hoti hai. images[0] sirf legacy fallback ke liye rakha hai.
 const getProductThumb = (p) => p.colors?.[0]?.image || p.images?.[0] || "/placeholder.png";
 
 const SearchBar = () => {
@@ -18,7 +16,6 @@ const SearchBar = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const wrapperRef = useRef(null);
 
-  // ── Dropdown ke bahar click hone pe close kar do ──
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
@@ -29,35 +26,37 @@ const SearchBar = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 🔑 Live results — name, description, category, aur ab productId
-  // (SKU jaisa "PRD-XXXX-XXXX" code) mein bhi match dhoondta hai, taake
-  // agar koi customer/admin apna Product ID paste kare to bhi turant mil
-  // jaye. Catalog already Redux mein hai (fetchCatalog se), koi extra API
-  // call nahi lagti, isliye typing ke sath instant hai.
   const trimmedQuery = query.trim().toLowerCase();
 
+  // 🔑 CHANGED — search ab SIRF productId par hoti hai (name/description/
+  // category hata diye). Exact match ko priority milti hai, phir partial
+  // ("starts with"), phir "contains" — professional SKU-search jaisa
+  // behavior (jaise Shopify/admin panels mein hota hai).
   const results = trimmedQuery
     ? (catalog || [])
-        .filter((p) => {
-          const name = (p.name || "").toLowerCase();
-          const description = (p.description || "").toLowerCase();
-          const category = (p.category || "").toLowerCase();
-          const productId = (p.productId || "").toLowerCase();
-          return (
-            name.includes(trimmedQuery) ||
-            description.includes(trimmedQuery) ||
-            category.includes(trimmedQuery) ||
-            productId.includes(trimmedQuery)
-          );
+        .filter((p) => (p.productId || "").toLowerCase().includes(trimmedQuery))
+        .sort((a, b) => {
+          const aId = (a.productId || "").toLowerCase();
+          const bId = (b.productId || "").toLowerCase();
+          const rank = (id) => {
+            if (id === trimmedQuery) return 0; // exact match
+            if (id.startsWith(trimmedQuery)) return 1; // starts with
+            return 2; // contains
+          };
+          return rank(aId) - rank(bId);
         })
         .slice(0, MAX_RESULTS)
     : [];
 
+  // Submit hone par (Enter dabane par) seedha best-matching product ki
+  // detail page par redirect karta hai. Koi match na ho to kuch nahi hota.
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!trimmedQuery) return;
+    if (!trimmedQuery || results.length === 0) return;
+    const bestMatch = results[0];
     setShowDropdown(false);
-    navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+    setQuery("");
+    navigate(`/products/${bestMatch._id}`);
   };
 
   const handleResultClick = () => {
@@ -75,7 +74,7 @@ const SearchBar = () => {
         <input
           className='bg-[#eeeeee] sx:w-full h-[47px] px-5 pr-12 lg:outline-1 outline-gray-300 border-gray-300 rounded-[5px] text-[13px] text-black/100 border-[1px] absolute outline-1 lg:text-[13px] lg:w-[157.33px] lg:h-[30px] lg:p-[5px] max:md:relative'
           type="search"
-          placeholder='Search for...'
+          placeholder='Search by Product ID...'
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -113,50 +112,36 @@ const SearchBar = () => {
         <div className="absolute top-[52px] lg:top-[36px] left-0 lg:left-auto lg:right-0 w-full lg:w-[320px] bg-white border border-gray-200 rounded-[8px] shadow-lg z-50 max-h-[420px] overflow-y-auto">
           {results.length === 0 ? (
             <p className="text-center text-gray-400 text-[13px] py-6 px-4">
-              No products found for "{query}"
+              No product found for ID "{query}"
             </p>
           ) : (
-            <>
-              <ul className="divide-y divide-gray-100">
-                {results.map((product) => (
-                  <li key={product._id}>
-                    <Link
-                      to={`/products/${product._id}`}
-                      onClick={handleResultClick}
-                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition-colors"
-                    >
-                      <img
-                        src={getProductThumb(product)}
-                        alt={product.name}
-                        className="w-[44px] h-[44px] object-cover rounded-[6px] bg-gray-100 border border-gray-200 shrink-0"
-                        onError={(e) => (e.target.src = "/placeholder.png")}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-medium text-gray-800 truncate">
-                          {product.name}
-                        </p>
-                        {product.productId && (
-                          <p className="text-[10px] text-gray-400 truncate">{product.productId}</p>
-                        )}
-                        <p className="text-[11px] text-gray-400 capitalize">
-                          {product.category || "Uncategorized"}
-                        </p>
-                      </div>
-                      <p className="text-[12px] font-semibold text-red-700 shrink-0">
-                        Rs. {product.price}
+            <ul className="divide-y divide-gray-100">
+              {results.map((product) => (
+                <li key={product._id}>
+                  <Link
+                    to={`/products/${product._id}`}
+                    onClick={handleResultClick}
+                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition-colors"
+                  >
+                    <img
+                      src={getProductThumb(product)}
+                      alt={product.name}
+                      className="w-[44px] h-[44px] object-cover rounded-[6px] bg-gray-100 border border-gray-200 shrink-0"
+                      onError={(e) => (e.target.src = "/placeholder.png")}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-medium text-gray-800 truncate">
+                        {product.productId}
                       </p>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-
-              <button
-                type="submit"
-                className="w-full text-center text-[12px] font-semibold text-gray-600 hover:text-black py-2.5 border-t border-gray-100 transition-colors cursor-pointer"
-              >
-                View all results for "{query}"
-              </button>
-            </>
+                      <p className="text-[11px] text-gray-400 truncate">{product.name}</p>
+                    </div>
+                    <p className="text-[12px] font-semibold text-red-700 shrink-0">
+                      Rs. {product.price}
+                    </p>
+                  </Link>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       )}
