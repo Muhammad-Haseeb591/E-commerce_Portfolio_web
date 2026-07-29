@@ -105,9 +105,13 @@ title="New Arrivals"
                     </p>
                   )}
                   <Link to={`/products/${product._id}`} className="overflow-hidden w-full h-full block">
+                    {/* 🔑 FIXED — product-level `displayImage`/`images[]`
+                        don't exist in the schema anymore; every color now
+                        carries its own single `image`. First color's image
+                        is the closest thing to a "cover photo" a product has. */}
                     <img
                       className="w-full h-full object-cover transition-transform duration-500 ease-in-out group-hover:scale-105"
-                      src={product.displayImage || product.images?.[0]}
+                      src={product.colors?.[0]?.image || product.displayImage || product.colors?.[0]?.image || "/placeholder.png"}
                       alt={product.name}
                       loading="lazy"
                       onError={(e) => (e.target.src = "/placeholder.png")}
@@ -116,12 +120,17 @@ title="New Arrivals"
                 </div>
 
                 <div className="w-full h-auto px-[6px] pt-[8px] pb-[8px]">
-                        {product.productId && (
+                  {/* 🔑 FIXED — Add Product form ka field "Product ID" hai
+                      (auto-generated, e.g. PRD-MS50NHFA-EXQ3W), jo DB me
+                      `productId` ke naam se store hota hai — `sku` nahi.
+                      Agar field missing/undefined ho to ye line render hi
+                      nahi hogi (blank space nahi banega). */}
+                  {product.productId && (
                     <p className="w-full text-[11px] text-gray-400 tracking-wide truncate">
                       {product.productId}
                     </p>
                   )}
-          
+
                   <h3 className="w-full text-[14px] text-gray-800 truncate">{product.name}</h3>
 
                   {product.article && (

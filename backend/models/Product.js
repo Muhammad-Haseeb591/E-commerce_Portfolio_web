@@ -1,5 +1,20 @@
 const mongoose = require("mongoose");
 
+// 🔑 CHANGED — productId auto-generation moved OUT of this model entirely
+// (per explicit request: the model should not generate it on its own).
+// It's now generated in product.controller.js's getAddProducts instead,
+// as a plain function call before the document is even constructed — no
+// Mongoose lifecycle hook involved. This also permanently removes the
+// class of bug that kept causing "next is not a function": that error
+// came from a pre("validate") hook living HERE, which fired on every
+// single .save() including Update — even though Update never touches
+// productId. With no hook on this schema at all, that failure mode is
+// gone regardless of which Mongoose version is installed.
+//
+// The field itself is still unique+sparse below, so it still protects
+// against two products ending up with the same productId — it just no
+// longer manufactures one for you.
+
 // 🔑 Size ab per-color hai — har color ke andar apni size-wise stock hogi.
 const sizeSchema = new mongoose.Schema(
   {
@@ -46,11 +61,13 @@ colorSchema.pre("validate", function () {
 
 const productSchema = new mongoose.Schema(
   {
-    // 🔑 Clean-searching ke liye — ProductForm.jsx ab har product ke
+    // Clean-searching ke liye — ProductForm.jsx ab har product ke
     // sath ek stable productId bhi bhejta hai. `unique` + `sparse` so
-    // purane/legacy products (jo is field se pehle bane thay) is index
-    // ko break na karein.
-    productId: { type: String, default: "", trim: true, unique: true, sparse: true },
+    // purane/legacy products (jo is field se pehle bane thay aur is
+    // field ko poori tarah miss karte hain) is index ko break na karein.
+    // Generated in the controller (getAddProducts), not here — see the
+    // note at the top of this file.
+    productId: { type: String, trim: true, unique: true, sparse: true },
     name: { type: String, default: "", trim: true },
     description: { type: String, default: "" },
     price: { type: Number, default: 0 },

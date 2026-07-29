@@ -1,4 +1,15 @@
 const Product = require("../models/Product");
+const crypto = require("crypto");
+
+// 🔑 CHANGED — productId generation lives here now (plain function, called
+// before the document is constructed), not as a Mongoose schema hook.
+// Per request, the model itself should never auto-generate this — and as
+// a side effect this also sidesteps any Mongoose-version-specific
+// middleware quirks entirely, since no hook touches productId at all now.
+function generateProductId() {
+  const rand = crypto.randomBytes(6).toString("hex").toUpperCase(); // 12 hex chars
+  return `PRD-${rand.slice(0, 8)}-${rand.slice(8, 12)}`;
+}
 
 // ── 1. Add Product ───────────────────────────────
 exports.getAddProducts = async (req, res) => {
@@ -8,14 +19,14 @@ exports.getAddProducts = async (req, res) => {
       price, oldPrice, colors, bg,
       discount, rating, type,
       category, stock, status,
+      // 🔑 Accepts a client-supplied productId (matches the Add Product
+      // form's editable "Product ID" field). If blank/missing, we
+      // generate one right here — never passed through as "".
+      productId,
     } = req.body;
     // Top-level `images` REMOVED — General Image concept doesn't exist
     // anymore. Each color now carries its own single `image` string inside
     // colors[i].image (handled by colorSchema, opaque to this controller).
-    // `productId` intentionally NOT taken from req.body — it's
-    // auto-generated (assumed via a pre("validate") hook on the schema,
-    // since Product.js wasn't shared). If the client sends one anyway, we
-    // ignore it below so nobody can spoof a duplicate/unique productId.
 
     if (!colors || colors.length === 0) {
       return res.status(400).json({
@@ -35,18 +46,21 @@ exports.getAddProducts = async (req, res) => {
       });
     }
 
+    const resolvedProductId =
+      productId && String(productId).trim() ? String(productId).trim() : generateProductId();
+
     const product = new Product({
       name, description,
       price, oldPrice, colors, bg,
       discount, rating, type,
       category, stock, status,
+      productId: resolvedProductId,
     });
 
     //  .save() (not .create() shortcut skipped, not findByIdAndUpdate)
     // is what actually runs colorSchema's pre("validate") stock rollup,
     // the duplicate-color/duplicate-size validators, and productSchema's
-    // pre("save") total-stock rollup (and, presumably, productId
-    // generation). Keep it this way.
+    // pre("save") total-stock rollup. Keep it this way.
     const savedProduct = await product.save();
 
     res.status(201).json({
@@ -68,12 +82,13 @@ exports.getAddProducts = async (req, res) => {
       });
     }
     // 🔑 productId is unique+sparse — a duplicate-key error (code 11000)
-    // would land here, not as a ValidationError. Surface it distinctly
-    // instead of falling through to a generic 500.
+    // now only happens if the CLIENT explicitly typed a Product ID that's
+    // already taken (auto-generated ones are effectively collision-free).
+    // Surface it distinctly instead of falling through to a generic 500.
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
-        message: "Duplicate productId — please retry",
+        message: "This Product ID is already in use — please choose a different one or clear the field to auto-generate.",
         error: error.message,
       });
     }
@@ -132,13 +147,16 @@ exports.fetchAllProducts = async (req, res) => {
       if (maxPrice) filter.price.$lte = Number(maxPrice);
     }
 
+    // 🔑 productId already included here — searching by Product ID
+    // (e.g. "PRD-MS50NHFA-EXQ3W") server-side already worked once the
+    // field itself stopped being blank on every document (see Product.js).
     if (search) {
-  filter.$or = [
-    { name: { $regex: search, $options: "i" } },
-    { description: { $regex: search, $options: "i" } },
-    { productId: { $regex: search, $options: "i" } },
-  ];
-}
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { productId: { $regex: search, $options: "i" } },
+      ];
+    }
 
     // ── Sorting ───────────────────────────────────
     const allowedSortFields = ["price", "name", "rating", "discount", "createdAt"];
@@ -226,8 +244,10 @@ exports.updateProduct = async (req, res) => {
       discount, rating, type,
       category, stock, status,
     } = req.body;
-    // 🔑 Same as Add: no top-level `images`, no `productId` accepted from
-    // client (it shouldn't change after creation).
+    // Same as Add: no top-level `images`, and `productId` is intentionally
+    // NOT accepted here — it's assigned once at creation and shouldn't
+    // change afterwards (editing it could silently break bookmarked/shared
+    // product links that rely on searching by it).
 
     if (colors && colors.length === 0) {
       return res.status(400).json({
@@ -302,6 +322,7 @@ exports.updateProduct = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to update product",
+      error: error.message,
     });
   }
 };

@@ -79,7 +79,7 @@ const Favourite = () => {
               <Link to={`/products/${product._id}`} className="overflow-hidden w-full h-full block">
                 <img
                   className="w-full h-full object-cover transition-all duration-600 ease-in-out hover:scale-105"
-                  src={product.images?.[0]}
+                  src={product.colors?.[0]?.image}
                   alt={product.name}
                   onError={(e) => console.log("Image broken:", e.target.src)}
                 />

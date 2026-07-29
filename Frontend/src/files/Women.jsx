@@ -110,7 +110,7 @@ title="Women's Collection"
                   <Link to={`/products/${product._id}`} className="overflow-hidden w-full h-full block">
                     <img
                       className="w-full h-full object-cover transition-transform duration-500 ease-in-out group-hover:scale-105"
-                      src={product.displayImage || product.images?.[0]}
+                      src={product.displayImage || product.colors?.[0]?.image}
                       alt={product.name}
                       loading="lazy"
                       onError={(e) => (e.target.src = "/placeholder.png")}
@@ -119,14 +119,9 @@ title="Women's Collection"
                 </div>
 
                 <div className="w-full h-auto px-[6px] pt-[8px] pb-[8px]">
-                  {/* 🔑 ADDED — SKU name ke upar. Agar aapke schema mein
-                      field ka naam `sku` nahi hai (e.g. `productCode`,
-                      `styleCode`), yahan sirf `product.sku` ko us naam se
-                      replace kar dena. Agar field missing/undefined ho to
-                      ye line render hi nahi hogi (blank space nahi banega). */}
-                  {product.sku && (
+                  {product.productId && (
                     <p className="w-full text-[11px] text-gray-400 tracking-wide truncate">
-                      {product.sku}
+                      {product.productId}
                     </p>
                   )}
 

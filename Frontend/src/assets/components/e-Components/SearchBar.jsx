@@ -4,6 +4,12 @@ import { useSelector } from "react-redux";
 
 const MAX_RESULTS = 6;
 
+// 🔑 FIXED — product-level `images[]` doesn't exist in the schema anymore
+// (Product.js: colors[] is the only place an image lives, one per color).
+// Reading `product.colors?.[0]?.image` was always undefined, hence the broken
+// image icon in results. `images[0]` kept as a legacy fallback only.
+const getProductThumb = (p) => p.colors?.[0]?.image || p.images?.[0] || "/placeholder.png";
+
 const SearchBar = () => {
   const navigate = useNavigate();
   const { catalog } = useSelector((state) => state.FetchPrducts);
@@ -23,9 +29,11 @@ const SearchBar = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 🔑 Live results — name, description, category — teeno mein match
-  // dhoondta hai. Catalog already Redux mein hai (fetchCatalog se), koi
-  // extra API call nahi lagti, isliye typing ke sath instant hai.
+  // 🔑 Live results — name, description, category, aur ab productId
+  // (SKU jaisa "PRD-XXXX-XXXX" code) mein bhi match dhoondta hai, taake
+  // agar koi customer/admin apna Product ID paste kare to bhi turant mil
+  // jaye. Catalog already Redux mein hai (fetchCatalog se), koi extra API
+  // call nahi lagti, isliye typing ke sath instant hai.
   const trimmedQuery = query.trim().toLowerCase();
 
   const results = trimmedQuery
@@ -34,10 +42,12 @@ const SearchBar = () => {
           const name = (p.name || "").toLowerCase();
           const description = (p.description || "").toLowerCase();
           const category = (p.category || "").toLowerCase();
+          const productId = (p.productId || "").toLowerCase();
           return (
             name.includes(trimmedQuery) ||
             description.includes(trimmedQuery) ||
-            category.includes(trimmedQuery)
+            category.includes(trimmedQuery) ||
+            productId.includes(trimmedQuery)
           );
         })
         .slice(0, MAX_RESULTS)
@@ -116,7 +126,7 @@ const SearchBar = () => {
                       className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition-colors"
                     >
                       <img
-                        src={product.images?.[0] || "/placeholder.png"}
+                        src={getProductThumb(product)}
                         alt={product.name}
                         className="w-[44px] h-[44px] object-cover rounded-[6px] bg-gray-100 border border-gray-200 shrink-0"
                         onError={(e) => (e.target.src = "/placeholder.png")}
@@ -125,6 +135,9 @@ const SearchBar = () => {
                         <p className="text-[13px] font-medium text-gray-800 truncate">
                           {product.name}
                         </p>
+                        {product.productId && (
+                          <p className="text-[10px] text-gray-400 truncate">{product.productId}</p>
+                        )}
                         <p className="text-[11px] text-gray-400 capitalize">
                           {product.category || "Uncategorized"}
                         </p>

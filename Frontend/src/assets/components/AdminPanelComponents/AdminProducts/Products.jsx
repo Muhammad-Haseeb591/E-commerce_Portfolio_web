@@ -91,6 +91,16 @@ const RowSkeletonList = () => (
   <>{Array.from({ length: SKELETON_COUNT }).map((_, i) => <ProductRowSkeleton key={i} />)}</>
 );
 
+// 🔑 FIXED — product-level `images[]` doesn't exist in the schema anymore
+// (Product.js: colors[] is the only place an image lives, one per color).
+// Every place that used to read `product.images?.[0]` was pointing at a
+// field that's always undefined now, hence the broken-image icon. This
+// helper is the single source of truth for "what thumbnail represents
+// this product" — first color's image, with legacy `images[0]` kept as a
+// fallback in case any old documents still have it, then a placeholder.
+const getProductThumb = (product) =>
+  product?.colors?.[0]?.image || product?.images?.[0] || "/placeholder.png";
+
 // ── Image Modal ──
 const ImageModal = ({ selectedImage, productName, onClose }) => {
   if (!selectedImage) return null;
@@ -143,6 +153,7 @@ const EditModal = ({ product, onClose, onSave }) => {
   } = useColorBlocks(colorsArrayToBlocks(product));
 
   const [submitError, setSubmitError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [uploading, setUploading] = useState({});
   const [uploadErrors, setUploadErrors] = useState({});
@@ -236,7 +247,15 @@ const EditModal = ({ product, onClose, onSave }) => {
     }
   };
 
-  const handleSubmit = () => {
+  // 🔑 FIXED — this used to call onSave(payload) and never look at
+  // whether it succeeded; Products.jsx closed the modal immediately
+  // either way. That meant a failed save silently threw away the user's
+  // edits with zero feedback (the real error only showed up as a
+  // full-page "Error: Failed to update product" on the LIST behind the
+  // now-closed modal). Now this awaits onSave, and only lets the caller
+  // close the modal if it actually resolved — a rejection is caught and
+  // shown right here, next to the fields the user was editing.
+  const handleSubmit = async () => {
     setSubmitError("");
 
     const errors = validate();
@@ -278,7 +297,18 @@ const EditModal = ({ product, onClose, onSave }) => {
       stock: totalStock,
     };
 
-    onSave(payload);
+    setIsSaving(true);
+    try {
+      await onSave(payload);
+      // onSave (Products.jsx) only resolves after a successful save and
+      // closes the modal itself — nothing left to do here.
+    } catch (err) {
+      setSubmitError(
+        typeof err === "string" ? err : err?.message || "Failed to save changes. Please try again."
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -346,12 +376,13 @@ const EditModal = ({ product, onClose, onSave }) => {
             <button
               type="button"
               onClick={handleSubmit}
+              disabled={isSaving}
               style={{ backgroundColor: PRIMARY }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = PRIMARY_HOVER)}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = PRIMARY)}
-              className="flex-1 py-2.5 rounded-xl text-white transition text-sm font-medium"
+              onMouseEnter={(e) => !isSaving && (e.currentTarget.style.backgroundColor = PRIMARY_HOVER)}
+              onMouseLeave={(e) => !isSaving && (e.currentTarget.style.backgroundColor = PRIMARY)}
+              className="flex-1 py-2.5 rounded-xl text-white transition text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Save Changes
+              {isSaving ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </div>
@@ -363,11 +394,12 @@ const EditModal = ({ product, onClose, onSave }) => {
 // ── Product Card (mobile — replaces table row on small screens) ──
 const ProductCard = ({ product, onDelete, onImageClick, onEdit }) => (
   <div className="flex items-center gap-3 p-3 border-b border-gray-100 last:border-0 active:bg-gray-50 transition-colors">
-    {product.images?.[0] ? (
+    {getProductThumb(product) !== "/placeholder.png" ? (
       <img
-        src={product.images[0]}
+        src={getProductThumb(product)}
         alt={product.name}
-        onClick={() => onImageClick(product.images[0], product.name)}
+        onClick={() => onImageClick(getProductThumb(product), product.name)}
+        onError={(e) => (e.target.src = "/placeholder.png")}
         className="w-12 h-12 object-cover rounded-lg border border-gray-200 cursor-pointer shrink-0"
       />
     ) : (
@@ -411,11 +443,12 @@ const ProductRow = ({ product, onDelete, onImageClick, onEdit }) => (
   <tr className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
     <td className="px-6 py-4">
       <div className="flex items-center gap-3">
-        {product.images?.[0] ? (
+        {getProductThumb(product) !== "/placeholder.png" ? (
           <img
-            src={product.images[0]}
+            src={getProductThumb(product)}
             alt={product.name}
-            onClick={() => onImageClick(product.images[0], product.name)}
+            onClick={() => onImageClick(getProductThumb(product), product.name)}
+            onError={(e) => (e.target.src = "/placeholder.png")}
             className="w-10 h-10 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity shrink-0"
           />
         ) : (
@@ -509,8 +542,14 @@ const Products = () => {
         <EditModal
           product={editingProduct}
           onClose={() => setEditingProduct(null)}
-          onSave={(updatedData) => {
-            dispatch(editProductAsync({ id: editingProduct._id, updatedData }));
+          onSave={async (updatedData) => {
+            // 🔑 FIXED — previously fired-and-forgot the dispatch and
+            // closed the modal immediately, regardless of outcome. Now we
+            // wait for the real result: success closes the modal, a
+            // rejection propagates back up to EditModal's handleSubmit
+            // (which shows it inline) and the modal stays open so nothing
+            // the user typed is lost.
+            await dispatch(editProductAsync({ id: editingProduct._id, updatedData })).unwrap();
             setEditingProduct(null);
           }}
         />

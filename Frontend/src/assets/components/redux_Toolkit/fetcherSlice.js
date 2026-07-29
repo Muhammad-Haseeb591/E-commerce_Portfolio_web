@@ -104,8 +104,19 @@ export const editProductAsync = createAsyncThunk(
         body: JSON.stringify(updatedData),
       });
 
-      if (!res.ok) throw new Error("Failed to update product");
-      const data = await res.json();
+      // 🔑 FIXED — this used to throw a hardcoded "Failed to update
+      // product" on any non-ok response WITHOUT ever reading the body.
+      // The backend's actual message/error (e.g. "Each color must have
+      // an image", a validation message, a real stack-trace-derived
+      // reason) was sitting right there in the response and got thrown
+      // away. Now the body is parsed first, and its `message`/`error` is
+      // what flows into rejectWithValue → editError → the Edit modal.
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.message || data.error || "Failed to update product");
+      }
+
       return data.product;
     } catch (err) {
       return thunkAPI.rejectWithValue(err.message);
@@ -154,6 +165,16 @@ const fetcherSlice = createSlice({
     // browsing pages (Women/Men/etc), so it never overwrites them.
     catalog: [],
     catalogLoading: false,
+
+    // 🔑 NEW — edit/delete failures used to overwrite this SAME `error`
+    // field that fetchData.rejected uses to show the full-page
+    // ErrorState. That meant one failed Edit Product save replaced the
+    // ENTIRE list (which was still perfectly valid) with a red error
+    // screen, hiding all products until a manual refresh. Now edit/delete
+    // failures get their own fields, surfaced inline (e.g. inside the
+    // Edit modal) instead of blowing away the whole page.
+    editError: null,
+    deleteError: null,
 
     filters: { ...initialFilters },
   },
@@ -230,19 +251,27 @@ const fetcherSlice = createSlice({
       // ---- deleteProductAsync ----
       .addCase(deleteProductAsync.pending, (state) => {
         state.deleteLoading = true;
+        state.deleteError = null;
       })
       .addCase(deleteProductAsync.fulfilled, (state, action) => {
         state.deleteLoading = false;
         state.products = state.products.filter((p) => p._id !== action.payload);
+        // 🔑 FIXED — `catalog` (what New/Women/Men actually render via
+        // useFilteredProducts) was never touched here. A product deleted
+        // in admin kept showing on the storefront until a full app
+        // reload re-ran fetchCatalog (which only fires when catalog is
+        // still empty). Keep catalog in sync too, same as `products`.
+        state.catalog = state.catalog.filter((p) => p._id !== action.payload);
       })
       .addCase(deleteProductAsync.rejected, (state, action) => {
         state.deleteLoading = false;
-        state.error = action.payload;
+        state.deleteError = action.payload;
       })
 
       // ---- editProductAsync ----
       .addCase(editProductAsync.pending, (state) => {
         state.editLoading = true;
+        state.editError = null;
       })
       .addCase(editProductAsync.fulfilled, (state, action) => {
         state.editLoading = false;
@@ -250,10 +279,20 @@ const fetcherSlice = createSlice({
         if (index !== -1) {
           state.products[index] = action.payload;
         }
+        // 🔑 FIXED — same gap as delete: editing a product's colors/images/
+        // price in admin updated `products` (admin table) but never
+        // `catalog` (storefront). That's why a fix made in Edit Product
+        // wouldn't show up on /new, /women, /men etc. until a hard
+        // refresh forced fetchCatalog to run again. Now both stay in sync
+        // immediately after a successful save.
+        const catalogIndex = state.catalog.findIndex((p) => p._id === action.payload._id);
+        if (catalogIndex !== -1) {
+          state.catalog[catalogIndex] = action.payload;
+        }
       })
       .addCase(editProductAsync.rejected, (state, action) => {
         state.editLoading = false;
-        state.error = action.payload;
+        state.editError = action.payload;
       });
   },
 });

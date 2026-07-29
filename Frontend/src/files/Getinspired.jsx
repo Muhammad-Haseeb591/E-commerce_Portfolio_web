@@ -71,7 +71,7 @@ const Getinspired = () => {
                 <Link to={`/products/${product._id}`} className="overflow-hidden w-full h-full block">
                   <img
                     className="w-full h-full object-cover transition-transform duration-500 ease-in-out group-hover:scale-105"
-                    src={product.images?.[0]}
+                    src={product.colors?.[0]?.image}
                     alt={product.name}
                     loading="lazy"
                     onError={(e) => (e.target.src = "/placeholder.png")}
