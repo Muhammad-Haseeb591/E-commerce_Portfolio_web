@@ -64,7 +64,7 @@ const router = createBrowserRouter([
   }
 ])
 
-const ReactRouter = () => {
+const AppRoutes = () => {
   return (
     <div>
       <CartSync />
@@ -73,4 +73,4 @@ const ReactRouter = () => {
   )
 }
 
-export default ReactRouter
+export default AppRoutes
