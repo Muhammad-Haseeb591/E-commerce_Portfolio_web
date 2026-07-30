@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useDispatch } from "react-redux";
 import ReactRouter from "./routes/ReactRouter.jsx";
-import { checkAuth } from "./assets/components/redux_Toolkit/authSlice";
+import { checkAuth } from "./assets/components/store/authSlice";
 import { HelmetProvider } from 'react-helmet-async'
 
 const App = () => {
