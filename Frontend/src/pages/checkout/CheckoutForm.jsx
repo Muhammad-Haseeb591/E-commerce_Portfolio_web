@@ -12,8 +12,8 @@ import { clearCart } from "../../assets/components/store/cartSlice.js";
 import { API_URL } from "../../config/api";
 
 import { inputClass } from "./Constants.jsx";
-import CustomToast from "../CheckOutPage/Customtoast";
-import EmptyCart from "../CheckOutPage/Emptycart";
+import CustomToast from "../checkout/Customtoast.jsx";
+import EmptyCart from "../checkout/Emptycart";
 import OrderConfirmation from "./OrderConfirmation";
 import CheckoutHeader from "./CheckoutHeader.jsx";
 import MobileOrderSummary from "./MobileOrderSummary";
