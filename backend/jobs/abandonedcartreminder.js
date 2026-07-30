@@ -1,7 +1,7 @@
-const cron = require("node-cron"); // npm install node-cron (agar already installed nahi)
+const cron = require("node-cron");
 const CartActivity = require("../models/CartActivitySchema");
-const User = require("../models/User"); // 🔑 apne actual User model path se match kar lena
-const { sendAbandonedCartEmail } = require("../utils/sendEmail"); // 🔑 apne actual mailer.js path se match kar lena
+const User = require("../models/User"); 
+const { sendAbandonedCartEmail } = require("../services/sendemail.services");
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const CART_URL = `${process.env.FRONTEND_URL || "https://e-commerce-portfolio-web.vercel.app"}/cart`;

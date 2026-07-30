@@ -54,12 +54,6 @@ exports.protect = async (req, res, next) => {
   }
 };
 
-/**
- * AUTHORIZE — role gate, used *after* `protect` so `req.user` already
- * exists. Pass the roles allowed to access the route.
- *
- * Usage: router.get("/admin/orders", protect, authorize("admin"), getAllOrders);
- */
 exports.authorize = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {

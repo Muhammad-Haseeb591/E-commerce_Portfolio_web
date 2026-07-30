@@ -1,7 +1,7 @@
 const express = require("express");
 const productController = require("../controllers/product.controller");
 const { productRouter } = require("./product.routes");
-const { protect, authorize } = require("../middleware/auth.Middleware");
+const { protect, authorize } = require("../middleware/auth.middleware");
 
 const adminRoute = express.Router();
 

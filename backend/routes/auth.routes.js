@@ -11,7 +11,7 @@ const {
   resetPassword,
   generateToken,
 } = require("../controllers/auth.controller");
-const { protect } = require("../middleware/auth.Middleware");
+const { protect } = require("../middleware/auth.middleware");
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
 // Google OAuth

@@ -10,7 +10,7 @@ const {
   deleteReview,
 } = require("../controllers/review.controller");
 
-const { protect } = require("../middleware/auth.Middleware");
+const { protect } = require("../middleware/auth.middleware");
 
 // Adjust this import to wherever your multer-storage-cloudinary instance
 // lives (the same one used for product images) — it must expose `.array()`.

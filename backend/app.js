@@ -16,7 +16,7 @@ const uploadRoutes = require("./routes/upload");
 const { stripeWebhook } = require("./controllers/payment.controller");
 const reviewRoutes = require("./routes/review.routes");
 const cartActivityRoutes = require("./routes/cartactivity.routes");
-const abandonedCartReminder = require("./jobs/Abandonedcartreminder");
+const abandonedCartReminder = require("./jobs/abandonedcartreminder");
 
 // existing app.use(...) lines ke sath
 

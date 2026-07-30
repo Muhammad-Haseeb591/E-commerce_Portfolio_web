@@ -21,14 +21,14 @@ const {
   cancelOrder,
 } = require("../controllers/order.controller");
 
-const { protect, authorize } = require("../middleware/auth.Middleware");
+const { protect, authorize } = require("../middleware/auth.middleware");
 
 const { generateInvoice } = require("../controllers/invoice.controller");
 const {
   generateBulkInvoice,
   exportOrdersExcel,
   exportOrdersCsv,
-} = require("../controllers/Orderexport.controller");
+} = require("../controllers/orderexport.controller");
 
 const {
   getSalesReport,

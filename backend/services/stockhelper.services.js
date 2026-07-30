@@ -1,10 +1,4 @@
 const Product = require("../models/Product");
-
-// ==========================
-// Stock helpers — shared between order.controller (COD / direct create)
-// and payment.controller (Stripe webhook, after payment confirmed)
-// ==========================
-
 const decrementStockForItem = async ({ productId, size, quantity }) => {
   if (size) {
     return Product.findOneAndUpdate(
@@ -15,8 +9,6 @@ const decrementStockForItem = async ({ productId, size, quantity }) => {
       {
         $inc: {
           "sizes.$[elem].stock": -quantity,
-          // findOneAndUpdate skips the pre-save hook that recalculates the
-          // total, so the top-level stock is kept in sync manually here.
           stock: -quantity,
         },
       },

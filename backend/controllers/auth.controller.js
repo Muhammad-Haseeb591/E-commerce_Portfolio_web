@@ -2,7 +2,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const User = require("../models/User");
-const { sendOtpEmail, sendResetPasswordEmail } = require("../utils/sendEmail");
+const { sendOtpEmail, sendResetPasswordEmail } = require("../services/sendemail.services");
 
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 

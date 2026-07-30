@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const Order = require("../models/Order");
 const Product = require("../models/Product");
 const stripe = require("../config/stripe");
-const { sendOrderConfirmationEmail } = require("../utils/sendEmail");
+const { sendOrderConfirmationEmail } = require("../services/sendemail.services");
 const { formatCurrency } = require("../services/Invoicerenderer"); // 🔑 verify this path matches your actual file location
 
 const asyncHandler = (fn) => (req, res, next) => {
