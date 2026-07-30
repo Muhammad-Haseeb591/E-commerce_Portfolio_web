@@ -11,13 +11,13 @@ import Getinspired from '../files/Getinspired.jsx'
 import Home from '../files/Home.jsx'
 import MainLayout from '../Layouts/MainLayout.jsx'
 import NotFound from '../files/NotFound.jsx'
-import Detail_Page from '../assets/components/Detail_Page/Detail_Page.jsx'
-import Cart from '../assets//components/Detail_Page/Cart.jsx'
+import Detail_Page from '../assets/components/DetailPage/Detail_Page.jsx'
+import Cart from '../assets/components/DetailPage/Cart.jsx'
 import Login from "../files/Auth_Section/Login.jsx"
 import Signup from "../files/Auth_Section/Signup.jsx"
 import AdminPanel  from "../assets/components/AdminPanelComponents/AdminPanel.jsx"
 import Checkoutpage from "../files/CheckOutPage/CheckoutPage.jsx"
-import CartSync from "../assets/components/Detail_Page/Cartsync.jsx" 
+import CartSync from "../assets/components/DetailPage/Cartsync.jsx" 
 import Favourite from "../files/Favourite.jsx"
 import Orders from "../assets/components/AdminPanelComponents/AdminOrders/Orders.jsx"
 import ProtectedAdminRoute from "../assets/components/AdminPanelComponents/ProtectedAdminRoute.jsx"

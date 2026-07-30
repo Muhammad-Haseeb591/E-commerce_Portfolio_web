@@ -129,37 +129,13 @@ const cartSlice = createSlice({
       state.hydrated = action.payload;
     },
 
-    // payload: { product, size, quantity, stock?, color?, image? }
-    // - product:  full product object (from catalog / Detail Page)
-    // - size:     the size string being added, or null for a no-size product
-    // - quantity: how many pieces of THIS size to add
-    // - stock:    (optional) the caller already knows the correct stock for
-    //             this exact size (e.g. Detail_Page's normalized sizeList) —
-    //             pass it in directly. If omitted, we fall back to looking
-    //             it up on product.sizes ourselves.
-    // - color:    the color the user had selected (or undefined/null if
-    //             the product has no colors). PART OF THE LINE'S IDENTITY —
-    //             see matchesLine() above.
-    // - image:    the exact image shown for that color at add-time —
-    //             stored as-is, never re-derived later.
-    //
-    // No matter how many times this is dispatched — same size, different
-    // size, 100 times — each (productId, color, size) combo only ever has
-    // ONE line inside item.sizes; every call just adds to that line's
-    // quantity (capped at that size's stock) instead of creating a
-    // duplicate. A DIFFERENT color of the same product always becomes a
-    // separate cart item (own sizes[], own image, own color).
     addToCart: (state, action) => {
       const { product, size = null, quantity = 1, stock, color = null, image = null } =
         action.payload || {};
       const productId = getItemId(product);
       if (!productId) return;
 
-      // Prefer an explicit stock passed in by the caller (it already knows
-      // the true per-size stock after splitting combined size strings).
-      // Only fall back to deriving it from product.sizes when not given —
-      // and even then, guard against a combined "40,41,42" entry not
-      // matching an exact size string.
+      
       let sizeStock = stock;
       if (sizeStock === undefined) {
         sizeStock = size
