@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useDispatch } from "react-redux";
-import ReactRouter from "./routes/ReactRouter.jsx";
+import ReactRouter from "./routes//AppRoutes";
 import { checkAuth } from "./assets/components/store/authSlice";
 import { HelmetProvider } from 'react-helmet-async'
 
@@ -14,7 +14,7 @@ const App = () => {
   return (
     <>
        <HelmetProvider>
-    <ReactRouter />
+    <AppRoutes />
   </HelmetProvider>
     </>
   );

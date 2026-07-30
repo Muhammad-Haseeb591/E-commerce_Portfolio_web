@@ -35,7 +35,7 @@ exports.getAddProducts = async (req, res) => {
       });
     }
 
-    // 🔑 Per-color image presence check now lives here since the old
+    //  Per-color image presence check now lives here since the old
     // top-level "at least one image" guard is gone. Adjust the field name
     // below if colorSchema calls it something other than `image`.
     const missingImage = colors.find((c) => !c.image);
