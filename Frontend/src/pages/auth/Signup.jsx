@@ -48,7 +48,7 @@ const Signup = () => {
       return false;
     }
     if (password !== confirmPass) {
-      setLocalError("Passwords do not match.");
+      setLocalError("Passwords doesn't match.");
       return false;
     }
     return true;

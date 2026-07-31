@@ -69,7 +69,6 @@ const ForgotPassword = () => {
                     />
                   </div>
                 </div>
-
                 {displayError && (
                   <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                     {displayError}

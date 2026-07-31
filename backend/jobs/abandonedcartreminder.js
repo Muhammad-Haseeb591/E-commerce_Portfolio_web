@@ -39,18 +39,12 @@ const runAbandonedCartCheck = async () => {
   return staleActivities.length;
 };
 
-// Call this once from your server's startup file (e.g. server.js):
-//   require("./jobs/abandonedCartReminder").start();
 const start = () => {
-  // Har 15 minute pe check — 1hr ka threshold khud query me hai, is liye
-  // schedule ko itna tight rakhna zaroori nahi, bas reasonably fresh.
   cron.schedule("*/15 * * * *", () => {
     runAbandonedCartCheck().catch((err) =>
       console.error("Abandoned-cart reminder job failed:", err)
     );
   });
-
-  console.log("Abandoned-cart reminder job scheduled (every 15 min).");
 };
 
 module.exports = { start, runAbandonedCartCheck };

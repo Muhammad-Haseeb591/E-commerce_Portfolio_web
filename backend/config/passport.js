@@ -11,10 +11,7 @@ passport.use(
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        console.log("Google Profile:", profile);
-
         let user = await User.findOne({ googleId: profile.id });
-
         if (!user) {
           // Link to an existing account if the email already signed up normally
           user = await User.findOne({ email: profile.emails[0].value });

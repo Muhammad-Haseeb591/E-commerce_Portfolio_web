@@ -15,11 +15,11 @@ export default function CheckoutHeader() {
 
         <div className="flex justify-center min-w-0 flex-1">
           <img
-            className="logo-responsive h-[28px] sm:h-[32px] w-auto object-contain"
-            src="//insignia.com.pk/cdn/shop/files/final_logo_insignia-01_2847a8f6-7ff7-4e81-ab09-44d3d3fe386e.png?v=1686553684&width=600"
-            alt="Insignia PK"
-            srcSet="//insignia.com.pk/cdn/shop/files/final_logo_insignia-01_2847a8f6-7ff7-4e81-ab09-44d3d3fe386e.png?v=1686553684&width=200 200w, //insignia.com.pk/cdn/shop/files/final_logo_insignia-01_2847a8f6-7ff7-4e81-ab09-44d3d3fe386e.png?v=1686553684&width=300 300w"
-            loading="eager"
+            className="logo-responsive relative md:left-[45px] lg:left-[30px] w-full h-auto object-contain"
+      src="https://res.cloudinary.com/dxqs4sg8j/image/upload/e_trim/w_600/v1784673289/Gemini_Generated_Image_42k8yv42k8yv42k8_qlrij0.png"
+      alt="Portfolio_web PK"
+      sizes="160px"
+      loading="eager"
           />
         </div>
       </div>

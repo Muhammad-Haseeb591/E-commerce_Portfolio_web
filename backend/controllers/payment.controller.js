@@ -116,7 +116,7 @@ exports.stripeWebhook = async (req, res) => {
         paidAt: new Date(),
       });
 
-      console.log("✅ Order created after successful payment:", session.id);
+      console.log("Order created after successful payment:", session.id);
     }
 
     // ── Refund confirm hua — cancelOrder controller me refund turant

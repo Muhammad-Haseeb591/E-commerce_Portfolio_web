@@ -96,7 +96,7 @@ exports.register = async (req, res) => {
 
     sendOtpEmail(user.email, otp)
       .then(() => console.log("OTP email accepted by SMTP for:", user.email))
-      .catch((err) => console.error(" OTP email failed (register/new):", err));
+      .catch((err) => console.error("OTP email failed (register/new):", err));
 
     return res.status(201).json({
       success: true,
@@ -208,8 +208,8 @@ exports.resendOtp = async (req, res) => {
     await user.save();
 
     sendOtpEmail(user.email, otp)
-      .then(() => console.log("✅ OTP email accepted by SMTP for:", user.email))
-      .catch((err) => console.error("❌ OTP email failed (resendOtp):", err));
+      .then(() => console.log("email accepted by SMTP for:", user.email))
+      .catch((err) => console.error("OTP email failed (resendOtp):", err));
 
     return res.status(200).json({
       success: true,

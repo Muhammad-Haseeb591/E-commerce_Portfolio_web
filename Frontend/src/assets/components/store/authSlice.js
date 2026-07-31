@@ -141,7 +141,7 @@ const authSlice = createSlice({
     loading: false,
     authChecked: false,
     error: null,
-    message: null, // 🔑 generic success/acknowledgement text (OTP sent, reset link sent, etc.)
+    message: null, 
   },
   reducers: {
     clearError: (state) => {
