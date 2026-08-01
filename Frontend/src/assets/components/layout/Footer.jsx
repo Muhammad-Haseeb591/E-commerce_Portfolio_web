@@ -1,18 +1,19 @@
 import React from 'react'
- import { useState } from 'react'
+import { useState } from 'react'
 
 const Footer = () => {
-     const [customerCareOpen, setCustomerCareOpen] = useState(false);
+  const [customerCareOpen, setCustomerCareOpen] = useState(false);
   const [aboutUsOpen, setAboutUsOpen] = useState(false);
- return (
+
+  return (
     <div className='bg-[#333333] md:h-[411.3px] min-h-fit md:w-full pt-[48px] box-border relative bottom-0'>
       <div className='md:h-[306px] w-full px-[20px] sm:px-[50px] pb-[50px] flex max-md:flex-col justify-between md:gap-0 max-md:gap-8'>
-        
+
         {/* CUSTOMER CARE */}
         <div className='md:w-[387.12px] max-md:w-full'>
           <div className='flex justify-between items-center mb-[5px]'>
             <h3 className='text-white text-[14px] font-medium'>CUSTOMER CARE</h3>
-            <button 
+            <button
               onClick={() => setCustomerCareOpen(!customerCareOpen)}
               className='md:hidden text-white text-[20px] w-[24px] h-[24px] flex items-center justify-center transition-transform duration-200'
               aria-label="Toggle Customer Care"
@@ -33,7 +34,7 @@ const Footer = () => {
         <div className='md:w-[387.12px] max-md:w-full'>
           <div className='flex justify-between items-center mb-[5px]'>
             <h3 className='text-white text-[14px] font-medium'>ABOUT US</h3>
-            <button 
+            <button
               onClick={() => setAboutUsOpen(!aboutUsOpen)}
               className='md:hidden text-white text-[20px] w-[24px] h-[24px] flex items-center justify-center transition-transform duration-200'
               aria-label="Toggle About Us"

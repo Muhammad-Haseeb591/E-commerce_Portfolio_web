@@ -1,1 +1,59 @@
 @import "tailwindcss";
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fade-in-up {
+  opacity: 0;
+  animation: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes image-zoom-in {
+  from {
+    transform: scale(1.08);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.animate-image-zoom-in {
+  animation: image-zoom-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.page-transition-out {
+  opacity: 0.3;
+  transition: opacity 0.25s ease-out;
+}
+
+.page-transition-in {
+  opacity: 1;
+  transition: opacity 0.25s ease-out;
+}
+
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  70% {
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-pop-in {
+  opacity: 0;
+  animation: pop-in 0.35s ease-out forwards;
+}

@@ -1,11 +1,11 @@
-import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { createAsyncThunk, createSlice, createSelector } from "@reduxjs/toolkit";
 import { API_URL } from "../../../config/api";
-
 
 const BASE_URL = `${API_URL}/admin`;
 
 // ─────────────────────────────────────────────
 // 1. Fetch Products (category, color, price, search, sort, pagination)
+//    — server-side filtered/paginated list (used by admin table etc.)
 // ─────────────────────────────────────────────
 export const fetchData = createAsyncThunk(
   "products/fetchData",
@@ -19,14 +19,10 @@ export const fetchData = createAsyncThunk(
         ? `${BASE_URL}/products/getproducts?${query}`
         : `${BASE_URL}/products/getproducts`;
 
-      const response = await fetch(url, {
-        credentials: "include", // send auth cookie
-      });
-
+      const response = await fetch(url, { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch products");
       const data = await response.json();
 
-      // Backend returns { success, count, totalCount, totalPages, currentPage, products }
       if (Array.isArray(data)) {
         return {
           products: data,
@@ -49,9 +45,8 @@ export const fetchData = createAsyncThunk(
 );
 
 // ─────────────────────────────────────────────
-// 1b. Fetch FULL Catalog (internal use — e.g. cart enrichment)
-// Does not touch browsing filters (category/sort/search), so it
-// never overwrites a filtered product list on category pages.
+// 1b. Fetch FULL Catalog (storefront pages — New/Women/Men/etc.
+//     filter this client-side via selectFilteredCatalog below)
 // ─────────────────────────────────────────────
 export const fetchCatalog = createAsyncThunk(
   "products/fetchCatalog",
@@ -60,13 +55,23 @@ export const fetchCatalog = createAsyncThunk(
       const response = await fetch(`${BASE_URL}/products/getproducts`, {
         credentials: "include",
       });
-
       if (!response.ok) throw new Error("Failed to fetch catalog");
       const data = await response.json();
       return Array.isArray(data) ? data : data.products || [];
     } catch (err) {
       return thunkAPI.rejectWithValue(err.message);
     }
+  },
+  {
+    // Prevents duplicate/parallel fetches — e.g. New.jsx, Women.jsx and
+    // Men.jsx all mount around the same time and each would otherwise
+    // fire its own full 1000-product fetch if catalog was still empty.
+    condition: (_, { getState }) => {
+      const { catalogLoading, catalog } = getState().FetchPrducts;
+      if (catalogLoading) return false;
+      if (catalog && catalog.length > 0) return false;
+      return true;
+    },
   }
 );
 
@@ -79,9 +84,8 @@ export const deleteProductAsync = createAsyncThunk(
     try {
       const res = await fetch(`${BASE_URL}/deleteproduct/${id}`, {
         method: "DELETE",
-        credentials: "include", // required — sends the auth cookie to the protected route
+        credentials: "include",
       });
-
       if (!res.ok) throw new Error("Failed to delete product");
       return id;
     } catch (err) {
@@ -99,24 +103,15 @@ export const editProductAsync = createAsyncThunk(
     try {
       const res = await fetch(`${BASE_URL}/updateproduct/${id}`, {
         method: "PUT",
-        credentials: "include", // required — sends the auth cookie to the protected route
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatedData),
       });
 
-      // 🔑 FIXED — this used to throw a hardcoded "Failed to update
-      // product" on any non-ok response WITHOUT ever reading the body.
-      // The backend's actual message/error (e.g. "Each color must have
-      // an image", a validation message, a real stack-trace-derived
-      // reason) was sitting right there in the response and got thrown
-      // away. Now the body is parsed first, and its `message`/`error` is
-      // what flows into rejectWithValue → editError → the Edit modal.
       const data = await res.json().catch(() => ({}));
-
       if (!res.ok) {
         throw new Error(data.message || data.error || "Failed to update product");
       }
-
       return data.product;
     } catch (err) {
       return thunkAPI.rejectWithValue(err.message);
@@ -135,62 +130,45 @@ const initialFilters = {
   maxPrice: "",
   sizes: "",
   sortBy: "createdAt", // price | name | rating | discount | createdAt
-  order: "desc", // asc | desc
+  order: "desc",       // asc | desc
   page: 1,
   size: 20,
 };
 
+const initialState = {
+  products: [],
+  loading: false,
+  error: null,
+
+  deleteLoading: false,
+  editLoading: false,
+  editError: null,
+  deleteError: null,
+
+  // Server-side pagination info (fetchData)
+  totalCount: 0,
+  totalPages: 1,
+  currentPage: 1,
+
+  // Guards against a stale fetchData response overwriting a fresher one
+  currentRequestId: null,
+
+  // Full catalog — used by storefront pages for client-side filtering
+  catalog: [],
+  catalogLoading: false,
+
+  filters: { ...initialFilters },
+};
+
 const fetcherSlice = createSlice({
   name: "products",
-  initialState: {
-    products: [],
-    loading: false,
-    error: null,
-    deleteLoading: false,
-    editLoading: false,
-
-    // Pagination info from backend
-    totalCount: 0,
-    totalPages: 1,
-    currentPage: 1,
-
-    // Only the latest fetchData call's result is accepted into state.
-    // On reload, an "empty filters" request may fire and then be
-    // immediately followed by the "correct filters" request — this
-    // guards against the stale one overwriting the fresh one.
-    currentRequestId: null,
-
-    // Full product catalog — internal use only (e.g. cart enrichment).
-    // Completely separate from the filtered "products" list used by
-    // browsing pages (Women/Men/etc), so it never overwrites them.
-    catalog: [],
-    catalogLoading: false,
-
-    // 🔑 NEW — edit/delete failures used to overwrite this SAME `error`
-    // field that fetchData.rejected uses to show the full-page
-    // ErrorState. That meant one failed Edit Product save replaced the
-    // ENTIRE list (which was still perfectly valid) with a red error
-    // screen, hiding all products until a manual refresh. Now edit/delete
-    // failures get their own fields, surfaced inline (e.g. inside the
-    // Edit modal) instead of blowing away the whole page.
-    editError: null,
-    deleteError: null,
-
-    filters: { ...initialFilters },
-  },
+  initialState,
   reducers: {
-    // Update a single filter field, e.g.
-    // dispatch(setFilter({ key: "category", value: "women" }))
     setFilter: (state, action) => {
       const { key, value } = action.payload;
       state.filters[key] = value;
-
-      // Any filter change except pagination resets back to page 1
-      if (key !== "page") {
-        state.filters.page = 1;
-      }
+      if (key !== "page") state.filters.page = 1;
     },
-    // Update multiple filters at once, e.g. sort change (sortBy + order)
     setFilters: (state, action) => {
       state.filters = { ...state.filters, ...action.payload, page: 1 };
     },
@@ -200,14 +178,6 @@ const fetcherSlice = createSlice({
     setPage: (state, action) => {
       state.filters.page = action.payload;
     },
-    // 🔑 NEW — for pages that filter/paginate CLIENT-SIDE (e.g. New.jsx,
-    // which loads the full catalog via fetchCatalog and filters it
-    // locally with useFilteredProducts, instead of calling fetchData).
-    // Those pages never trigger fetchData.fulfilled, so totalCount would
-    // otherwise stay stuck at whatever the last server-fetch page left it
-    // at (or 0, after a refresh). Call this whenever the client-side
-    // filtered product count changes, so Main.jsx's "{totalCount}
-    // products" display always matches what's actually on screen.
     setTotalCount: (state, action) => {
       state.totalCount = action.payload;
     },
@@ -221,8 +191,7 @@ const fetcherSlice = createSlice({
         state.currentRequestId = action.meta.requestId;
       })
       .addCase(fetchData.fulfilled, (state, action) => {
-        if (action.meta.requestId !== state.currentRequestId) return; // ignore stale response
-
+        if (action.meta.requestId !== state.currentRequestId) return;
         state.loading = false;
         state.products = action.payload.products;
         state.totalCount = action.payload.totalCount;
@@ -231,7 +200,6 @@ const fetcherSlice = createSlice({
       })
       .addCase(fetchData.rejected, (state, action) => {
         if (action.meta.requestId !== state.currentRequestId) return;
-
         state.loading = false;
         state.error = action.payload;
       })
@@ -256,11 +224,6 @@ const fetcherSlice = createSlice({
       .addCase(deleteProductAsync.fulfilled, (state, action) => {
         state.deleteLoading = false;
         state.products = state.products.filter((p) => p._id !== action.payload);
-        // 🔑 FIXED — `catalog` (what New/Women/Men actually render via
-        // useFilteredProducts) was never touched here. A product deleted
-        // in admin kept showing on the storefront until a full app
-        // reload re-ran fetchCatalog (which only fires when catalog is
-        // still empty). Keep catalog in sync too, same as `products`.
         state.catalog = state.catalog.filter((p) => p._id !== action.payload);
       })
       .addCase(deleteProductAsync.rejected, (state, action) => {
@@ -275,20 +238,12 @@ const fetcherSlice = createSlice({
       })
       .addCase(editProductAsync.fulfilled, (state, action) => {
         state.editLoading = false;
-        const index = state.products.findIndex((p) => p._id === action.payload._id);
-        if (index !== -1) {
-          state.products[index] = action.payload;
-        }
-        // 🔑 FIXED — same gap as delete: editing a product's colors/images/
-        // price in admin updated `products` (admin table) but never
-        // `catalog` (storefront). That's why a fix made in Edit Product
-        // wouldn't show up on /new, /women, /men etc. until a hard
-        // refresh forced fetchCatalog to run again. Now both stay in sync
-        // immediately after a successful save.
+
+        const productIndex = state.products.findIndex((p) => p._id === action.payload._id);
+        if (productIndex !== -1) state.products[productIndex] = action.payload;
+
         const catalogIndex = state.catalog.findIndex((p) => p._id === action.payload._id);
-        if (catalogIndex !== -1) {
-          state.catalog[catalogIndex] = action.payload;
-        }
+        if (catalogIndex !== -1) state.catalog[catalogIndex] = action.payload;
       })
       .addCase(editProductAsync.rejected, (state, action) => {
         state.editLoading = false;
@@ -299,3 +254,54 @@ const fetcherSlice = createSlice({
 
 export const { setFilter, setFilters, resetFilters, setPage, setTotalCount } = fetcherSlice.actions;
 export default fetcherSlice.reducer;
+
+// ─────────────────────────────────────────────
+// Selectors
+// ─────────────────────────────────────────────
+const selectCatalog = (state) => state.FetchPrducts.catalog;
+const selectFilters = (state) => state.FetchPrducts.filters;
+
+// Memoized — only recomputes when `catalog` or `filters` actually change.
+// This is what keeps 1000-product filtering fast: unrelated re-renders
+// (page navigation elsewhere, unrelated dispatches) reuse the cached
+// result instead of re-filtering the whole array every time.
+export const selectFilteredCatalog = createSelector(
+  [selectCatalog, selectFilters],
+  (catalog, filters) => {
+    let result = catalog;
+
+    if (filters.category) {
+      const category = filters.category.toLowerCase();
+      result = result.filter((p) => p.category?.toLowerCase() === category);
+    }
+
+    if (filters.color) {
+      result = result.filter((p) =>
+        Array.isArray(p.colors)
+          ? p.colors.some((c) => (c.color || c.name || c) === filters.color)
+          : p.color === filters.color
+      );
+    }
+
+    if (filters.sizes) {
+      result = result.filter((p) => p.sizes?.includes(filters.sizes));
+    }
+
+    if (filters.minPrice) {
+      const min = Number(filters.minPrice);
+      result = result.filter((p) => Number(p.price) >= min);
+    }
+
+    if (filters.maxPrice) {
+      const max = Number(filters.maxPrice);
+      result = result.filter((p) => Number(p.price) <= max);
+    }
+
+    if (filters.search) {
+      const query = filters.search.toLowerCase();
+      result = result.filter((p) => p.name?.toLowerCase().includes(query));
+    }
+
+    return result;
+  }
+);
