@@ -1,752 +1,812 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Link, useLocation } from "react-router-dom";
-import SEO from "../assets/components/common/SEO";
+import { useState, useEffect, useRef } from "react"
+import { Link } from "react-router-dom"
 
-/* ------------------------------------------------------------------ data */
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                            */
+/* ------------------------------------------------------------------ */
+
+// Conditionally join tailwind classes
+function cx(...classes) {
+  return classes.filter(Boolean).join(" ")
+}
+
+// Shared 3D card style: layered soft shadow + hover lift + active press-down
+const CARD_3D =
+  "transition-all duration-300 ease-out " +
+  "shadow-[0_1px_2px_rgba(51,51,51,0.06),0_8px_24px_-8px_rgba(51,51,51,0.18)] " +
+  "hover:-translate-y-1.5 hover:shadow-[0_2px_4px_rgba(51,51,51,0.08),0_20px_40px_-12px_rgba(51,51,51,0.28)] " +
+  "active:translate-y-0 active:shadow-[0_1px_2px_rgba(51,51,51,0.10)] " +
+  "motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+
+/* ------------------------------------------------------------------ */
+/*  Mock content (brand: bags / shoes / fragrances)                    */
+/* ------------------------------------------------------------------ */
 
 const categories = [
   {
-    name: "New",
-    slug: "new",
-    image:
-      "https://plus.unsplash.com/premium_photo-1664202526744-516d0dd22932?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    stock: 512,
-  },
-  {
-    name: "Women",
+    name: "Ladies Bags",
     slug: "women",
     image:
-      "https://images.unsplash.com/photo-1585129351701-304867c8f2e8?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    stock: 2140,
+      "https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=800&q=80",
+    stock: 128,
   },
-  { name: "Men", slug: "men", image: "https://cdn.pixabay.com/photo/2019/12/11/08/43/nike-4687824_1280.jpg", stock: 1284 },
   {
-    name: "Kids",
+    name: "Ladies Shoes",
+    slug: "women",
+    image:
+      "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&w=800&q=80",
+    stock: 96,
+  },
+  {
+    name: "Men's Shoes",
+    slug: "men",
+    image:
+      "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=800&q=80",
+    stock: 142,
+  },
+  {
+    name: "Kids Shoes",
     slug: "kids",
     image:
-      "https://images.unsplash.com/photo-1742390671765-c87aaed67ad8?q=80&w=1025&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    stock: 763,
+      "https://images.unsplash.com/photo-1514989940723-e8e51635b782?auto=format&fit=crop&w=800&q=80",
+    stock: 74,
   },
   {
     name: "Fragrances",
     slug: "fragrances",
     image:
-      "https://images.unsplash.com/photo-1672848700906-2b8ca62639e4?q=80&w=1203&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    stock: 340,
+      "https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&w=800&q=80",
+    stock: 210,
   },
-  { name: "Accessories", slug: "accessories", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600", stock: 458 },
-  { name: "Sales", slug: "sales", image: "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?w=600", stock: 189 },
-];
+  {
+    name: "Sale",
+    slug: "sale",
+    image:
+      "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=800&q=80",
+    stock: 58,
+  },
+]
 
 const bannerSlides = [
   {
     image:
-      "https://cdn.pixabay.com/photo/2013/04/27/09/30/shoes-107401_1280.jpg",
-    slug: "new",
-  },
-  {
-    image:
-      "https://cdn.pixabay.com/photo/2015/01/03/03/51/sandals-587185_1280.jpg",
+      "https://images.unsplash.com/photo-1590874103328-eac38a683ce7?auto=format&fit=crop&w=1600&q=80",
     slug: "women",
+    title: "Bags That Make an Entrance",
+    subtitle: "Handcrafted leather totes, crossbodies & clutches",
+    cta: "Shop Ladies Bags",
   },
   {
     image:
-      "https://cdn.pixabay.com/photo/2017/03/16/22/19/jeans-2150408_1280.jpg",
+      "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&w=1600&q=80",
     slug: "men",
+    title: "Step Up Your Everyday",
+    subtitle: "Sneakers, loafers & boots built to last",
+    cta: "Shop Men's Shoes",
   },
   {
     image:
-      "https://images.unsplash.com/photo-1672848700906-2b8ca62639e4?q=80&w=1203&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "https://images.unsplash.com/photo-1615634260167-c8cdede054de?auto=format&fit=crop&w=1600&q=80",
     slug: "fragrances",
+    title: "Scent Is a Signature",
+    subtitle: "Long-lasting eau de parfum for every mood",
+    cta: "Shop Fragrances",
   },
-];
+  {
+    image:
+      "https://images.unsplash.com/photo-1596703263926-eb0762ee17e4?auto=format&fit=crop&w=1600&q=80",
+    slug: "women",
+    title: "Heels, Flats & Everything In Between",
+    subtitle: "Comfort-first styles for day into night",
+    cta: "Shop Ladies Shoes",
+  },
+]
 
 const promiseStrip = [
-  { value: "01", label: "Free shipping over $75" },
-  { value: "02", label: "30-day easy returns" },
-  { value: "03", label: "Made with certified fabrics" },
-];
+  {
+    num: "01",
+    title: "Free Shipping",
+    text: "Complimentary delivery on every order over $75, nationwide.",
+  },
+  {
+    num: "02",
+    title: "Easy 30-Day Returns",
+    text: "Changed your mind? Send it back within 30 days, no questions asked.",
+  },
+  {
+    num: "03",
+    title: "100% Authentic",
+    text: "Every bag, shoe & fragrance is sourced direct and guaranteed genuine.",
+  },
+]
 
 const trustStats = [
-  { id: "customers", to: 128450, suffix: "+", label: "Happy customers served" },
-  { id: "satisfaction", to: 98, suffix: "%", label: "Customer satisfaction rate" },
-  { id: "stock", to: 4645, suffix: "", label: "Items currently in stock" },
-  { id: "countries", to: 42, suffix: "", label: "Countries we ship to" },
-];
+  { label: "Happy Customers Served", value: 48200, suffix: "+" },
+  { label: "Customer Satisfaction", value: 98, suffix: "%" },
+  { label: "Items In Stock", value: 12500, suffix: "+" },
+  { label: "Countries Shipped To", value: 32, suffix: "" },
+]
 
 const liveStock = [
-  { id: "l1", name: "Merino Crew Knit", left: 7, sold: 1432, price: "$118" },
-  { id: "l2", name: "Relaxed Oxford Shirt", left: 23, sold: 986, price: "$84" },
-  { id: "l3", name: "Structured Tote", left: 4, sold: 2211, price: "$196" },
-  { id: "l4", name: "Cotton Tee 3-Pack", left: 51, sold: 5307, price: "$62" },
-];
+  {
+    name: "Milano Leather Tote Bag",
+    category: "women",
+    image:
+      "https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?auto=format&fit=crop&w=800&q=80",
+    unitsLeft: 6,
+    unitsSold: 194,
+    price: 149,
+  },
+  {
+    name: "Aurora Stiletto Heels",
+    category: "women",
+    image:
+      "https://images.unsplash.com/photo-1518049362265-d5b2a6467637?auto=format&fit=crop&w=800&q=80",
+    unitsLeft: 3,
+    unitsSold: 121,
+    price: 119,
+  },
+  {
+    name: "Trailrunner Low Sneakers",
+    category: "men",
+    image:
+      "https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?auto=format&fit=crop&w=800&q=80",
+    unitsLeft: 21,
+    unitsSold: 356,
+    price: 99,
+  },
+  {
+    name: "Noir Intense Eau de Parfum",
+    category: "fragrances",
+    image:
+      "https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=800&q=80",
+    unitsLeft: 9,
+    unitsSold: 278,
+    price: 89,
+  },
+]
 
 const featuredReviews = [
   {
-    _id: "1",
     rating: 5,
-    comment: "Amazing quality and fast shipping. The fabric feels premium and fits perfectly.",
-    userId: { fullName: "Sarah Johnson", avatar: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=200" },
-    productId: { name: "Cotton Overshirt" },
+    comment:
+      "The Milano tote is even more beautiful in person — the leather is buttery soft and it fits my laptop perfectly.",
+    name: "Amara Okafor",
+    avatar: "https://i.pravatar.cc/120?img=47",
+    product: "Milano Leather Tote Bag",
   },
   {
-    _id: "2",
+    rating: 5,
+    comment:
+      "Finally heels I can wear all day without wincing. Elegant and shockingly comfortable.",
+    name: "Priya Sharma",
+    avatar: "https://i.pravatar.cc/120?img=32",
+    product: "Aurora Stiletto Heels",
+  },
+  {
     rating: 4,
-    comment: "Really happy with my purchase. Colors are exactly as shown on the site.",
-    userId: { fullName: "Michael Lee", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200" },
-    productId: { name: "Classic Sneakers" },
+    comment:
+      "Great everyday sneakers. True to size and the grip is solid on wet pavement.",
+    name: "Daniel Reyes",
+    avatar: "https://i.pravatar.cc/120?img=12",
+    product: "Trailrunner Low Sneakers",
   },
   {
-    _id: "3",
     rating: 5,
-    comment: "My go-to store now. Great selection and the customer service is excellent.",
-    userId: { fullName: "Emma Wilson", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200" },
-    productId: { name: "Leather Tote" },
+    comment:
+      "Noir Intense lasts the entire workday and gets me compliments every single time.",
+    name: "Sofia Bianchi",
+    avatar: "https://i.pravatar.cc/120?img=45",
+    product: "Noir Intense Eau de Parfum",
   },
   {
-    _id: "4",
     rating: 5,
-    comment: "The fragrance lasts all day and the packaging is beautiful. Highly recommend.",
-    userId: { fullName: "David Kim", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200" },
-    productId: { name: "Signature Eau de Parfum" },
+    comment:
+      "Ordered kids shoes for my son — arrived in two days and the quality is fantastic for the price.",
+    name: "Marcus Bennett",
+    avatar: "https://i.pravatar.cc/120?img=15",
+    product: "Kids Shoes",
   },
-];
+]
 
-const WHATSAPP_NUMBER = "15551234567";
-const WHATSAPP_MESSAGE = "Hi STORE! I have a question about an order.";
+/* ------------------------------------------------------------------ */
+/*  Hooks                                                              */
+/* ------------------------------------------------------------------ */
 
-/* ----------------------------------------------------------------- utils */
-
-const cx = (...parts) => parts.filter(Boolean).join(" ");
-
-// Shared "lifted card" shadow language used everywhere for the 3D feel —
-// two stacked shadows (soft ambient + tight contact) that grow on hover/press.
-const CARD_3D =
-  "shadow-[0_1px_2px_rgba(0,0,0,0.06),0_10px_18px_-10px_rgba(0,0,0,0.28)] " +
-  "transition-[transform,box-shadow] duration-500 ease-out will-change-transform " +
-  "hover:shadow-[0_1px_2px_rgba(0,0,0,0.08),0_22px_34px_-14px_rgba(0,0,0,0.4)] " +
-  "hover:-translate-y-1.5 active:translate-y-0 active:shadow-[0_1px_2px_rgba(0,0,0,0.1),0_4px_8px_-2px_rgba(0,0,0,0.3)] active:duration-100";
-
-/* ----------------------------------------------------------------- hooks */
-
-function useReveal({ threshold = 0.15, once = true } = {}) {
-  const ref = useRef(null);
-  const [visible, setVisible] = useState(false);
+// IntersectionObserver-based reveal-on-scroll (fires once)
+function useReveal(options = {}) {
+  const ref = useRef(null)
+  const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    const node = ref.current;
-    if (!node || typeof IntersectionObserver === "undefined") {
-      setVisible(true);
-      return;
+    const node = ref.current
+    if (!node) return
+
+    // Respect reduced motion — reveal immediately.
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      setVisible(true)
+      return
     }
+
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          if (once) observer.disconnect();
-        } else if (!once) {
-          setVisible(false);
-        }
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setVisible(true)
+            observer.unobserve(entry.target)
+          }
+        })
       },
-      { threshold },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [threshold, once]);
+      { threshold: 0.15, rootMargin: "0px 0px -40px 0px", ...options },
+    )
 
-  return { ref, visible };
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  return [ref, visible]
 }
 
-function useScrollY() {
-  const [y, setY] = useState(0);
+// Count-up number, starts when `active` becomes true
+function useCountUp(target, active, duration = 1600) {
+  const [value, setValue] = useState(0)
+
   useEffect(() => {
-    let frame = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => setY(window.scrollY));
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", onScroll);
-    };
-  }, []);
-  return y;
+    if (!active) return
+
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      setValue(target)
+      return
+    }
+
+    let raf
+    let start
+    const step = (ts) => {
+      if (start === undefined) start = ts
+      const progress = Math.min((ts - start) / duration, 1)
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setValue(Math.round(eased * target))
+      if (progress < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [target, active, duration])
+
+  return value
 }
 
-function useScrollProgress() {
-  const [progress, setProgress] = useState(0);
-  useEffect(() => {
-    const onScroll = () => {
-      const max = document.documentElement.scrollHeight - window.innerHeight;
-      setProgress(max > 0 ? Math.min(1, window.scrollY / max) : 0);
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, []);
-  return progress;
+/* ------------------------------------------------------------------ */
+/*  Reusable presentational components                                 */
+/* ------------------------------------------------------------------ */
+
+const DIRECTION_MAP = {
+  up: "translate-y-8",
+  down: "-translate-y-8",
+  left: "translate-x-8",
+  right: "-translate-x-8",
 }
 
-function useCountUp(to, active, duration = 1600) {
-  const [value, setValue] = useState(0);
-  useEffect(() => {
-    if (!active) return;
-    let frame = 0;
-    const start = performance.now();
-    const tick = (now) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setValue(Math.round(to * eased));
-      if (t < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [to, active, duration]);
-  return value;
-}
-
-/* ------------------------------------------------------------ primitives */
-
-function Reveal({ children, delay = 0, direction = "up", className }) {
-  const { ref, visible } = useReveal();
-  const hidden = {
-    up: "translate-y-8",
-    down: "-translate-y-8",
-    left: "-translate-x-10",
-    right: "translate-x-10",
-    none: "",
-  }[direction];
+// Generic reveal wrapper — fade + slide in, staggered via delay (ms)
+function Reveal({ children, delay = 0, direction = "up", className = "" }) {
+  const [ref, visible] = useReveal()
 
   return (
     <div
       ref={ref}
       style={{ transitionDelay: `${delay}ms` }}
       className={cx(
-        "transition-all duration-700 ease-out motion-reduce:transition-none motion-reduce:transform-none",
-        visible ? "translate-x-0 translate-y-0 opacity-100 scale-100" : cx("opacity-0 scale-95", hidden),
+        "transition-all duration-700 ease-out will-change-transform motion-reduce:transition-none",
+        visible ? "opacity-100 translate-x-0 translate-y-0" : cx("opacity-0", DIRECTION_MAP[direction]),
         className,
       )}
     >
       {children}
     </div>
-  );
+  )
 }
 
-// Dog-ear / folded-corner decoration. Sits absolutely in a `relative` + `group`
-// parent. The triangle "lifts" and its shadow deepens on hover for a paper-fold feel.
-function CornerFold({ size = "h-6 w-6 sm:h-7 sm:w-7", dark = false }) {
+// Decorative folded corner (top-right of cards), animates on hover
+function CornerFold({ variant = "dark" }) {
+  const isDark = variant === "dark"
   return (
-    <div
-      aria-hidden
-      className={cx("pointer-events-none absolute right-0 top-0 z-10 overflow-visible", size)}
-    >
-      <div
-        className={cx(
-          "absolute inset-0 origin-top-right transition-all duration-500 ease-out",
-          "group-hover:-rotate-6 group-hover:scale-125 group-hover:-translate-x-0.5 group-hover:translate-y-0.5",
-          "[filter:drop-shadow(-3px_3px_4px_rgba(0,0,0,0.25))] group-hover:[filter:drop-shadow(-6px_6px_9px_rgba(0,0,0,0.35))]",
-          dark
-            ? "bg-gradient-to-br from-[#4a4a4a] via-[#333333] to-[#1c1c1c]"
-            : "bg-gradient-to-br from-white via-gray-100 to-gray-300",
-        )}
-        style={{ clipPath: "polygon(100% 0, 0 0, 100% 100%)" }}
-      />
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------- trust stats */
-
-function StatCard({ stat, active }) {
-  const value = useCountUp(stat.to, active);
-  return (
-    <div
+    <span
+      aria-hidden="true"
       className={cx(
-        "group relative overflow-hidden rounded-sm border border-[#333333]/80 bg-white p-4 text-center sm:p-6",
-        "[transform-style:preserve-3d] [perspective:800px]",
-        CARD_3D,
+        "pointer-events-none absolute right-0 top-0 z-10 h-0 w-0 origin-top-right",
+        "transition-all duration-300 ease-out",
+        "border-l-transparent",
+        "group-hover:scale-125 group-hover:-rotate-3",
+        isDark
+          ? "border-t-[#333333] border-l-[28px] border-t-[28px]"
+          : "border-t-white border-l-[28px] border-t-[28px]",
+        "drop-shadow-[0_2px_3px_rgba(51,51,51,0.25)]",
       )}
-    >
-      <CornerFold size="h-5 w-5 sm:h-6 sm:w-6" />
-      <p className="text-xl font-semibold sm:text-2xl md:text-3xl">
-        {value.toLocaleString()}
-        {stat.suffix}
-      </p>
-      <p className="mt-2 text-[10px] uppercase tracking-widest text-gray-500 sm:text-xs">{stat.label}</p>
-    </div>
-  );
+    />
+  )
 }
 
-function TrustStats({ stats }) {
-  const { ref, visible } = useReveal({ threshold: 0.25 });
-  return (
-    <section
-      ref={ref}
-      className="w-full border-y border-[#333333] bg-gray-50 px-4 py-10 sm:px-6 sm:py-16 md:px-8 lg:px-10 xl:px-12 2xl:px-16"
-    >
-      <Reveal>
-        <h2 className="mb-5 text-base font-semibold sm:mb-6 sm:text-lg md:text-xl">Trusted by shoppers worldwide</h2>
-      </Reveal>
-      <ul className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-4">
-        {stats.map((stat, i) => (
-          <li key={stat.id}>
-            <Reveal delay={i * 110}>
-              <StatCard stat={stat} active={visible} />
-            </Reveal>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
+/* ------------------------------------------------------------------ */
+/*  Section: Hero banner (auto-sliding, transform-based track)         */
+/* ------------------------------------------------------------------ */
 
-/* -------------------------------------------------------------- live stock */
-
-// Each item animates in ONCE per page visit (once: true). The observer
-// disconnects after the first reveal, so it plays exactly one time per
-// page load and then stays visible/static for the rest of the visit.
-function LiveStockCard({ item, index }) {
-  const fromLeft = index % 2 === 0;
-  const { ref, visible } = useReveal({ threshold: 0.4, once: true });
-  const pct = Math.max(6, Math.min(100, item.left));
-  const low = item.left <= 10;
-
-  return (
-    <div
-      ref={ref}
-      className={cx(
-        "flex h-[50vh] w-full items-stretch overflow-hidden border-b border-[#333333] last:border-b-0",
-        fromLeft ? "flex-row" : "flex-row-reverse",
-      )}
-    >
-      {/* Stat panel — big number, alternates side with the item */}
-      <div
-        className={cx(
-          "group relative flex w-2/5 shrink-0 flex-col items-center justify-center gap-2 bg-[#333333] text-white sm:w-1/3 sm:gap-3",
-          "transition-all duration-700 ease-out motion-reduce:transition-none motion-reduce:transform-none",
-          visible
-            ? "translate-x-0 opacity-100"
-            : cx("opacity-0", fromLeft ? "-translate-x-16" : "translate-x-16"),
-        )}
-      >
-        <CornerFold dark />
-        <span className="text-3xl font-semibold tabular-nums sm:text-5xl md:text-6xl">{item.left}</span>
-        <span className="text-center text-[9px] uppercase tracking-widest text-gray-300 sm:text-xs">
-          {low ? "Almost gone" : "Units left"}
-        </span>
-      </div>
-
-      {/* Detail panel — name, price, sold-out bar */}
-      <div
-        className={cx(
-          "flex flex-1 flex-col justify-center gap-2 px-5 sm:gap-3 sm:px-8 md:px-12",
-          "transition-all delay-100 duration-700 ease-out motion-reduce:transition-none motion-reduce:transform-none",
-          visible
-            ? "translate-x-0 opacity-100"
-            : cx("opacity-0", fromLeft ? "translate-x-16" : "-translate-x-16"),
-        )}
-      >
-        <p className="text-lg font-semibold sm:text-2xl md:text-3xl">{item.name}</p>
-        <span className="text-base font-medium text-gray-500 sm:text-lg">{item.price}</span>
-        <div className="mt-1 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-gray-200 shadow-inner">
-          <span
-            style={{ width: visible ? `${pct}%` : "0%" }}
-            className={cx(
-              "block h-full rounded-full transition-[width] duration-1000 ease-out",
-              low ? "animate-pulse bg-red-600" : "bg-[#333333]",
-            )}
-          />
-        </div>
-        <p className="text-[10px] uppercase tracking-widest text-gray-500 sm:text-xs">
-          {item.sold.toLocaleString()} sold
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function LiveStock({ items }) {
-  return (
-    <section className="w-full">
-      <div className="px-4 py-8 sm:px-6 sm:py-10 md:px-8 lg:px-10 xl:px-12 2xl:px-16">
-        <Reveal>
-          <h2 className="text-base font-semibold sm:text-lg md:text-xl">Live stock levels</h2>
-          <p className="mt-1 text-xs text-gray-500 sm:text-sm">Updated every few minutes as orders come in.</p>
-        </Reveal>
-      </div>
-
-      <div className="w-full border-t border-[#333333]">
-        {items.map((item, i) => (
-          <LiveStockCard key={item.id} item={item} index={i} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* ---------------------------------------------------------- category card */
-
-const MAX_TILT_DEG = 8;
-
-function CategoryCard({ cat, index, selected }) {
-  const { ref: revealRef, visible } = useReveal({ threshold: 0.1 });
-  const cardRef = useRef(null);
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
-
-  const setRefs = useCallback(
-    (node) => {
-      cardRef.current = node;
-      revealRef.current = node;
-    },
-    [revealRef],
-  );
-
-  const handleMove = (e) => {
-    const node = cardRef.current;
-    if (!node) return;
-    const rect = node.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width - 0.5;
-    const py = (e.clientY - rect.top) / rect.height - 0.5;
-    setTilt({ x: -py * MAX_TILT_DEG * 2, y: px * MAX_TILT_DEG * 2 });
-  };
-
-  return (
-    <div
-      style={{ transitionDelay: visible ? `${index * 90}ms` : "0ms" }}
-      className={cx(
-        "transition-[opacity,transform] duration-500 ease-out motion-reduce:transition-none motion-reduce:transform-none",
-        visible ? "translate-y-0 translate-x-0 opacity-100" : "-translate-x-4 translate-y-6 opacity-0",
-      )}
-    >
-    <Link
-      to={`/${cat.slug}`}
-      ref={setRefs}
-      aria-current={selected ? "true" : undefined}
-      onMouseMove={handleMove}
-      onMouseLeave={() => setTilt({ x: 0, y: 0 })}
-      style={{
-        transform: `perspective(900px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) ${
-          selected ? "translateZ(4px)" : ""
-        }`,
-      }}
-      className={cx(
-        "group relative block w-full overflow-hidden rounded-sm border border-[#333333] bg-white will-change-transform",
-        "[transform-style:preserve-3d] transition-[transform,box-shadow,background-color,border-color] duration-150 ease-out motion-reduce:transform-none",
-        "shadow-[0_2px_4px_rgba(0,0,0,0.08),0_14px_24px_-14px_rgba(0,0,0,0.35)]",
-        "hover:shadow-[0_2px_4px_rgba(0,0,0,0.1),0_26px_40px_-16px_rgba(0,0,0,0.45)]",
-        "active:scale-[0.98] active:duration-100",
-        selected ? "border-[#333333] bg-[#333333]" : "hover:border-[#333333] hover:bg-[#333333]",
-      )}
-    >
-      <CornerFold dark />
-      <div className="relative aspect-square w-full overflow-hidden border-b border-[#333333]">
-        <img
-          src={cat.image || "/placeholder.svg"}
-          alt={cat.name}
-          loading="lazy"
-          className="h-full w-full object-cover"
-        />
-        {typeof cat.stock === "number" && (
-          <span className="absolute left-2 top-2 rounded-full bg-white/85 px-2 py-0.5 text-[9px] uppercase tracking-widest text-[#333333] shadow-sm backdrop-blur-sm">
-            {cat.stock.toLocaleString()} in stock
-          </span>
-        )}
-      </div>
-      <div
-        className={cx(
-          "px-2 py-2 transition-colors duration-500 ease-out sm:px-3 sm:py-3",
-          selected ? "text-white" : "group-hover:text-white",
-        )}
-      >
-        <span className="text-xs font-medium sm:text-sm md:text-base">{cat.name}</span>
-      </div>
-    </Link>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------- reviews */
-
-function ReviewCard({ review }) {
-  const reviewerName = review.userId?.fullName || "Verified Buyer";
-  const reviewerAvatar = review.userId?.avatar || "https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=200";
-  const reviewText = review.comment?.trim() || review.title?.trim() || "";
-
-  return (
-    <div
-      className={cx(
-        "group relative flex h-full flex-col gap-3 overflow-hidden rounded-sm border border-[#333333] bg-white p-4 sm:p-5",
-        "transition-colors duration-300 ease-out hover:bg-[#333333] hover:border-[#333333]",
-        CARD_3D,
-      )}
-    >
-      <CornerFold />
-      <div className="flex items-center gap-3 transition-colors duration-300 group-hover:text-white">
-        <img
-          src={reviewerAvatar || "/placeholder.svg"}
-          alt={reviewerName}
-          className="h-10 w-10 rounded-full border border-[#333333] object-cover shadow-md transition-colors duration-300 group-hover:border-white sm:h-12 sm:w-12"
-        />
-        <div>
-          <p className="text-sm font-medium transition-colors duration-300 group-hover:text-white sm:text-base">
-            {reviewerName}
-          </p>
-          <div className="text-xs transition-colors duration-300 group-hover:text-white sm:text-sm">
-            {"★".repeat(review.rating)}
-            {"☆".repeat(5 - review.rating)}
-          </div>
-        </div>
-      </div>
-      <p className="text-xs leading-relaxed transition-colors duration-300 group-hover:text-white sm:text-sm md:text-base">
-        {reviewText}
-      </p>
-      {review.productId?.name && (
-        <p className="text-[10px] uppercase tracking-wide text-gray-400 transition-colors duration-300 group-hover:text-gray-300 sm:text-xs">
-          {review.productId.name}
-        </p>
-      )}
-    </div>
-  );
-}
-
-/* ----------------------------------------------------------- whatsapp button */
-
-function WhatsAppButton() {
-  const [expanded, setExpanded] = useState(false);
-  const href = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
+function HeroBanner() {
+  const [index, setIndex] = useState(0)
+  const count = bannerSlides.length
 
   useEffect(() => {
-    const timer = setTimeout(() => setExpanded(true), 1200);
-    return () => clearTimeout(timer);
-  }, []);
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return
+    }
+    const id = setInterval(() => {
+      setIndex((i) => (i + 1) % count)
+    }, 8000)
+    return () => clearInterval(id)
+  }, [count])
 
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label="Chat with us on WhatsApp"
-      onMouseEnter={() => setExpanded(true)}
-      className="fixed bottom-5 right-5 z-40 flex animate-[float_3s_ease-in-out_infinite] items-center gap-2 rounded-full bg-[#25D366] px-3.5 py-3.5 text-white shadow-[0_4px_10px_rgba(0,0,0,0.2),0_12px_24px_-8px_rgba(37,211,102,0.6)] transition-transform duration-300 hover:scale-110 hover:shadow-[0_6px_14px_rgba(0,0,0,0.25),0_18px_30px_-8px_rgba(37,211,102,0.7)] active:scale-95"
-    >
-      <span className="absolute inset-0 -z-10 animate-ping rounded-full bg-[#25D366] opacity-40" aria-hidden />
-      <svg viewBox="0 0 24 24" fill="currentColor" className="size-6 shrink-0" aria-hidden>
-        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.174.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.263.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884a9.82 9.82 0 016.988 2.898 9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.464 3.488" />
-      </svg>
-      <span
-        className={cx(
-          "overflow-hidden whitespace-nowrap text-sm font-medium transition-all duration-500",
-          expanded ? "max-w-40 pr-1 opacity-100" : "max-w-0 opacity-0",
-        )}
-      >
-        Chat with us
-      </span>
-    </a>
-  );
-}
-
-/* ---------------------------------------------------------------- page */
-
-export default function Home() {
-  const marqueeReviews = [...featuredReviews, ...featuredReviews];
-
-  const location = useLocation();
-  const selectedSlug = location.pathname.replace(/^\/+/, "");
-
-  // FIX: banner is now driven purely by `slideIndex` state — no scroll
-  // container, no drag refs, no pointer handlers at all. The track below
-  // is positioned with a CSS transform based on this index, and the ONLY
-  // two things that can change it are the autoplay interval and the dot
-  // buttons. There is nothing left for a mouse or finger to grab and drag.
-  const [slideIndex, setSlideIndex] = useState(0);
-
-  const progress = useScrollProgress();
-  const scrollY = useScrollY();
-  const condensed = scrollY > 40;
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setSlideIndex((prev) => (prev + 1) % bannerSlides.length);
-    }, 9000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const goToSlide = (i) => {
-    setSlideIndex(i);
-  };
-
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
-
-  return (
-    <div className="w-full min-h-screen bg-white text-[#333333] relative top-[15px]">
-      <SEO
-        title="Shop Men, Women, Kids, Fragrances & Accessories"
-        description="Discover the latest collections for Men, Women, Kids, Fragrances, and Accessories. Shop new arrivals and exclusive sales at STORE."
-        keywords="fashion, clothing, men, women, kids, fragrances, accessories, sales, new arrivals"
-        path="/"
-      />
-
-      <style>{`
-        @keyframes marquee-scroll {
-          from { transform: translateX(0); }
-          to { transform: translateX(-50%); }
-        }
-        .marquee-track {
-          animation: marquee-scroll 30s linear infinite;
-        }
-        .marquee-track:hover {
-          animation-play-state: paused;
-        }
-        .fade-in {
-          animation: fadeIn 0.8s ease-out;
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes float {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-6px); }
-        }
-        @keyframes logoDrop {
-          from { opacity: 0; transform: translateY(-12px) rotateX(40deg); }
-          to { opacity: 1; transform: translateY(0) rotateX(0deg); }
-        }
-        .logo-drop {
-          animation: logoDrop 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
-          transform-style: preserve-3d;
-        }
-        @keyframes storeLineDraw {
-          from { width: 0; }
-        }
-        .store-line {
-          animation: storeLineDraw 0.6s 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
-        }
-      `}</style>
-
-      {/* top scroll-progress bar, with a slight 3D glow */}
+    <section className="relative overflow-hidden bg-[#333333]" aria-label="Featured collections">
       <div
-        aria-hidden
-        style={{ transform: `scaleX(${progress})` }}
-        className="fixed inset-x-0 top-0 z-50 h-0.5 origin-left bg-[#333333] shadow-[0_0_6px_rgba(0,0,0,0.4)] transition-transform duration-150 ease-out"
-      />
-
-      {/* Header — sticky, condenses on scroll, gains depth via shadow once condensed */}
-      <header
-        className={cx(
-          "sticky top-0 z-30 w-full border-b border-[#333333] bg-white/90 backdrop-blur transition-all duration-500",
-          condensed ? "py-2 shadow-[0_4px_12px_-4px_rgba(0,0,0,0.25)]" : "py-4 shadow-none",
-          "px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16",
-        )}
+        className="flex transition-transform duration-700 ease-out motion-reduce:transition-none"
+        style={{ transform: `translateX(-${index * 100}%)` }}
       >
-        <h1
-          className={cx(
-            "logo-drop group inline-block w-fit font-semibold tracking-wide transition-all duration-500",
-            condensed ? "text-base sm:text-lg" : "text-lg sm:text-xl md:text-2xl",
-          )}
-        >
-          {/* thin top line above the wordmark: draws out on load, extends + thickens on hover */}
-          <span
-            aria-hidden
-            className="store-line mb-1 block h-[2px] w-8 bg-[#333333] transition-all duration-300 ease-out group-hover:w-12 group-hover:h-[3px]"
-          />
-          STORE
-        </h1>
-      </header>
-
-      {/* Banner — no scroll container, no drag. A flex track shifted with
-          a CSS transform. Only the autoplay timer and the dots move it. */}
-      <section className="relative h-[42vh] w-full overflow-hidden border-b border-[#333333] sm:h-[55vh] md:h-[80vh]">
-        <div
-          className="flex h-full w-full transition-transform duration-700 ease-out"
-          style={{ transform: `translateX(-${slideIndex * 100}%)` }}
-        >
-          {bannerSlides.map((slide, i) => (
-            <Link
-              key={i}
-              to={`/${slide.slug}`}
-              className="group relative block h-full w-full shrink-0"
-            >
+        {bannerSlides.map((slide, i) => (
+          <div key={i} className="relative min-w-full">
+            <div className="relative h-[62vh] min-h-[380px] w-full md:h-[78vh]">
               <img
                 src={slide.image || "/placeholder.svg"}
-                alt={slide.slug}
-                draggable={false}
-                className="pointer-events-none h-full w-full object-cover shadow-[inset_0_-40px_60px_-20px_rgba(0,0,0,0.35)]"
+                alt={slide.title}
+                className="h-full w-full object-cover"
               />
-            </Link>
-          ))}
-        </div>
+              <div className="absolute inset-0 bg-gradient-to-r from-[#333333]/85 via-[#333333]/40 to-transparent" />
+              <div className="absolute inset-0 flex items-center">
+                <div className="mx-auto w-full max-w-7xl px-6 md:px-10">
+                  <div className="max-w-xl">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
+                      New Season
+                    </p>
+                    <h2 className="text-balance text-4xl font-bold leading-tight text-white md:text-6xl">
+                      {slide.title}
+                    </h2>
+                    <p className="mt-4 text-pretty text-base text-white/80 md:text-lg">
+                      {slide.subtitle}
+                    </p>
+                    <Link
+                      to={`/${slide.slug}`}
+                      className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-7 py-3 text-sm font-semibold text-[#333333] transition-all duration-300 ease-out hover:gap-3 hover:bg-white/90"
+                    >
+                      {slide.cta}
+                      <span aria-hidden="true">&rarr;</span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
 
-        {/* Dots — the only way to change slides by hand */}
-        <div className="absolute bottom-3 left-0 flex w-full justify-center gap-2 sm:bottom-4">
-          {bannerSlides.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => goToSlide(i)}
-              aria-label={`Go to slide ${i + 1}`}
-              className={cx(
-                "h-2.5 w-2.5 rounded-full border border-[#333333] shadow-sm transition-all duration-300 sm:h-3.5 sm:w-3.5",
-                slideIndex === i
-                  ? "scale-125 bg-[#333333] shadow-[0_2px_6px_rgba(0,0,0,0.4)]"
-                  : "bg-white hover:scale-110 hover:bg-[#333333]",
-              )}
-            />
-          ))}
-        </div>
-      </section>
+      {/* Dot navigation */}
+      <div className="absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3">
+        {bannerSlides.map((_, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => setIndex(i)}
+            aria-label={`Go to slide ${i + 1}`}
+            aria-current={i === index}
+            className={cx(
+              "h-2.5 rounded-full transition-all duration-300 ease-out",
+              i === index ? "w-8 bg-white" : "w-2.5 bg-white/50 hover:bg-white/80",
+            )}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
 
-      {/* Promise strip — mobile-first single column, staggered reveal */}
-      <section className="grid w-full grid-cols-1 gap-5 px-4 py-8 sm:grid-cols-3 sm:gap-6 sm:px-6 sm:py-10 md:px-8 lg:px-10 xl:px-12 2xl:px-16">
+/* ------------------------------------------------------------------ */
+/*  Section: Scroll progress bar                                       */
+/* ------------------------------------------------------------------ */
+
+function ScrollProgress() {
+  const [progress, setProgress] = useState(0)
+
+  useEffect(() => {
+    const onScroll = () => {
+      const scrollTop = window.scrollY
+      const height = document.documentElement.scrollHeight - window.innerHeight
+      setProgress(height > 0 ? (scrollTop / height) * 100 : 0)
+    }
+    onScroll()
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
+
+  return (
+    <div className="fixed inset-x-0 top-0 z-50 h-1 bg-transparent" aria-hidden="true">
+      <div
+        className="h-full bg-[#333333] transition-[width] duration-150 ease-out"
+        style={{ width: `${progress}%` }}
+      />
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Section: Promise strip                                             */
+/* ------------------------------------------------------------------ */
+
+function PromiseStrip() {
+  const directions = ["left", "up", "right"]
+  return (
+    <section className="border-b border-gray-100 bg-white">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-6 py-14 md:grid-cols-3 md:px-10">
         {promiseStrip.map((item, i) => (
-          <Reveal key={item.value} delay={i * 120} direction={i === 0 ? "left" : i === 2 ? "right" : "up"}>
-            <div className="border-t border-[#333333] pt-3 transition-transform duration-300 hover:-translate-y-0.5">
-              <span className="text-xl font-semibold text-gray-400">{item.value}</span>
-              <p className="mt-1 text-sm">{item.label}</p>
+          <Reveal key={item.num} direction={directions[i]} delay={i * 120}>
+            <div className="flex items-start gap-4">
+              <span className="text-3xl font-bold tabular-nums text-gray-200">{item.num}</span>
+              <div>
+                <h3 className="text-lg font-semibold text-[#333333]">{item.title}</h3>
+                <p className="mt-1 text-sm leading-relaxed text-gray-500">{item.text}</p>
+              </div>
             </div>
           </Reveal>
         ))}
-      </section>
+      </div>
+    </section>
+  )
+}
 
-      <TrustStats stats={trustStats} />
+/* ------------------------------------------------------------------ */
+/*  Section: Trust stats (count-up)                                    */
+/* ------------------------------------------------------------------ */
 
-      {/* Categories — mobile-first 2-col grid, each card reveals itself with its own stagger */}
-      <main className="px-4 py-6 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
-          {categories.map((cat, index) => (
-            <CategoryCard key={cat.slug} cat={cat} index={index} selected={selectedSlug === cat.slug} />
+function StatCard({ stat, active, delay }) {
+  const value = useCountUp(stat.value, active)
+  return (
+    <Reveal delay={delay}>
+      <div
+        className={cx(
+          "group relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-6 text-center",
+          CARD_3D,
+        )}
+      >
+        <CornerFold variant="dark" />
+        <p className="text-3xl font-bold tabular-nums text-[#333333] md:text-4xl">
+          {value.toLocaleString()}
+          {stat.suffix}
+        </p>
+        <p className="mt-2 text-xs font-medium uppercase tracking-wider text-gray-500">
+          {stat.label}
+        </p>
+      </div>
+    </Reveal>
+  )
+}
+
+function TrustStats() {
+  const [ref, visible] = useReveal()
+  return (
+    <section ref={ref} className="bg-gray-50">
+      <div className="mx-auto max-w-7xl px-6 py-16 md:px-10">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
+          {trustStats.map((stat, i) => (
+            <StatCard key={stat.label} stat={stat} active={visible} delay={i * 100} />
           ))}
         </div>
-      </main>
+      </div>
+    </section>
+  )
+}
 
-      <LiveStock items={liveStock} />
+/* ------------------------------------------------------------------ */
+/*  Section: Category grid (with mouse-move tilt)                      */
+/* ------------------------------------------------------------------ */
 
-      {/* Reviews marquee */}
-      {featuredReviews.length > 0 && (
-        <section className="border-t border-[#333333] bg-white py-8">
-          <h2 className="fade-in mb-5 px-4 text-base font-semibold sm:px-6 sm:text-lg md:px-8 md:text-xl lg:px-10 xl:px-12 2xl:px-16">
-            What our customers say
-          </h2>
+function CategoryCard({ category, delay }) {
+  const cardRef = useRef(null)
+  const [tilt, setTilt] = useState({ x: 0, y: 0 })
 
-          <div className="overflow-hidden">
-            <div className="marquee-track flex w-max gap-4">
-              {marqueeReviews.map((review, index) => (
-                <div key={`${review._id}-${index}`} className="w-[260px] shrink-0 sm:w-[320px] md:w-[360px]">
-                  <ReviewCard review={review} />
-                </div>
-              ))}
+  const handleMove = (e) => {
+    const node = cardRef.current
+    if (!node) return
+    const rect = node.getBoundingClientRect()
+    const px = (e.clientX - rect.left) / rect.width - 0.5
+    const py = (e.clientY - rect.top) / rect.height - 0.5
+    setTilt({ x: py * -8, y: px * 8 })
+  }
+
+  const reset = () => setTilt({ x: 0, y: 0 })
+
+  return (
+    <Reveal delay={delay}>
+      <div style={{ perspective: "1000px" }}>
+        <Link
+          to={`/${category.slug}`}
+          ref={cardRef}
+          onMouseMove={handleMove}
+          onMouseLeave={reset}
+          style={{ transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)` }}
+          className={cx(
+            "group relative block overflow-hidden rounded-2xl bg-white transition-transform duration-200 ease-out",
+            CARD_3D,
+          )}
+        >
+          <CornerFold variant="light" />
+          <div className="relative aspect-[4/5] w-full overflow-hidden">
+            <img
+              src={category.image || "/placeholder.svg"}
+              alt={category.name}
+              className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+            />
+            {/* Overlay that inverts to #333333 on hover */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#333333]/70 to-transparent transition-colors duration-500 ease-out group-hover:bg-[#333333]/85" />
+
+            {/* Stock badge */}
+            <span
+              className={cx(
+                "absolute left-3 top-3 rounded-full px-3 py-1 text-[11px] font-semibold backdrop-blur",
+                category.stock <= 60
+                  ? "bg-red-600/90 text-white"
+                  : "bg-white/85 text-[#333333]",
+              )}
+            >
+              {category.stock <= 60 ? `Only ${category.stock} left` : `${category.stock} in stock`}
+            </span>
+
+            {/* Name overlay */}
+            <div className="absolute inset-x-0 bottom-0 p-4">
+              <h3 className="text-lg font-semibold text-white transition-transform duration-500 ease-out group-hover:-translate-y-0.5">
+                {category.name}
+              </h3>
+              <span className="mt-1 inline-flex items-center gap-1 text-xs text-white/0 transition-all duration-500 ease-out group-hover:text-white/90">
+                Shop now <span aria-hidden="true">&rarr;</span>
+              </span>
             </div>
           </div>
-        </section>
-      )}                                          
-      <WhatsAppButton />
+        </Link>
+      </div>
+    </Reveal>
+  )
+}
+
+function CategoryGrid() {
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-7xl px-6 py-16 md:px-10">
+        <Reveal>
+          <div className="mb-10 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">
+              Browse The Collection
+            </p>
+            <h2 className="mt-2 text-balance text-3xl font-bold text-[#333333] md:text-4xl">
+              Shop By Category
+            </h2>
+          </div>
+        </Reveal>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6 lg:grid-cols-4 xl:grid-cols-5">
+          {categories.map((category, i) => (
+            <CategoryCard key={category.slug} category={category} delay={(i % 5) * 90} />
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Section: Live stock (alternating rows + count-up + urgency bar)    */
+/* ------------------------------------------------------------------ */
+
+function LiveStockRow({ product, index }) {
+  const [ref, visible] = useReveal()
+  const unitsLeft = useCountUp(product.unitsLeft, visible, 1200)
+  const isLeftImage = index % 2 === 0
+  const total = product.unitsLeft + product.unitsSold
+  const soldPct = Math.round((product.unitsSold / total) * 100)
+  const isLow = product.unitsLeft <= 8
+
+  return (
+    <div
+      ref={ref}
+      className={cx(
+        "grid grid-cols-1 items-center gap-6 md:grid-cols-2 md:gap-10",
+        "transition-all duration-700 ease-out motion-reduce:transition-none",
+        visible ? "opacity-100 translate-x-0" : cx("opacity-0", isLeftImage ? "-translate-x-10" : "translate-x-10"),
+      )}
+    >
+      {/* Image */}
+      <div className={cx("group relative", isLeftImage ? "md:order-1" : "md:order-2")}>
+        <div className={cx("relative overflow-hidden rounded-2xl bg-white", CARD_3D)}>
+          <CornerFold variant="dark" />
+          <div className="aspect-[16/10] w-full overflow-hidden">
+            <img
+              src={product.image || "/placeholder.svg"}
+              alt={product.name}
+              className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Details */}
+      <div className={cx(isLeftImage ? "md:order-2" : "md:order-1")}>
+        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
+          {product.category}
+        </p>
+        <h3 className="mt-2 text-2xl font-bold text-[#333333] md:text-3xl">{product.name}</h3>
+
+        <div className="mt-4 flex items-baseline gap-3">
+          <span className="text-3xl font-bold tabular-nums text-[#333333]">
+            {unitsLeft}
+          </span>
+          <span className="text-sm text-gray-500">units left in stock</span>
+        </div>
+
+        {/* Urgency progress bar */}
+        <div className="mt-3 h-2 w-full max-w-md overflow-hidden rounded-full bg-gray-100">
+          <div
+            className={cx(
+              "h-full rounded-full transition-[width] duration-1000 ease-out",
+              isLow ? "animate-pulse bg-red-600" : "bg-[#333333]",
+            )}
+            style={{ width: visible ? `${soldPct}%` : "0%" }}
+          />
+        </div>
+        <p className={cx("mt-2 text-xs font-medium", isLow ? "text-red-600" : "text-gray-500")}>
+          {isLow ? "Selling fast — almost gone!" : `${product.unitsSold} sold`}
+        </p>
+
+        <div className="mt-6 flex items-center gap-4">
+          <span className="text-xl font-bold text-[#333333]">${product.price}</span>
+          <button
+            type="button"
+            className="rounded-full bg-[#333333] px-6 py-2.5 text-sm font-semibold text-white transition-all duration-300 ease-out hover:bg-[#333333]/90 active:scale-95"
+          >
+            Add to Cart
+          </button>
+        </div>
+      </div>
     </div>
-  );
+  )
+}
+
+function LiveStock() {
+  return (
+    <section className="bg-gray-50">
+      <div className="mx-auto max-w-7xl px-6 py-16 md:px-10">
+        <Reveal>
+          <div className="mb-12 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">
+              Moving Fast
+            </p>
+            <h2 className="mt-2 text-balance text-3xl font-bold text-[#333333] md:text-4xl">
+              Live Stock Updates
+            </h2>
+          </div>
+        </Reveal>
+        <div className="flex flex-col gap-16">
+          {liveStock.map((product, i) => (
+            <LiveStockRow key={product.name} product={product} index={i} />
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Section: Reviews marquee                                           */
+/* ------------------------------------------------------------------ */
+
+function Stars({ rating }) {
+  return (
+    <div className="flex gap-0.5" aria-label={`${rating} out of 5 stars`}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <svg
+          key={n}
+          viewBox="0 0 20 20"
+          className={cx("h-4 w-4", n <= rating ? "fill-[#333333]" : "fill-gray-200")}
+          aria-hidden="true"
+        >
+          <path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L10 15.9 4.8 17.6l1-5.8L1.5 7.7l5.9-.9L10 1.5z" />
+        </svg>
+      ))}
+    </div>
+  )
+}
+
+function ReviewCard({ review }) {
+  return (
+    <div
+      className={cx(
+        "group relative w-80 shrink-0 overflow-hidden rounded-2xl border border-gray-100 bg-white p-6",
+        CARD_3D,
+      )}
+    >
+      <CornerFold variant="dark" />
+      <Stars rating={review.rating} />
+      <p className="mt-4 text-sm leading-relaxed text-gray-600">&ldquo;{review.comment}&rdquo;</p>
+      <div className="mt-6 flex items-center gap-3">
+        <img
+          src={review.avatar || "/placeholder.svg"}
+          alt={review.name}
+          className="h-10 w-10 rounded-full object-cover"
+        />
+        <div>
+          <p className="text-sm font-semibold text-[#333333]">{review.name}</p>
+          <p className="text-xs text-gray-400">{review.product}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ReviewsMarquee() {
+  const loop = [...featuredReviews, ...featuredReviews]
+  return (
+    <section className="overflow-hidden bg-white py-16">
+      <Reveal>
+        <div className="mx-auto mb-12 max-w-7xl px-6 text-center md:px-10">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">
+            Loved By Thousands
+          </p>
+          <h2 className="mt-2 text-balance text-3xl font-bold text-[#333333] md:text-4xl">
+            What Our Customers Say
+          </h2>
+        </div>
+      </Reveal>
+
+      <div className="group relative">
+        {/* edge fades */}
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-white to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-white to-transparent" />
+
+        <div className="flex w-max gap-6 px-6 [animation:marquee_40s_linear_infinite] group-hover:[animation-play-state:paused] motion-reduce:[animation:none]">
+          {loop.map((review, i) => (
+            <ReviewCard key={i} review={review} />
+          ))}
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes marquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+      `}</style>
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Page                                                               */
+/* ------------------------------------------------------------------ */
+
+export default function Home() {
+  return (
+    <main className="bg-white text-[#333333] relative top-[15px]">
+      <ScrollProgress />
+      <HeroBanner />
+      <PromiseStrip />
+      <TrustStats />
+      <CategoryGrid />
+      <LiveStock />
+      <ReviewsMarquee />
+    </main>
+  )
 }
