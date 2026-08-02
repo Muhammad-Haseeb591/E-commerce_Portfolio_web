@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { fetchCatalog, setFilter, setFilters, setTotalCount } from "../assets/components/store/fetcherSlice";
 import { useFilteredProducts } from "../assets/components/hooks/useFilteredProducts";
 import { getColorHex } from "../utils/Colormap";
-import { SaveOff } from "lucide-react";
 import SEO from "../assets/components/common/SEO"
 
 
@@ -77,7 +76,7 @@ const Men = () => {
     <div className="max-lg:w-full min-h-[80px] mt-[16px] lg:px-[30px] font-sans px-[12px] md:px-[24px] max-w-[1280px] min-[1350px]:max-w-[1800px] mx-auto">
 <SEO
 title="Men's Collection"
-  description="Shop the latest men's fashion at STORE. Stylish outfits, accessories, and more for every occasion."
+  description="Shop the latest men's fashion at Personal Site. Stylish outfits, accessories, and more for every occasion."
   keywords="men fashion, men clothing, men's wear, menswear"
   image="https://images.unsplash.com/photo-1490114538077-0a7f8cb49891?w=600"
   path="/men"
@@ -119,11 +118,6 @@ title="Men's Collection"
                 </div>
 
                 <div className="w-full h-auto px-[6px] pt-[8px] pb-[8px]">
-                  {/* 🔑 ADDED — SKU name ke upar. Agar aapke schema mein
-                      field ka naam `sku` nahi hai (e.g. `productCode`,
-                      `styleCode`), yahan sirf `product.productId` ko us naam se
-                      replace kar dena. Agar field missing/undefined ho to
-                      ye line render hi nahi hogi (blank space nahi banega). */}
                   {product.productId && (
                     <p className="w-full text-[11px] text-gray-400 tracking-wide truncate">
                       {product.productId}
@@ -148,13 +142,6 @@ title="Men's Collection"
                   </span>
                 </div>
 
-                {/* CHANGED — jis color ka stock hai wo dot full-opacity
-                    dikhta hai, jis color ka stock khatam (0) hai wo dot
-                    dimmed/grayscale ho jata hai (hidden nahi — user ko pata
-                    chalna chahiye ke color exist karta hai, bas abhi
-                    available nahi). Stock unknown (null) hone par bhi
-                    normal dikhaya jata hai, kyunke hum confirm nahi kar
-                    sakte ke out of stock hai ya nahi. */}
                 {productColors.length > 0 && (
                   <div className="flex items-center absolute bottom-[6px] right-[6px]">
                     {productColors.map((c, idx) => {

@@ -75,7 +75,7 @@ const Kids = () => {
     <div className="max-lg:w-full min-h-[80px] mt-[16px] lg:px-[30px] font-sans px-[12px] md:px-[24px] max-w-[1280px] min-[1350px]:max-w-[1800px] mx-auto">
 <SEO
 title="Kids' Collection"
-  description="Shop fun and comfortable kids' fashion at STORE. Quality clothing for boys and girls of all ages."
+  description="Shop fun and comfortable kids' fashion at Personal Site. Quality clothing for boys and girls of all ages."
   keywords="kids fashion, kids clothing, children's wear, boys, girls"
   image="https://images.unsplash.com/photo-1742390671765-c87aaed67ad8?q=80&w=1025&auto=format&fit=crop"
   path="/kids"
@@ -117,11 +117,6 @@ title="Kids' Collection"
                 </div>
 
                 <div className="w-full h-auto px-[6px] pt-[8px] pb-[8px]">
-                  {/* 🔑 ADDED — SKU name ke upar. Agar aapke schema mein
-                      field ka naam `sku` nahi hai (e.g. `productCode`,
-                      `styleCode`), yahan sirf `product.productId` ko us naam se
-                      replace kar dena. Agar field missing/undefined ho to
-                      ye line render hi nahi hogi (blank space nahi banega). */}
                   {product.productId && (
                     <p className="w-full text-[11px] text-gray-400 tracking-wide truncate">
                       {product.productId}
@@ -146,13 +141,6 @@ title="Kids' Collection"
                   </span>
                 </div>
 
-                {/* CHANGED — jis color ka stock hai wo dot full-opacity
-                    dikhta hai, jis color ka stock khatam (0) hai wo dot
-                    dimmed/grayscale ho jata hai (hidden nahi — user ko pata
-                    chalna chahiye ke color exist karta hai, bas abhi
-                    available nahi). Stock unknown (null) hone par bhi
-                    normal dikhaya jata hai, kyunke hum confirm nahi kar
-                    sakte ke out of stock hai ya nahi. */}
                 {productColors.length > 0 && (
                   <div className="flex items-center absolute bottom-[6px] right-[6px]">
                     {productColors.map((c, idx) => {

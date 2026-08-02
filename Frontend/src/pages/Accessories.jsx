@@ -1,10 +1,11 @@
 import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useEffect, useState } from "react";
-import { fetchCatalog, setFilter, setFilters, setTotalCount } from "../assets/components/store/fetcherSlice";
-import { useFilteredProducts } from "../assets/components/hooks/useFilteredProducts";
+import { fetchCatalog, setFilter, setFilters, setTotalCount, selectFilteredCatalog } from "../assets/components/store/fetcherSlice";
 import { getColorHex } from "../utils/Colormap";
-import SEO from "../assets/components/common/SEO"
+import SEO from "../assets/components/common/SEO";
+import FooterLoader from "../assets/components/layout/FooterLoader"; // 🔑 dummy import — sahi path apni project ke hisaab se lagao
+
 const Accessories = () => {
   const dispatch = useDispatch();
   const { filters, catalog, catalogLoading } = useSelector((state) => state.FetchPrducts);
@@ -28,7 +29,7 @@ const Accessories = () => {
     }
   }, [dispatch, catalog]);
 
-  const filteredProducts = useFilteredProducts();
+  const filteredProducts = useSelector(selectFilteredCatalog);
 
   useEffect(() => {
     dispatch(setTotalCount(filteredProducts.length));
@@ -50,9 +51,6 @@ const Accessories = () => {
     setTimeout(() => setPageChanging(false), 400);
   };
 
-  const showNewIn = catalogLoading || pageChanging;
-
-  
   const getProductColors = (product) => {
     const normalize = (c) => {
       if (typeof c === "string") return { name: c, stock: null };
@@ -73,18 +71,14 @@ const Accessories = () => {
 
   return (
     <div className="max-lg:w-full min-h-[80px] mt-[16px] lg:px-[30px] font-sans px-[12px] md:px-[24px] max-w-[1280px] min-[1350px]:max-w-[1800px] mx-auto">
-<SEO
+   <SEO
 title="Accessories"
-  description="Complete your look with STORE's collection of accessories — bags, jewelry, watches, and more."
+  description="Complete your look with Personal Site's collection of accessories — bags, jewelry, watches, and more."
   keywords="accessories, bags, jewelry, watches, fashion accessories"
   image="https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600"
   path="/accessories"
 />
-      {showNewIn && (
-        <div className='h-[102px] w-full px-[20px] max-[380px]:px-[12px] flex items-center justify-center outline-none backdrop-blur-sm'>
-          <h1 className='text-[38px] max-sm:text-[28px] max-[380px]:text-[22px] font-semibold leading-[1.0px] tracking-[1.6px]'>New In</h1>
-        </div>
-      )}
+
 
       {!catalogLoading && products.length === 0 && (
         <p className="text-center text-gray-500 py-[40px]">No products found.</p>
@@ -92,12 +86,13 @@ title="Accessories"
 
       {!catalogLoading && products.length > 0 && (
         <ul className="w-full grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 gap-[10px] xl:gap-[6px] 2xl:gap-[4px]">
-          {products.map((product) => {
+          {products.map((product, index) => {
             const productColors = getProductColors(product);
             return (
               <li
                 key={product._id}
-                className="w-full h-auto relative cursor-pointer group border border-transparent rounded-[4px] overflow-hidden transition-colors"
+                className="w-full h-auto relative cursor-pointer group border border-transparent rounded-[4px] overflow-hidden transition-colors animate-fade-in-up"
+                style={{ animationDelay: `${(index % pageSize) * 25}ms` }}
               >
                 <div className="bg-[#f2f2f2] w-full aspect-[3/4] relative overflow-hidden">
                   {product.discount && (
@@ -108,7 +103,7 @@ title="Accessories"
                   <Link to={`/products/${product._id}`} className="overflow-hidden w-full h-full block">
                     <img
                       className="w-full h-full object-cover transition-transform duration-500 ease-in-out group-hover:scale-105"
-                      src={product.displayImage || product.colors?.[0]?.image}
+                      src={product.colors?.[0]?.image || product.displayImage || "/placeholder.png"}
                       alt={product.name}
                       loading="lazy"
                       onError={(e) => (e.target.src = "/placeholder.png")}
@@ -117,11 +112,6 @@ title="Accessories"
                 </div>
 
                 <div className="w-full h-auto px-[6px] pt-[8px] pb-[8px]">
-                  {/* 🔑 ADDED — SKU name ke upar. Agar aapke schema mein
-                      field ka naam `sku` nahi hai (e.g. `productCode`,
-                      `styleCode`), yahan sirf `product.productId` ko us naam se
-                      replace kar dena. Agar field missing/undefined ho to
-                      ye line render hi nahi hogi (blank space nahi banega). */}
                   {product.productId && (
                     <p className="w-full text-[11px] text-gray-400 tracking-wide truncate">
                       {product.productId}
@@ -146,13 +136,6 @@ title="Accessories"
                   </span>
                 </div>
 
-                {/* CHANGED — jis color ka stock hai wo dot full-opacity
-                    dikhta hai, jis color ka stock khatam (0) hai wo dot
-                    dimmed/grayscale ho jata hai (hidden nahi — user ko pata
-                    chalna chahiye ke color exist karta hai, bas abhi
-                    available nahi). Stock unknown (null) hone par bhi
-                    normal dikhaya jata hai, kyunke hum confirm nahi kar
-                    sakte ke out of stock hai ya nahi. */}
                 {productColors.length > 0 && (
                   <div className="flex items-center absolute bottom-[6px] right-[6px]">
                     {productColors.map((c, idx) => {
@@ -193,6 +176,9 @@ title="Accessories"
           ))}
         </div>
       )}
+
+  
+      {catalogLoading && <FooterLoader/>}
     </div>
   );
 };

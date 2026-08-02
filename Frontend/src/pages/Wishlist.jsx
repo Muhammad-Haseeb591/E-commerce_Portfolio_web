@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchFavourites } from "../assets/components/store/favouriteslice"; // ← apna actual path check karna
 import SEO from "../assets/components/common/SEO";
 
-const Favourite = () => {
+const Wishlist = () => {
   const dispatch = useDispatch();
 
   const { items: products, loading, error } = useSelector((state) => state.favourites);
@@ -17,8 +17,8 @@ const Favourite = () => {
     return (
       <div className="w-full min-h-[400px] flex items-center justify-center text-gray-400 text-sm">
         <SEO
-          title="Your Favourites | STORE"
-          description="View and manage your favourite products at STORE."
+          title="Your Favourites | Personal Site"
+          description="View and manage your favourite products at Personal Site."
           url="https://e-commerce-portfolio-web.vercel.app/favourites"
           noIndex
         />
@@ -31,8 +31,8 @@ const Favourite = () => {
     return (
       <div className="w-full min-h-[400px] flex items-center justify-center text-red-500 text-sm">
         <SEO
-          title="Your Favourites | STORE"
-          description="View and manage your favourite products at STORE."
+          title="Your Favourites | Personal Site"
+          description="View and manage your favourite products at Personal Site."
           url="https://e-commerce-portfolio-web.vercel.app/favourites"
           noIndex
         />
@@ -45,8 +45,8 @@ const Favourite = () => {
     return (
       <div className="w-full min-h-[400px] flex flex-col items-center justify-center gap-2 text-gray-400">
         <SEO
-          title="Your Favourites | STORE"
-          description="You haven't added any favourite products yet. Browse STORE to find items you love."
+          title="Your Favourites | Personal Site"
+          description="You haven't added any favourite products yet. Browse Personal Site to find items you love."
           url="https://e-commerce-portfolio-web.vercel.app/favourites"
           noIndex
         />
@@ -61,8 +61,8 @@ const Favourite = () => {
   return (
     <div className="max-lg:w-full min-h-[1000px] mt-[16px] lg:px-[30px] font-sans px-[12px] md:px-[24px] max-w-[1280px] min-[1350px]:max-w-[1800px] mx-auto">
       <SEO
-        title="Your Favourites | STORE"
-        description="View and manage your favourite products at STORE."
+        title="Your Favourites | Personal Site"
+        description="View and manage your favourite products at Personal Site."
         url="https://e-commerce-portfolio-web.vercel.app/favourites"
         noIndex
       />
@@ -107,4 +107,4 @@ const Favourite = () => {
   );
 };
 
-export default Favourite;
+export default Wishlist;
