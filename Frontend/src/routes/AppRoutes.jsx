@@ -11,7 +11,7 @@ import Getinspired from '../pages/GetInspired.jsx'
 import Home from '../pages/Home.jsx'
 import MainLayout from './MainLayout.jsx'
 import NotFound from '../pages/NotFound.jsx'
-import Detail_Page from '../assets/components/product/DetailPage.jsx'
+import Detail_Page from '../assets/components/product/detail/DetailPage.jsx'
 import Cart from '../assets/components/cart/Cart.jsx'
 import Login from "../pages/auth/Login.jsx"
 import Signup from "../pages/auth/Signup.jsx"
