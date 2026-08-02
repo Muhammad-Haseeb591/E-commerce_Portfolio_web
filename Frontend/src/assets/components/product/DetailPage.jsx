@@ -23,6 +23,26 @@ const getStockValue = (source) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+// 🔑 NEW — same canonical size ranges used in the admin form
+// (Productformhelpers.jsx SHOE_SIZES_BY_CATEGORY). Kept in sync manually
+// for now; if you already have a shared /utils/sizeRanges.js, import
+// SHOE_SIZES_BY_CATEGORY from there instead of redefining it here so the
+// two never drift apart again.
+const range = (start, end) =>
+  Array.from({ length: end - start + 1 }, (_, i) => String(start + i));
+
+const SHOE_SIZES_BY_CATEGORY = {
+  kids: range(25, 35),
+  men: range(37, 44),
+  women: range(36, 42),
+};
+
+// 🔑 NEW — given the product's type/category, returns the canonical
+// ordered size list (or null if this product has no defined range, e.g.
+// type "other" or category "sales").
+const getCanonicalSizeOrder = (type, category) =>
+  type === "shoes" ? SHOE_SIZES_BY_CATEGORY[category] || null : null;
+
 const normalizeSizes = (rawSizes) => {
   if (!Array.isArray(rawSizes)) return [];
 
@@ -52,6 +72,27 @@ const normalizeSizes = (rawSizes) => {
   });
 
   return expanded;
+};
+
+// 🔑 NEW — orders (and, when a canonical range is known for this
+// product's type+category, filters) the normalized sizes so display is
+// consistent and defensive against stray/legacy sizes that don't belong
+// to this category. If no canonical range applies (type "other", or a
+// category with no shoe scale), falls back to a plain numeric sort so
+// non-numeric or free-form sizes still render in a sane order.
+const orderSizesByCategory = (sizes, type, category) => {
+  const canonicalOrder = getCanonicalSizeOrder(type, category);
+
+  if (!canonicalOrder) {
+    return [...sizes].sort((a, b) =>
+      isNaN(a.size) || isNaN(b.size) ? 0 : Number(a.size) - Number(b.size)
+    );
+  }
+
+  const bySize = new Map(sizes.map((s) => [s.size, s]));
+  return canonicalOrder
+    .filter((size) => bySize.has(size))
+    .map((size) => bySize.get(size));
 };
 
 const normalizeColors = (rawColors) => {
@@ -191,11 +232,15 @@ const Detail_Page = () => {
     ? selectedColorData?.images?.[0] || null
     : product?.image || product?.images?.[0] || null;
 
+  // 🔑 CHANGED — sizeList is now ordered (and, when this product's
+  // type+category has a known canonical range, filtered) by
+  // orderSizesByCategory instead of being used in raw backend order.
   const sizeList = useMemo(() => {
     const sourceSizes = hasColors
       ? selectedColorData?.sizes ?? product?.sizes
       : product?.sizes;
-    return normalizeSizes(sourceSizes);
+    const normalized = normalizeSizes(sourceSizes);
+    return orderSizesByCategory(normalized, product?.type, product?.category);
   }, [hasColors, selectedColorData, product]);
   const hasSizes = sizeList.length > 0;
   const allSizesOutOfStock = hasSizes && sizeList.every((s) => s.stock === 0);

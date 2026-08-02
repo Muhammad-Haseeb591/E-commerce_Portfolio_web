@@ -49,19 +49,31 @@ export const COLOR_SWATCH = {
 
 // Shoe size ranges, per category. Sizes only ever apply when Type = "shoes"
 // AND the category has a defined scale below — everything else (type =
-// "other", or a category with no shoe scale) just uses a plain per-color
-// stock number instead of a size grid.
+// "other", or a category with no shoe scale, e.g. "sales") just uses a
+// plain per-color stock number instead of a size grid.
 const range = (start, end) =>
   Array.from({ length: end - start + 1 }, (_, i) => String(start + i));
 
+// 🔑 FIXED — was out of sync with the switch below (25-36/38-46/37-42 vs
+// 25-35/37-44/36-42). Kept as the single source of truth now; the
+// function below reads from this object instead of hardcoding a
+// duplicate switch.
 export const SHOE_SIZES_BY_CATEGORY = {
-  kids: range(25, 36),
-  men: range(38, 46),
-  women: range(37, 42),
+  kids: range(25, 35),
+  men: range(37, 44),
+  women: range(36, 42),
 };
 
-export const sizeOptionsFor = (type, category) =>
-  type === "shoes" ? SHOE_SIZES_BY_CATEGORY[category] || null : null;
+// 🔑 FIXED — params were being checked backwards: `"shoes"` is a TYPE
+// value (see TYPE_OPTIONS above), not a category value, so the old
+// `category !== "shoes"` check was always true and this always returned
+// null (size grid never showed). Correct roles:
+//   type     = "shoes" | "other"                 -> IS there a size grid at all
+//   category = "men" | "women" | "kids" | ...     -> WHICH range to use
+export const sizeOptionsFor = (type, category) => {
+  if (type !== "shoes") return null;
+  return SHOE_SIZES_BY_CATEGORY[category] || null; // "sales"/"perfume"/etc -> no range -> plain stock
+};
 
 export const swatchStyle = (color) => {
   const value = COLOR_SWATCH[color];
