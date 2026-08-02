@@ -1,14 +1,31 @@
 const Product = require("../models/Product");
 const crypto = require("crypto");
+const { getValidSizesFor } = require("../models/Product");
 
-// 🔑 CHANGED — productId generation lives here now (plain function, called
-// before the document is constructed), not as a Mongoose schema hook.
-// Per request, the model itself should never auto-generate this — and as
-// a side effect this also sidesteps any Mongoose-version-specific
-// middleware quirks entirely, since no hook touches productId at all now.
+// 🔑 productId generation lives here (plain function, called before the
+// document is constructed) — not as a Mongoose schema hook. See the note
+// at the top of Product.js for why.
 function generateProductId() {
   const rand = crypto.randomBytes(6).toString("hex").toUpperCase(); // 12 hex chars
   return `PRD-${rand.slice(0, 8)}-${rand.slice(8, 12)}`;
+}
+
+// 🔑 NEW — shared helper so both Add and Update reject bad sizes with a
+// clean, specific 400 BEFORE hitting the DB, instead of relying only on
+// the schema-level pre("validate") in Product.js to catch it late.
+function findInvalidSize(type, category, colors) {
+  const validSizes = getValidSizesFor(type, category);
+  if (type !== "shoes" || !validSizes) return null;
+
+  const allowed = new Set(validSizes);
+  for (const c of colors || []) {
+    for (const s of c.sizes || []) {
+      if (!allowed.has(s.size)) {
+        return { size: s.size, color: c.color, validSizes };
+      }
+    }
+  }
+  return null;
 }
 
 // ── 1. Add Product ───────────────────────────────
@@ -19,14 +36,8 @@ exports.getAddProducts = async (req, res) => {
       price, oldPrice, colors, bg,
       discount, rating, type,
       category, stock, status,
-      // 🔑 Accepts a client-supplied productId (matches the Add Product
-      // form's editable "Product ID" field). If blank/missing, we
-      // generate one right here — never passed through as "".
-      productId,
+      productId, // client-supplied, matches the form's editable Product ID field
     } = req.body;
-    // Top-level `images` REMOVED — General Image concept doesn't exist
-    // anymore. Each color now carries its own single `image` string inside
-    // colors[i].image (handled by colorSchema, opaque to this controller).
 
     if (!colors || colors.length === 0) {
       return res.status(400).json({
@@ -35,14 +46,21 @@ exports.getAddProducts = async (req, res) => {
       });
     }
 
-    //  Per-color image presence check now lives here since the old
-    // top-level "at least one image" guard is gone. Adjust the field name
-    // below if colorSchema calls it something other than `image`.
     const missingImage = colors.find((c) => !c.image);
     if (missingImage) {
       return res.status(400).json({
         success: false,
         message: "Each color must have an image",
+      });
+    }
+
+    // 🔑 NEW — reject invalid sizes early with a specific message, before
+    // constructing/saving the document.
+    const invalid = findInvalidSize(type, category, colors);
+    if (invalid) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid size "${invalid.size}" for color "${invalid.color}" — allowed sizes for category "${category}" are: ${invalid.validSizes.join(", ")}`,
       });
     }
 
@@ -57,9 +75,9 @@ exports.getAddProducts = async (req, res) => {
       productId: resolvedProductId,
     });
 
-    //  .save() (not .create() shortcut skipped, not findByIdAndUpdate)
-    // is what actually runs colorSchema's pre("validate") stock rollup,
-    // the duplicate-color/duplicate-size validators, and productSchema's
+    // .save() (not findByIdAndUpdate) is what runs colorSchema's
+    // pre("validate") stock rollup, the duplicate-color/duplicate-size
+    // validators, the size-range validator, and productSchema's
     // pre("save") total-stock rollup. Keep it this way.
     const savedProduct = await product.save();
 
@@ -71,20 +89,13 @@ exports.getAddProducts = async (req, res) => {
 
   } catch (error) {
     console.error("Add error:", error);
-    // Mongoose validation errors (duplicate color, duplicate size, missing
-    // required field) land here — surface the real message instead of a
-    // generic 500 so the form's submitError shows something useful.
     if (error.name === "ValidationError") {
       return res.status(400).json({
         success: false,
-        message: Object.values(error.errors)[0]?.message || "Validation failed",
+        message: Object.values(error.errors)[0]?.message || error.message || "Validation failed",
         error: error.message,
       });
     }
-    // 🔑 productId is unique+sparse — a duplicate-key error (code 11000)
-    // now only happens if the CLIENT explicitly typed a Product ID that's
-    // already taken (auto-generated ones are effectively collision-free).
-    // Surface it distinctly instead of falling through to a generic 500.
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
@@ -115,25 +126,16 @@ exports.fetchAllProducts = async (req, res) => {
       size,
     } = req.query;
 
-    // ── Filter ────────────────────────────────────
     const filter = {};
 
     if (category) {
       filter.category = { $regex: `^${category}$`, $options: "i" };
     }
 
-    // Color lives inside the colors[] array. Dot-notation on an array path
-    // matches if ANY element has that color.
     if (color) {
       filter["colors.color"] = { $regex: `^${color}$`, $options: "i" };
     }
 
-    // Same idea for size — nested one level deeper (colors[].sizes[].size).
-    // `sizes` can be a comma list ("40,42") from the Filter.jsx toggle grid;
-    // $in matches a product that has ANY color offering ANY of these sizes.
-    // Note: this does NOT require the matching color and size to be on the
-    // SAME color entry — if you need "this exact color in this exact size",
-    // use $elemMatch with a nested arrayFilter-style query instead.
     if (sizes) {
       const sizeList = sizes.split(",").map((s) => s.trim()).filter(Boolean);
       if (sizeList.length > 0) {
@@ -147,9 +149,6 @@ exports.fetchAllProducts = async (req, res) => {
       if (maxPrice) filter.price.$lte = Number(maxPrice);
     }
 
-    // 🔑 productId already included here — searching by Product ID
-    // (e.g. "PRD-MS50NHFA-EXQ3W") server-side already worked once the
-    // field itself stopped being blank on every document (see Product.js).
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: "i" } },
@@ -158,13 +157,11 @@ exports.fetchAllProducts = async (req, res) => {
       ];
     }
 
-    // ── Sorting ───────────────────────────────────
     const allowedSortFields = ["price", "name", "rating", "discount", "createdAt"];
     const sortField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
     const sortOrder = order === "asc" ? 1 : -1;
     const sort = { [sortField]: sortOrder };
 
-    // ── Pagination ─────────────────────────────────
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.max(parseInt(size, 10) || 20, 1);
     const skip = (pageNum - 1) * pageSize;
@@ -244,10 +241,8 @@ exports.updateProduct = async (req, res) => {
       discount, rating, type,
       category, stock, status,
     } = req.body;
-    // Same as Add: no top-level `images`, and `productId` is intentionally
-    // NOT accepted here — it's assigned once at creation and shouldn't
-    // change afterwards (editing it could silently break bookmarked/shared
-    // product links that rely on searching by it).
+    // productId intentionally NOT accepted here — assigned once at
+    // creation and shouldn't change afterwards.
 
     if (colors && colors.length === 0) {
       return res.status(400).json({
@@ -266,19 +261,27 @@ exports.updateProduct = async (req, res) => {
       }
     }
 
-    // 🔑 CHANGED from findByIdAndUpdate to fetch → mutate → save().
-    // findByIdAndUpdate runs QUERY middleware, not DOCUMENT middleware —
-    // it never fires colorSchema's pre("validate") stock rollup, the
-    // duplicate-color/duplicate-size path validators, or productSchema's
-    // pre("save") total-stock rollup. That means edits were silently
-    // skipping stock recalculation and duplicate checks. Using save()
-    // here makes Edit behave exactly like Add.
     const product = await Product.findById(req.params.id);
 
     if (!product) {
       return res.status(404).json({
         success: false,
         message: "Product not found",
+      });
+    }
+
+    // 🔑 NEW — validate sizes against whichever category/type will end up
+    // on the document after this update (fall back to existing values for
+    // any field the client didn't send).
+    const effectiveCategory = category !== undefined ? category : product.category;
+    const effectiveType = type !== undefined ? type : product.type;
+    const effectiveColors = colors !== undefined ? colors : product.colors;
+
+    const invalid = findInvalidSize(effectiveType, effectiveCategory, effectiveColors);
+    if (invalid) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid size "${invalid.size}" for color "${invalid.color}" — allowed sizes for category "${effectiveCategory}" are: ${invalid.validSizes.join(", ")}`,
       });
     }
 
@@ -295,6 +298,10 @@ exports.updateProduct = async (req, res) => {
     if (stock !== undefined) product.stock = stock; // overwritten by pre-save rollup if colors present
     if (status !== undefined) product.status = status;
 
+    // 🔑 findByIdAndUpdate is intentionally NOT used — it runs QUERY
+    // middleware, not DOCUMENT middleware, so it would skip the stock
+    // rollup and the duplicate/size validators entirely. save() makes
+    // Edit behave exactly like Add.
     const updatedProduct = await product.save();
 
     res.status(200).json({
@@ -308,7 +315,7 @@ exports.updateProduct = async (req, res) => {
     if (error.name === "ValidationError") {
       return res.status(400).json({
         success: false,
-        message: Object.values(error.errors)[0]?.message || "Validation failed",
+        message: Object.values(error.errors)[0]?.message || error.message || "Validation failed",
         error: error.message,
       });
     }
