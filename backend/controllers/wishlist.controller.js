@@ -3,24 +3,40 @@ const User = require("../models/User");
 const Product = require('../models/Product');
 
 
+/**
+ * POST /favourites/:productId
+ * Adds a product to the logged-in user's favourites list.
+ */
 const addToFavourite = async (req, res) => {
   try {
     const { productId } = req.params;
-    const userId = req.userId; // 🔧 was req.user.id — protect middleware sets req.userId directly
+    const userId = req.userId; // protect middleware sets req.userId directly (not req.user.id)
 
     if (!mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ success: false, message: 'Product ID invalid hai.' });
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_PRODUCT_ID",
+        message: "This product ID doesn't look right.",
+      });
     }
 
     const product = await Product.findById(productId);
     if (!product) {
-      return res.status(404).json({ success: false, message: 'Product nahi mila.' });
+      return res.status(404).json({
+        success: false,
+        code: "PRODUCT_NOT_FOUND",
+        message: "We couldn't find this product.",
+      });
     }
 
     const user = await User.findById(userId)
-    .populate("favourites");
+      .populate("favourites");
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User nahi mila.' });
+      return res.status(404).json({
+        success: false,
+        code: "USER_NOT_FOUND",
+        message: "We couldn't find your account.",
+      });
     }
 
     const alreadyFavourite = user.favourites.some(
@@ -28,7 +44,11 @@ const addToFavourite = async (req, res) => {
     );
 
     if (alreadyFavourite) {
-      return res.status(400).json({ success: false, message: 'Yeh product pehle se favourites me hai.' });
+      return res.status(400).json({
+        success: false,
+        code: "ALREADY_FAVOURITED",
+        message: "This is already in your favourites.",
+      });
     }
 
     user.favourites.push(productId);
@@ -36,28 +56,46 @@ const addToFavourite = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Favourite me add ho gaya.',
+      code: "FAVOURITE_ADDED",
+      message: "Added to your favourites!",
       favourites: user.favourites,
     });
   } catch (error) {
-    console.error('Add to favourite error:', error);
-    return res.status(500).json({ success: false, message: 'Server error.' });
+    console.error("[AddToFavourite] Unexpected error:", error);
+
+    return res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Something went wrong. Please try again.",
+    });
   }
 };
 
 
+/**
+ * DELETE /favourites/:productId
+ * Removes a product from the logged-in user's favourites list.
+ */
 const removeFromFavourite = async (req, res) => {
   try {
     const { productId } = req.params;
-    const userId = req.userId; // 🔧 was req.user.id
+    const userId = req.userId; // protect middleware sets req.userId directly (not req.user.id)
 
     if (!mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ success: false, message: 'Product ID invalid hai.' });
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_PRODUCT_ID",
+        message: "This product ID doesn't look right.",
+      });
     }
 
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User nahi mila.' });
+      return res.status(404).json({
+        success: false,
+        code: "USER_NOT_FOUND",
+        message: "We couldn't find your account.",
+      });
     }
 
     const isFavourite = user.favourites.some(
@@ -65,7 +103,11 @@ const removeFromFavourite = async (req, res) => {
     );
 
     if (!isFavourite) {
-      return res.status(400).json({ success: false, message: 'This product is not in the Favourite.' });
+      return res.status(400).json({
+        success: false,
+        code: "NOT_FAVOURITED",
+        message: "This isn't in your favourites.",
+      });
     }
 
     user.favourites = user.favourites.filter(
@@ -76,33 +118,55 @@ const removeFromFavourite = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Favourite se remove ho gaya.',
+      code: "FAVOURITE_REMOVED",
+      message: "Removed from your favourites.",
       favourites: user.favourites,
     });
   } catch (error) {
-    console.error('Remove from favourite error:', error);
-    return res.status(500).json({ success: false, message: 'Server error.' });
+    console.error("[RemoveFromFavourite] Unexpected error:", error);
+
+    return res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Something went wrong. Please try again.",
+    });
   }
 };
 
 
+/**
+ * PUT /favourites/:productId/toggle
+ * Toggles a product's favourite status for the logged-in user.
+ */
 const toggleFavourite = async (req, res) => {
   try {
     const { productId } = req.params;
-    const userId = req.userId; // 🔧 was req.user.id — THIS was line 91, the exact crash site
+    const userId = req.userId; // protect middleware sets req.userId directly (not req.user.id)
 
     if (!mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ success: false, message: 'Product ID invalid hai.' });
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_PRODUCT_ID",
+        message: "This product ID doesn't look right.",
+      });
     }
 
     const product = await Product.findById(productId);
     if (!product) {
-      return res.status(404).json({ success: false, message: 'Product nahi mila.' });
+      return res.status(404).json({
+        success: false,
+        code: "PRODUCT_NOT_FOUND",
+        message: "We couldn't find this product.",
+      });
     }
 
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User nahi mila.' });
+      return res.status(404).json({
+        success: false,
+        code: "USER_NOT_FOUND",
+        message: "We couldn't find your account.",
+      });
     }
 
     const index = user.favourites.findIndex(
@@ -123,24 +187,38 @@ const toggleFavourite = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: isFavourite ? 'Favourites me add ho gaya.' : 'Favourites se remove ho gaya.',
+      code: isFavourite ? "FAVOURITE_ADDED" : "FAVOURITE_REMOVED",
+      message: isFavourite ? "Added to your favourites!" : "Removed from your favourites.",
       isFavourite,
       favourites: user.favourites,
     });
   } catch (error) {
-    console.error('Toggle favourite error:', error);
-    return res.status(500).json({ success: false, message: 'Server error.' });
+    console.error("[ToggleFavourite] Unexpected error:", error);
+
+    return res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Something went wrong. Please try again.",
+    });
   }
 };
 
 
+/**
+ * GET /favourites
+ * Returns the logged-in user's full favourites list (populated with product data).
+ */
 const getFavourites = async (req, res) => {
   try {
-    const userId = req.userId; // 🔧 was req.user.id
+    const userId = req.userId; // protect middleware sets req.userId directly (not req.user.id)
 
     const user = await User.findById(userId).populate('favourites');
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User nahi mila.' });
+      return res.status(404).json({
+        success: false,
+        code: "USER_NOT_FOUND",
+        message: "We couldn't find your account.",
+      });
     }
 
     return res.status(200).json({
@@ -149,8 +227,13 @@ const getFavourites = async (req, res) => {
       favourites: user.favourites,
     });
   } catch (error) {
-    console.error('Get favourites error:', error);
-    return res.status(500).json({ success: false, message: 'Server error.' });
+    console.error("[GetFavourites] Unexpected error:", error);
+
+    return res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Something went wrong. Please try again.",
+    });
   }
 };
 

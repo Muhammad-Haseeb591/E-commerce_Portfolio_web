@@ -12,7 +12,7 @@ exports.protect = async (req, res, next) => {
   if (!token) {
     return res.status(401).json({
       success: false,
-      message: "Not authorized, no token",
+      message: "Please log in to continue.",
     });
   }
 
@@ -23,7 +23,7 @@ exports.protect = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: "Not authorized, user not found",
+        message: "We couldn't find your account. Please log in again.",
       });
     }
 
@@ -37,13 +37,13 @@ exports.protect = async (req, res, next) => {
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({
         success: false,
-        message: "Session expired, please log in again",
+        message: "Your session has expired. Please log in again.",
       });
     }
 
     return res.status(401).json({
       success: false,
-      message: "Not authorized, token failed",
+      message: "Something went wrong. Please log in again.",
     });
   }
 };
@@ -53,7 +53,7 @@ exports.authorize = (...allowedRoles) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: "Access denied. You do not have permission.",
+        message: "You don't have permission to do this.",
       });
     }
     return next();

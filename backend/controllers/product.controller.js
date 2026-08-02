@@ -2,7 +2,7 @@ const Product = require("../models/Product");
 const crypto = require("crypto");
 const { getValidSizesFor } = require("../models/Product");
 
-// 🔑 productId generation lives here (plain function, called before the
+// productId generation lives here (plain function, called before the
 // document is constructed) — not as a Mongoose schema hook. See the note
 // at the top of Product.js for why.
 function generateProductId() {
@@ -10,9 +10,9 @@ function generateProductId() {
   return `PRD-${rand.slice(0, 8)}-${rand.slice(8, 12)}`;
 }
 
-// 🔑 NEW — shared helper so both Add and Update reject bad sizes with a
-// clean, specific 400 BEFORE hitting the DB, instead of relying only on
-// the schema-level pre("validate") in Product.js to catch it late.
+// Shared helper so both Add and Update reject bad sizes with a clean,
+// specific 400 BEFORE hitting the DB, instead of relying only on the
+// schema-level pre("validate") in Product.js to catch it late.
 function findInvalidSize(type, category, colors) {
   const validSizes = getValidSizesFor(type, category);
   if (type !== "shoes" || !validSizes) return null;
@@ -42,7 +42,8 @@ exports.getAddProducts = async (req, res) => {
     if (!colors || colors.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "At least one color is required",
+        code: "COLOR_REQUIRED",
+        message: "Please add at least one color.",
       });
     }
 
@@ -50,17 +51,19 @@ exports.getAddProducts = async (req, res) => {
     if (missingImage) {
       return res.status(400).json({
         success: false,
-        message: "Each color must have an image",
+        code: "COLOR_IMAGE_MISSING",
+        message: "Please add an image for each color.",
       });
     }
 
-    // 🔑 NEW — reject invalid sizes early with a specific message, before
+    // Reject invalid sizes early with a specific message, before
     // constructing/saving the document.
     const invalid = findInvalidSize(type, category, colors);
     if (invalid) {
       return res.status(400).json({
         success: false,
-        message: `Invalid size "${invalid.size}" for color "${invalid.color}" — allowed sizes for category "${category}" are: ${invalid.validSizes.join(", ")}`,
+        code: "INVALID_SIZE",
+        message: `Size "${invalid.size}" isn't valid for color "${invalid.color}" — allowed sizes for category "${category}" are: ${invalid.validSizes.join(", ")}.`,
       });
     }
 
@@ -81,36 +84,42 @@ exports.getAddProducts = async (req, res) => {
     // pre("save") total-stock rollup. Keep it this way.
     const savedProduct = await product.save();
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message: "Product added successfully",
+      code: "PRODUCT_CREATED",
+      message: "Product added successfully.",
       product: savedProduct,
     });
 
   } catch (error) {
-    console.error("Add error:", error);
+    console.error("[GetAddProducts] Unexpected error:", error);
+
     if (error.name === "ValidationError") {
       return res.status(400).json({
         success: false,
-        message: Object.values(error.errors)[0]?.message || error.message || "Validation failed",
+        code: "VALIDATION_ERROR",
+        message: Object.values(error.errors)[0]?.message || error.message || "Please check the form and try again.",
         error: error.message,
       });
     }
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
-        message: "This Product ID is already in use — please choose a different one or clear the field to auto-generate.",
+        code: "DUPLICATE_PRODUCT_ID",
+        message: "This Product ID is already taken — please use a different one or leave it blank to auto-generate.",
         error: error.message,
       });
     }
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to add product",
+      code: "SERVER_ERROR",
+      message: "Couldn't add the product. Please try again.",
       error: error.message,
     });
   }
 };
 
+// ── 2. Fetch All Products (filterable, sortable, paginated) ────
 exports.fetchAllProducts = async (req, res) => {
   try {
     const {
@@ -171,7 +180,7 @@ exports.fetchAllProducts = async (req, res) => {
       Product.countDocuments(filter),
     ]);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       count: products.length,
       totalCount,
@@ -180,10 +189,12 @@ exports.fetchAllProducts = async (req, res) => {
       products,
     });
   } catch (error) {
-    console.error("Fetch error:", error);
-    res.status(500).json({
+    console.error("[FetchAllProducts] Unexpected error:", error);
+
+    return res.status(500).json({
       success: false,
-      message: "Failed to fetch products",
+      code: "SERVER_ERROR",
+      message: "Couldn't load products. Please try again.",
     });
   }
 };
@@ -196,15 +207,21 @@ exports.fetchProductDetailsById = async (req, res) => {
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: "Product not found",
+        code: "PRODUCT_NOT_FOUND",
+        message: "We couldn't find this product.",
       });
     }
 
-    res.status(200).json({ success: true, product });
+    return res.status(200).json({ success: true, product });
 
   } catch (error) {
-    console.error("Detail error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    console.error("[FetchProductDetailsById] Unexpected error:", error);
+
+    return res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Couldn't load the product. Please try again.",
+    });
   }
 };
 
@@ -216,19 +233,26 @@ exports.deleteProduct = async (req, res) => {
     if (!deleted) {
       return res.status(404).json({
         success: false,
-        message: "Product not found",
+        code: "PRODUCT_NOT_FOUND",
+        message: "We couldn't find this product.",
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Product deleted!",
+      code: "PRODUCT_DELETED",
+      message: "Product deleted successfully.",
       product: deleted,
     });
 
   } catch (error) {
-    console.error("Delete error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    console.error("[DeleteProduct] Unexpected error:", error);
+
+    return res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Couldn't delete the product. Please try again.",
+    });
   }
 };
 
@@ -247,7 +271,8 @@ exports.updateProduct = async (req, res) => {
     if (colors && colors.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "At least one color is required",
+        code: "COLOR_REQUIRED",
+        message: "Please add at least one color.",
       });
     }
 
@@ -256,7 +281,8 @@ exports.updateProduct = async (req, res) => {
       if (missingImage) {
         return res.status(400).json({
           success: false,
-          message: "Each color must have an image",
+          code: "COLOR_IMAGE_MISSING",
+          message: "Please add an image for each color.",
         });
       }
     }
@@ -266,13 +292,14 @@ exports.updateProduct = async (req, res) => {
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: "Product not found",
+        code: "PRODUCT_NOT_FOUND",
+        message: "We couldn't find this product.",
       });
     }
 
-    // 🔑 NEW — validate sizes against whichever category/type will end up
-    // on the document after this update (fall back to existing values for
-    // any field the client didn't send).
+    // Validate sizes against whichever category/type will end up on the
+    // document after this update (fall back to existing values for any
+    // field the client didn't send).
     const effectiveCategory = category !== undefined ? category : product.category;
     const effectiveType = type !== undefined ? type : product.type;
     const effectiveColors = colors !== undefined ? colors : product.colors;
@@ -281,7 +308,8 @@ exports.updateProduct = async (req, res) => {
     if (invalid) {
       return res.status(400).json({
         success: false,
-        message: `Invalid size "${invalid.size}" for color "${invalid.color}" — allowed sizes for category "${effectiveCategory}" are: ${invalid.validSizes.join(", ")}`,
+        code: "INVALID_SIZE",
+        message: `Size "${invalid.size}" isn't valid for color "${invalid.color}" — allowed sizes for category "${effectiveCategory}" are: ${invalid.validSizes.join(", ")}.`,
       });
     }
 
@@ -298,37 +326,42 @@ exports.updateProduct = async (req, res) => {
     if (stock !== undefined) product.stock = stock; // overwritten by pre-save rollup if colors present
     if (status !== undefined) product.status = status;
 
-    // 🔑 findByIdAndUpdate is intentionally NOT used — it runs QUERY
+    // findByIdAndUpdate is intentionally NOT used — it runs QUERY
     // middleware, not DOCUMENT middleware, so it would skip the stock
     // rollup and the duplicate/size validators entirely. save() makes
     // Edit behave exactly like Add.
     const updatedProduct = await product.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Product updated!",
+      code: "PRODUCT_UPDATED",
+      message: "Product updated successfully.",
       product: updatedProduct,
     });
 
   } catch (error) {
-    console.error("Update error:", error);
+    console.error("[UpdateProduct] Unexpected error:", error);
+
     if (error.name === "ValidationError") {
       return res.status(400).json({
         success: false,
-        message: Object.values(error.errors)[0]?.message || error.message || "Validation failed",
+        code: "VALIDATION_ERROR",
+        message: Object.values(error.errors)[0]?.message || error.message || "Please check the form and try again.",
         error: error.message,
       });
     }
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
-        message: "Duplicate key error",
+        code: "DUPLICATE_KEY_ERROR",
+        message: "This conflicts with an existing product.",
         error: error.message,
       });
     }
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to update product",
+      code: "SERVER_ERROR",
+      message: "Couldn't update the product. Please try again.",
       error: error.message,
     });
   }

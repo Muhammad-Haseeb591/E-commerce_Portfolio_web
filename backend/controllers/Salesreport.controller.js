@@ -1,9 +1,3 @@
-// controllers/admin/salesReport.controller.js
-//
-// Admin: sales reporting — revenue timeline, summary stats, top products.
-// "Sales" = orders with paymentStatus "paid". Change the $match below if
-// you also want COD/pending orders counted as sales.
-
 const ExcelJS = require("exceljs");
 const Order = require("../models/Order");
 
@@ -86,10 +80,15 @@ async function computeSalesReport(query) {
 exports.getSalesReport = async (req, res) => {
   try {
     const report = await computeSalesReport(req.query);
-    res.json({ success: true, ...report });
+    return res.json({ success: true, ...report });
   } catch (error) {
-    console.error("Sales report error:", error);
-    res.status(500).json({ success: false, message: "Failed to generate sales report" });
+    console.error("[GetSalesReport] Unexpected error:", error);
+
+    return res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Couldn't load the sales report. Please try again.",
+    });
   }
 };
 
@@ -139,9 +138,14 @@ exports.exportSalesReportExcel = async (req, res) => {
     res.end();
 
   } catch (error) {
-    console.error("Sales report export error:", error);
+    console.error("[ExportSalesReportExcel] Unexpected error:", error);
+
     if (!res.headersSent) {
-      res.status(500).json({ success: false, message: "Failed to export sales report" });
+      return res.status(500).json({
+        success: false,
+        code: "SERVER_ERROR",
+        message: "Couldn't export the sales report. Please try again.",
+      });
     }
   }
 };

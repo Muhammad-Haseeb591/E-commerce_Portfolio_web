@@ -3,14 +3,15 @@ const Order = require("../models/Order");
 
 // ==========================
 // Create Stripe Checkout Session
-// (Order abhi nahi banta — pehle payment confirm hone do)
+// (The order is not created yet — payment must be confirmed first, via webhook)
 // ==========================
 exports.createCheckoutSession = async (req, res) => {
   try {
     if (!req.userId) {
       return res.status(401).json({
         success: false,
-        message: "login required to create order.",
+        code: "UNAUTHORIZED",
+        message: "Please log in to place an order.",
       });
     }
 
@@ -19,11 +20,13 @@ exports.createCheckoutSession = async (req, res) => {
     if (!items || items.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "No items provided for checkout.",
+        code: "EMPTY_ORDER",
+        message: "Your cart is empty.",
       });
     }
 
-    // ── Stripe line items banao (har item Rs. ko paisa/cents mein convert hota hai — smallest currency unit) ──
+    // ── Build Stripe line items (each price is converted to the smallest
+    // currency unit — cents) ──
     const line_items = items.map((item) => ({
       price_data: {
         currency: "usd",
@@ -31,12 +34,13 @@ exports.createCheckoutSession = async (req, res) => {
           name: item.name || "Product",
           images: item.image ? [item.image] : [],
         },
-        unit_amount: Math.round(Number(item.price || 0) * 100), // Rs. → paisa
+        unit_amount: Math.round(Number(item.price || 0) * 100), // price → cents
       },
       quantity: item.quantity || 1,
     }));
 
-    // ── Order details ko metadata mein store karo — webhook mein yahan se order banayenge ──
+    // ── Store order details in metadata — the webhook will create the
+    // actual order from this once payment is confirmed ──
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
@@ -55,14 +59,16 @@ exports.createCheckoutSession = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      url: session.url, // ← frontend isi URL pe redirect karega
+      url: session.url, // the frontend redirects the user to this URL
       sessionId: session.id,
     });
   } catch (error) {
-    console.error("Create Checkout Session Error:", error.message);
+    console.error("[CreateCheckoutSession] Unexpected error:", error.message);
+
     return res.status(500).json({
       success: false,
-      message: "Payment session create nahi ho saka.",
+      code: "CHECKOUT_SESSION_FAILED",
+      message: "Couldn't start the checkout process. Please try again.",
       error: error.message,
     });
   }
@@ -71,21 +77,22 @@ exports.createCheckoutSession = async (req, res) => {
 // ==========================
 // Stripe Webhook — single entry point for ALL Stripe events.
 // Handles:
-//   - checkout.session.completed  → order create karo (Checkout Session flow)
-//   - charge.refunded             → order.refundStatus sync karo (cancelOrder
-//                                    flow se trigger hone wale refund ka
-//                                    final confirmation yahin aata hai)
-//   - payment_intent.payment_failed → order.paymentStatus = "failed"
+//   - checkout.session.completed     → creates the order (Checkout Session flow)
+//   - charge.refunded                → syncs order.refundStatus (this is where
+//                                       the final confirmation lands for a refund
+//                                       initiated by the cancelOrder flow)
+//   - payment_intent.payment_failed  → sets order.paymentStatus = "failed"
 // ==========================
 exports.stripeWebhook = async (req, res) => {
   const sig = req.headers["stripe-signature"];
   let event;
 
   try {
-    // req.body yahan RAW buffer honi chahiye (server.js mein express.raw() zaroori hai is route ke liye)
+    // req.body must be the RAW buffer here (express.raw() is required for
+    // this route in server.js)
     event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
-    console.error("Webhook signature verification failed:", err.message);
+    console.error("[StripeWebhook] Signature verification failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
@@ -94,7 +101,8 @@ exports.stripeWebhook = async (req, res) => {
       const session = event.data.object;
       const metadata = session.metadata;
 
-      // ── Duplicate order na banay — agar isi sessionId ka order pehle se hai to skip karo ──
+      // ── Prevent duplicate orders — skip if an order for this sessionId
+      // already exists ──
       const existingOrder = await Order.findOne({ stripeSessionId: session.id });
       if (existingOrder) {
         return res.status(200).json({ received: true, duplicate: true });
@@ -109,19 +117,19 @@ exports.stripeWebhook = async (req, res) => {
         status: "processing",
         paymentStatus: "paid",
         stripeSessionId: session.id,
-        // session.payment_intent hota hai jab mode:"payment" ho — store karo
-        // taake cancelOrder ka refund flow (jo stripePaymentIntentId use
-        // karta hai) Checkout-Session orders ke liye bhi kaam kare.
+        // session.payment_intent is present when mode:"payment" — stored
+        // so the cancelOrder refund flow (which relies on
+        // stripePaymentIntentId) also works for Checkout-Session orders.
         stripePaymentIntentId: session.payment_intent || undefined,
         paidAt: new Date(),
       });
 
-      console.log("Order created after successful payment:", session.id);
+      console.log("[StripeWebhook] Order created after successful payment:", session.id);
     }
 
-    // ── Refund confirm hua — cancelOrder controller me refund turant
-    // "pending" set karta hai, final "succeeded"/partial-refund state
-    // sirf yahan se, Stripe ki taraf se, confirm hoti hai. ──
+    // ── Refund confirmed — cancelOrder sets refundStatus to "pending"
+    // immediately; the final "succeeded"/partial-refund state is only
+    // confirmed here, from Stripe itself. ──
     if (event.type === "charge.refunded") {
       const charge = event.data.object;
 
@@ -131,11 +139,11 @@ exports.stripeWebhook = async (req, res) => {
       );
     }
 
-    // ── Payment fail hua (card decline, insufficient funds, etc). Note:
-    // agar order abhi tak create hi nahi hua tha (createOrder ka card-flow
-    // sirf "succeeded" ke baad Order.create karta hai), to
-    // findOneAndUpdate ko koi match nahi milega — ye harmless no-op hai,
-    // koi error nahi throw hoga. ──
+    // ── Payment failed (card decline, insufficient funds, etc). Note:
+    // if the order was never created in the first place (createOrder's
+    // card flow only calls Order.create after "succeeded"), this
+    // findOneAndUpdate simply matches nothing — a harmless no-op, no
+    // error is thrown. ──
     if (event.type === "payment_intent.payment_failed") {
       const intent = event.data.object;
 
@@ -145,8 +153,8 @@ exports.stripeWebhook = async (req, res) => {
       );
     }
   } catch (err) {
-    console.error(`Webhook handler failed for event ${event.type}:`, err.message);
-    // 500 return karo taake Stripe automatically retry kare
+    console.error(`[StripeWebhook] Handler failed for event ${event.type}:`, err.message);
+    // Return 500 so Stripe automatically retries delivery
     return res.status(500).json({ error: "Webhook handler failed" });
   }
 
@@ -154,7 +162,7 @@ exports.stripeWebhook = async (req, res) => {
 };
 
 // ==========================
-// Verify session (success page pe order confirm karne ke liye)
+// Verify session (used on the success page to confirm the order)
 // ==========================
 exports.verifySession = async (req, res) => {
   try {
@@ -171,17 +179,22 @@ exports.verifySession = async (req, res) => {
     return res.status(200).json({
       success: true,
       paid: true,
-      order: order || null, // webhook thodi der late aa sakta hai, isliye null bhi handle karo
+      order: order || null, // the webhook may arrive slightly late, so null is a valid state here
     });
   } catch (error) {
-    console.error("Verify Session Error:", error.message);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    console.error("[VerifySession] Unexpected error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Couldn't verify your payment. Please try again.",
+    });
   }
 };
 
 // ==========================
-// Create Payment Intent (inline card form ke liye — checkout session
-// redirect wale flow ke bajaye direct on-page card element)
+// Create Payment Intent (for an inline card form — direct on-page card
+// element, as an alternative to the Checkout Session redirect flow)
 // ==========================
 exports.createPaymentIntent = async (req, res) => {
   try {
@@ -198,10 +211,12 @@ exports.createPaymentIntent = async (req, res) => {
       clientSecret: paymentIntent.client_secret,
     });
   } catch (error) {
-    console.error("Create PaymentIntent Error:", error.message);
+    console.error("[CreatePaymentIntent] Unexpected error:", error.message);
+
     return res.status(500).json({
       success: false,
-      message: "Failed to create payment intent",
+      code: "PAYMENT_INTENT_FAILED",
+      message: "Couldn't set up the payment. Please try again.",
     });
   }
 };

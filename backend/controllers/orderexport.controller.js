@@ -47,7 +47,11 @@ exports.generateBulkInvoice = async (req, res) => {
     const orders = await Order.find(filter).populate("userId").sort({ createdAt: -1 });
 
     if (!orders.length) {
-      return res.status(404).json({ success: false, message: "No orders found" });
+      return res.status(404).json({
+        success: false,
+        code: "NO_ORDERS_FOUND",
+        message: "No orders match these filters.",
+      });
     }
 
     const doc = new PDFDocument({ size: "A4", margin: 0 });
@@ -83,9 +87,14 @@ exports.generateBulkInvoice = async (req, res) => {
     doc.end();
 
   } catch (error) {
-    console.error("Bulk invoice generation error:", error);
+    console.error("[GenerateBulkInvoice] Unexpected error:", error);
+
     if (!res.headersSent) {
-      res.status(500).json({ success: false, message: "Failed to generate invoices" });
+      return res.status(500).json({
+        success: false,
+        code: "SERVER_ERROR",
+        message: "Couldn't generate the invoices. Please try again.",
+      });
     }
   }
 };
@@ -150,9 +159,14 @@ exports.exportOrdersExcel = async (req, res) => {
     res.end();
 
   } catch (error) {
-    console.error("Excel export error:", error);
+    console.error("[ExportOrdersExcel] Unexpected error:", error);
+
     if (!res.headersSent) {
-      res.status(500).json({ success: false, message: "Failed to export orders" });
+      return res.status(500).json({
+        success: false,
+        code: "SERVER_ERROR",
+        message: "Couldn't export orders to Excel. Please try again.",
+      });
     }
   }
 };
@@ -171,15 +185,18 @@ exports.exportOrdersCsv = async (req, res) => {
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=orders-export.csv");
 
-    // exceljs exposes CSV writing on the workbook (not the worksheet) —
-    // sheetName picks which sheet to serialize.
     await workbook.csv.write(res, { sheetName: "Orders" });
     res.end();
 
   } catch (error) {
-    console.error("CSV export error:", error);
+    console.error("[ExportOrdersCsv] Unexpected error:", error);
+
     if (!res.headersSent) {
-      res.status(500).json({ success: false, message: "Failed to export orders" });
+      return res.status(500).json({
+        success: false,
+        code: "SERVER_ERROR",
+        message: "Couldn't export orders to CSV. Please try again.",
+      });
     }
   }
 };

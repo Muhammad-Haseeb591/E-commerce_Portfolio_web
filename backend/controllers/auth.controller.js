@@ -6,9 +6,11 @@ const { sendOtpEmail, sendResetPasswordEmail } = require("../services/sendemail.
 
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
-// ==============================
-// Generate JWT Token
-// ==============================
+/**
+ * Generates a signed JWT containing the user's id.
+ * @param {string} id - MongoDB user _id
+ * @returns {string} signed JWT (expires in 7 days)
+ */
 const generateToken = (id) => {
   return jwt.sign(
     { id },
@@ -17,12 +19,17 @@ const generateToken = (id) => {
   );
 };
 
-// ==============================
-// Send Cookie + User (+ token in body, for header/Bearer-auth clients)
-// ==============================
+/**
+ * Issues a JWT, sets it as an httpOnly cookie, and returns the user payload.
+ * Also returns the token in the response body for Bearer-auth clients (mobile/Postman).
+ * @param {object} user - Mongoose user document
+ * @param {object} res - Express response object
+ * @param {number} [statusCode=200]
+ */
 const sendToken = (user, res, statusCode = 200) => {
   const token = generateToken(user._id);
   const isProduction = process.env.NODE_ENV === "production";
+
   res.cookie("token", token, {
     httpOnly: true,
     secure: isProduction,
@@ -32,7 +39,7 @@ const sendToken = (user, res, statusCode = 200) => {
 
   return res.status(statusCode).json({
     success: true,
-    message: "Authentication successful.",
+    message: "You're logged in!",
     token,
     user: {
       id: user._id,
@@ -43,9 +50,11 @@ const sendToken = (user, res, statusCode = 200) => {
   });
 };
 
-// ==============================
-// REGISTER  (creates unverified user + sends OTP)
-// ==============================
+/**
+ * POST /register
+ * Creates a new unverified user and sends an OTP for email verification.
+ * If an unverified account with the same email exists, it is updated and a new OTP is sent.
+ */
 exports.register = async (req, res) => {
   try {
     let { fullName, email, password } = req.body;
@@ -53,7 +62,8 @@ exports.register = async (req, res) => {
     if (!fullName || !email || !password) {
       return res.status(400).json({
         success: false,
-        message: "All fields are required.",
+        code: "MISSING_FIELDS",
+        message: "Please fill in your name, email, and password.",
       });
     }
 
@@ -65,7 +75,8 @@ exports.register = async (req, res) => {
       if (existing.isVerified) {
         return res.status(400).json({
           success: false,
-          message: "Email already exists.",
+          code: "EMAIL_ALREADY_EXISTS",
+          message: "This email is already registered.",
         });
       }
 
@@ -75,12 +86,13 @@ exports.register = async (req, res) => {
       await existing.save();
 
       sendOtpEmail(existing.email, otp)
-        .then(() => console.log("OTP email accepted by SMTP for:", existing.email))
-        .catch((err) => console.error("OTP email failed (register/existing):", err));
+        .then(() => console.log(`[Register] OTP email accepted by SMTP for: ${existing.email}`))
+        .catch((err) => console.error(`[Register] OTP email failed for existing user (${existing.email}):`, err));
 
       return res.status(200).json({
         success: true,
-        message: "Account exists but is unverified. A new OTP has been sent to your email.",
+        code: "UNVERIFIED_ACCOUNT_UPDATED",
+        message: "This email is registered but not verified yet. We've sent a new OTP to your inbox.",
         email: existing.email,
       });
     }
@@ -95,28 +107,31 @@ exports.register = async (req, res) => {
     await user.save();
 
     sendOtpEmail(user.email, otp)
-      .then(() => console.log("OTP email accepted by SMTP for:", user.email))
-      .catch((err) => console.error("OTP email failed (register/new):", err));
+      .then(() => console.log(`[Register] OTP email accepted by SMTP for: ${user.email}`))
+      .catch((err) => console.error(`[Register] OTP email failed for new user (${user.email}):`, err));
 
     return res.status(201).json({
       success: true,
-      message: "Registration successful. OTP sent to your email for verification.",
+      code: "REGISTERED_PENDING_VERIFICATION",
+      message: "You're almost done! We've sent an OTP to your email — please verify to finish signing up.",
       email: user.email,
     });
 
   } catch (error) {
-    console.error("Register Error:", error);
+    console.error("[Register] Unexpected error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Server Error",
+      code: "SERVER_ERROR",
+      message: "Something went wrong. Please try again.",
     });
   }
 };
 
-// ==============================
-// VERIFY OTP  (activates account, logs user in)
-// ==============================
+/**
+ * POST /verify-otp
+ * Verifies the OTP sent during registration/resend, activates the account, and logs the user in.
+ */
 exports.verifyOtp = async (req, res) => {
   try {
     let { email, otp } = req.body;
@@ -124,7 +139,8 @@ exports.verifyOtp = async (req, res) => {
     if (!email || !otp) {
       return res.status(400).json({
         success: false,
-        message: "Email and OTP are required.",
+        code: "MISSING_FIELDS",
+        message: "Please enter your email and the OTP.",
       });
     }
 
@@ -135,14 +151,16 @@ exports.verifyOtp = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found.",
+        code: "USER_NOT_FOUND",
+        message: "We couldn't find an account with this email.",
       });
     }
 
     if (user.isVerified) {
       return res.status(400).json({
         success: false,
-        message: "Email already verified.",
+        code: "ALREADY_VERIFIED",
+        message: "This email is already verified.",
       });
     }
 
@@ -151,7 +169,8 @@ exports.verifyOtp = async (req, res) => {
     if (!isValid) {
       return res.status(400).json({
         success: false,
-        message: "Invalid or expired OTP.",
+        code: "OTP_INVALID_OR_EXPIRED",
+        message: "This OTP is incorrect or has expired. Please request a new one.",
       });
     }
 
@@ -163,18 +182,20 @@ exports.verifyOtp = async (req, res) => {
     sendToken(user, res);
 
   } catch (error) {
-    console.error("Verify OTP Error:", error);
+    console.error("[VerifyOtp] Unexpected error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Server Error",
+      code: "SERVER_ERROR",
+      message: "Something went wrong. Please try again.",
     });
   }
 };
 
-// ==============================
-// RESEND OTP
-// ==============================
+/**
+ * POST /resend-otp
+ * Generates and sends a fresh OTP to an unverified account.
+ */
 exports.resendOtp = async (req, res) => {
   try {
     let { email } = req.body;
@@ -182,7 +203,8 @@ exports.resendOtp = async (req, res) => {
     if (!email) {
       return res.status(400).json({
         success: false,
-        message: "Email is required.",
+        code: "MISSING_FIELDS",
+        message: "Please enter your email.",
       });
     }
 
@@ -193,14 +215,16 @@ exports.resendOtp = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found.",
+        code: "USER_NOT_FOUND",
+        message: "We couldn't find an account with this email.",
       });
     }
 
     if (user.isVerified) {
       return res.status(400).json({
         success: false,
-        message: "Email already verified.",
+        code: "ALREADY_VERIFIED",
+        message: "This email is already verified.",
       });
     }
 
@@ -208,27 +232,30 @@ exports.resendOtp = async (req, res) => {
     await user.save();
 
     sendOtpEmail(user.email, otp)
-      .then(() => console.log("email accepted by SMTP for:", user.email))
-      .catch((err) => console.error("OTP email failed (resendOtp):", err));
+      .then(() => console.log(`[ResendOtp] OTP email accepted by SMTP for: ${user.email}`))
+      .catch((err) => console.error(`[ResendOtp] OTP email failed for ${user.email}:`, err));
 
     return res.status(200).json({
       success: true,
-      message: "A new OTP has been sent to your email.",
+      code: "OTP_RESENT",
+      message: "We've sent a new OTP to your email.",
     });
 
   } catch (error) {
-    console.error("Resend OTP Error:", error);
+    console.error("[ResendOtp] Unexpected error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Server Error",
+      code: "SERVER_ERROR",
+      message: "Something went wrong. Please try again.",
     });
   }
 };
 
-// ==============================
-// LOGIN
-// ==============================
+/**
+ * POST /login
+ * Authenticates a user with email + password and issues a JWT on success.
+ */
 exports.login = async (req, res) => {
   try {
     let { email, password } = req.body;
@@ -236,7 +263,8 @@ exports.login = async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: "Email and Password are required.",
+        code: "MISSING_FIELDS",
+        message: "Please enter your email and password.",
       });
     }
 
@@ -247,14 +275,16 @@ exports.login = async (req, res) => {
     if (!user) {
       return res.status(400).json({
         success: false,
-        message: "Invalid Credentials",
+        code: "INVALID_CREDENTIALS",
+        message: "Incorrect email or password.",
       });
     }
 
     if (!user.password) {
       return res.status(400).json({
         success: false,
-        message: "This account uses Google Sign-In. Please continue with Google.",
+        code: "GOOGLE_ACCOUNT_ONLY",
+        message: "This account uses Google Sign-In. Please continue with Google instead.",
       });
     }
 
@@ -263,14 +293,16 @@ exports.login = async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({
         success: false,
-        message: "Invalid Credentials",
+        code: "INVALID_CREDENTIALS",
+        message: "Incorrect email or password.",
       });
     }
 
     if (!user.isVerified) {
       return res.status(403).json({
         success: false,
-        message: "Email not verified. Please verify your email with the OTP sent to you.",
+        code: "EMAIL_NOT_VERIFIED",
+        message: "Please verify your email first using the OTP we sent you.",
         email: user.email,
       });
     }
@@ -278,18 +310,20 @@ exports.login = async (req, res) => {
     sendToken(user, res);
 
   } catch (error) {
-    console.error("Login Error:", error);
+    console.error("[Login] Unexpected error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Server Error",
+      code: "SERVER_ERROR",
+      message: "Something went wrong. Please try again.",
     });
   }
 };
 
-// ==============================
-// LOGOUT
-// ==============================
+/**
+ * POST /logout
+ * Clears the auth cookie.
+ */
 exports.logout = (req, res) => {
   const isProduction = process.env.NODE_ENV === "production";
 
@@ -301,13 +335,16 @@ exports.logout = (req, res) => {
 
   return res.status(200).json({
     success: true,
-    message: "Logged out successfully.",
+    code: "LOGGED_OUT",
+    message: "You've been logged out.",
   });
 };
 
-// ==============================
-// FORGOT PASSWORD  (sends reset link via email)
-// ==============================
+/**
+ * POST /forgot-password
+ * Sends a password reset link to the user's email if the account exists.
+ * Always returns a generic success message (even if the email doesn't exist) to prevent user enumeration.
+ */
 exports.forgotPassword = async (req, res) => {
   try {
     let { email } = req.body;
@@ -315,7 +352,8 @@ exports.forgotPassword = async (req, res) => {
     if (!email) {
       return res.status(400).json({
         success: false,
-        message: "Email is required.",
+        code: "MISSING_FIELDS",
+        message: "Please enter your email.",
       });
     }
 
@@ -324,9 +362,11 @@ exports.forgotPassword = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user) {
+      // Intentionally generic — do not reveal whether the email exists (prevents enumeration)
       return res.status(200).json({
         success: true,
-        message: "If that email is registered, a reset link has been sent.",
+        code: "RESET_LINK_SENT_IF_EXISTS",
+        message: "If this email is registered, we've sent a password reset link.",
       });
     }
 
@@ -342,31 +382,36 @@ exports.forgotPassword = async (req, res) => {
       user.resetPasswordExpiry = undefined;
       await user.save();
 
-      console.error("Reset Email Error:", emailError);
+      console.error(`[ForgotPassword] Failed to send reset email to ${user.email}:`, emailError);
+
       return res.status(500).json({
         success: false,
-        message: "Could not send reset email. Please try again later.",
+        code: "RESET_EMAIL_FAILED",
+        message: "We couldn't send the reset email. Please try again.",
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: "If that email is registered, a reset link has been sent.",
+      code: "RESET_LINK_SENT_IF_EXISTS",
+      message: "If this email is registered, we've sent a password reset link.",
     });
 
   } catch (error) {
-    console.error("Forgot Password Error:", error);
+    console.error("[ForgotPassword] Unexpected error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Server Error",
+      code: "SERVER_ERROR",
+      message: "Something went wrong. Please try again.",
     });
   }
 };
 
-// ==============================
-// RESET PASSWORD  (uses token from email link)
-// ==============================
+/**
+ * POST /reset-password/:token
+ * Resets a user's password using the token issued via the reset-password email link.
+ */
 exports.resetPassword = async (req, res) => {
   try {
     const { token } = req.params;
@@ -375,7 +420,8 @@ exports.resetPassword = async (req, res) => {
     if (!password) {
       return res.status(400).json({
         success: false,
-        message: "New password is required.",
+        code: "MISSING_FIELDS",
+        message: "Please enter a new password.",
       });
     }
 
@@ -389,7 +435,8 @@ exports.resetPassword = async (req, res) => {
     if (!user) {
       return res.status(400).json({
         success: false,
-        message: "Invalid or expired reset link.",
+        code: "RESET_TOKEN_INVALID_OR_EXPIRED",
+        message: "This reset link is invalid or has expired. Please request a new one.",
       });
     }
 
@@ -400,28 +447,32 @@ exports.resetPassword = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Password reset successful. Please log in.",
+      code: "PASSWORD_RESET_SUCCESS",
+      message: "Your password has been reset. You can now log in.",
     });
 
   } catch (error) {
-    console.error("Reset Password Error:", error);
+    console.error("[ResetPassword] Unexpected error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Server Error",
+      code: "SERVER_ERROR",
+      message: "Something went wrong. Please try again.",
     });
   }
 };
 
-// ==============================
-// GET LOGGED-IN USER
-// ==============================
+/**
+ * GET /me
+ * Returns the currently authenticated user's profile (requires auth middleware to set req.userId).
+ */
 exports.getMe = async (req, res) => {
   try {
     if (!req.userId) {
       return res.status(401).json({
         success: false,
-        message: "Unauthorized",
+        code: "UNAUTHORIZED",
+        message: "Please log in to continue.",
       });
     }
 
@@ -430,7 +481,8 @@ exports.getMe = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found.",
+        code: "USER_NOT_FOUND",
+        message: "We couldn't find your account.",
       });
     }
 
@@ -440,11 +492,12 @@ exports.getMe = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("GetMe Error:", error);
+    console.error("[GetMe] Unexpected error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Server Error",
+      code: "SERVER_ERROR",
+      message: "Something went wrong. Please try again.",
     });
   }
 };

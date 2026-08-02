@@ -3,83 +3,60 @@ const Order = require("../models/Order");
 const Product = require("../models/Product");
 const stripe = require("../config/stripe");
 const { sendOrderConfirmationEmail } = require("../services/sendemail.services");
-const { formatCurrency } = require("../services/Invoicerenderer"); // 🔑 verify this path matches your actual file location
+const { formatCurrency } = require("../services/Invoicerenderer"); // verify this path matches your actual file location
 
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch((error) => {
-    console.error(`${req.method} ${req.originalUrl} —`, error.message);
-    res.status(500).json({ success: false, message: "Server Error" });
+    console.error(`[${req.method} ${req.originalUrl}]`, error.message);
+    res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Something went wrong. Please try again.",
+    });
   });
 };
 
-// 🔑 /account/orders requires login (AccountActivity.jsx), and createOrder
-// itself is a `protect`-only route with its own req.userId guard — so
-// every order made through this controller IS a logged-in user's order.
-// Track link is therefore always safe to include.
 const ACCOUNT_ORDERS_URL = `${
   process.env.FRONTEND_URL || "https://e-commerce-portfolio-web.vercel.app"
 }/account/orders`;
 
-// 🔑 CRITICAL: your store's prices are in PKR, but Stripe is charging in
-// "usd" — meaning `totalAmount` (a PKR number) was being sent to Stripe
-// as if it were dollars. A PKR 2000 order was charging $2000 USD.
-//
-// This rate is a STOPGAP, not a production-safe solution. A hardcoded
-// rate drifts from the real market rate over time, which either
-// overcharges or undercharges every card customer. Before this goes live
-// with real money, replace this with a live exchange-rate API call
-// (e.g. exchangerate-api.com, Open Exchange Rates) cached for a short
-// TTL (e.g. 1 hour), not a constant.
 const PKR_TO_USD_RATE = 1 / 278; // TODO: replace with live FX rate lookup
 const STRIPE_CHARGE_CURRENCY = "usd"; // change to "pkr" instead IF your Stripe account supports PKR settlement — verify in Stripe Dashboard → Settings → Payouts first
 
-// Fire-and-forget: the order itself already succeeded (COD confirmed /
-// payment captured) by the time this is called, so an email hiccup must
-// never turn into a 500 for the customer or delay the response. Errors
-// are just logged.
+
 const notifyOrderConfirmed = (order, email) => {
   sendOrderConfirmationEmail(email, {
     orderId: order.orderNumber,
-    // 🔑 FIX: was hardcoded `$${...}` — now uses the order's actual
-    // currency (PKR by default) via the same formatter the invoice uses,
-    // so the email and the PDF invoice always agree.
+    // Uses the order's actual currency (PKR by default) via the same
+    // formatter the invoice uses, so the email and the PDF invoice always agree.
     total: formatCurrency(order.totalAmount, order.currency || "PKR"),
     isLoggedIn: true,
     trackUrl: ACCOUNT_ORDERS_URL,
-  }).catch((err) => console.error("Order confirmation email failed:", err.message));
+  }).catch((err) => console.error("[NotifyOrderConfirmed] Order confirmation email failed:", err.message));
 };
 
 // ==========================
 // Shipping / Coupon calculation
 // ==========================
-// TODO (STRICT): Ye dono functions abhi placeholder hain. Frontend ke
-// utils/currency.js me jo getShippingFee() aur getCouponDiscount() logic
-// hai, wahi EXACT logic yahan port karo — warna frontend aur backend ka
-// totalAmount mismatch ho jayega aur customer ko wrong amount charge hoga.
-// Jab tak port nahi karte, shippingFee = 0 aur discount = 0 rahega
-// (safe fallback — order create hoga, lekin shipping fee customer se
-// nahi liya jayega).
+// TODO (STRICT): These two functions are currently placeholders. The
+// getShippingFee() and getCouponDiscount() logic in the frontend's
+// utils/currency.js must be ported here EXACTLY — otherwise the frontend
+// and backend totalAmount will mismatch and the customer will be charged
+// the wrong amount. Until ported, shippingFee = 0 and discount = 0
+// (safe fallback — the order will still be created, but shipping fee
+// will not be charged to the customer).
 function calculateShippingFee(subtotal) {
   // TODO: implement real shipping logic (matching frontend)
   return 0;
 }
 
 async function validateCoupon(couponCode, subtotal) {
-  // TODO: DB se coupon validate karo (expiry, min order amount, usage limit)
-  // Abhi ke liye koi discount nahi milega — coupon silently ignore hoga.
+  // TODO: validate coupon against DB (expiry, min order amount, usage limit)
+  // For now, no discount is applied — the coupon is silently ignored.
   return { discount: 0 };
 }
 
-// ==========================
-// Stock helpers (color + size-aware, with rollback)
-// ==========================
-// 🔑 FIXED — Product schema no longer has a top-level `sizes` array;
-// sizes now live inside colors[i].sizes, and each color also has its own
-// colors[i].stock (used when that color has no size scale). Both branches
-// below now locate the right color via `color` first (arrayFilters "c"),
-// then the right size within it (arrayFilters "s") when one applies —
-// and keep colors[i].stock + the top-level stock in sync manually, since
-// findOneAndUpdate skips the pre-save rollup hooks.
+
 const decrementStockForItem = async ({ productId, color, size, quantity }) => {
   if (size) {
     return Product.findOneAndUpdate(
@@ -147,7 +124,7 @@ const rollbackDecrements = async (decremented) => {
       } catch (err) {
         // Rollback itself failing shouldn't hide the original error —
         // just log it, don't throw.
-        console.error("Stock rollback failed for", productId, color, size, err.message);
+        console.error("[RollbackDecrements] Stock rollback failed for", productId, color, size, err.message);
       }
     })
   );
@@ -159,7 +136,7 @@ const safeRefund = async (paymentIntentId) => {
   try {
     await stripe.refunds.create({ payment_intent: paymentIntentId });
   } catch (err) {
-    console.error("Refund failed for payment_intent", paymentIntentId, err.message);
+    console.error("[SafeRefund] Refund failed for payment_intent", paymentIntentId, err.message);
   }
 };
 
@@ -185,24 +162,37 @@ exports.createOrder = asyncHandler(async (req, res) => {
   if (!req.userId) {
     return res.status(401).json({
       success: false,
-      message: "login first to place an order",
+      code: "UNAUTHORIZED",
+      message: "Please log in to place an order.",
     });
   }
 
   const { items, shippingAddress, email, paymentMethod, paymentMethodId, couponCode } = req.body;
 
   if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ success: false, message: "No items in the order." });
+    return res.status(400).json({
+      success: false,
+      code: "EMPTY_ORDER",
+      message: "Your cart is empty.",
+    });
   }
   if (!shippingAddress || !email) {
-    return res.status(400).json({ success: false, message: "shippingAddress and email are required." });
+    return res.status(400).json({
+      success: false,
+      code: "MISSING_FIELDS",
+      message: "Please provide a shipping address and email.",
+    });
   }
 
-  // ── 1. Product ids validate + price/product DB se dobara nikalo —
-  // frontend se aaya price/totalAmount kabhi trust na karo ──
+  // ── 1. Validate product ids and re-fetch price/product from the DB —
+  // never trust price/totalAmount sent from the frontend ──
   for (const item of items) {
     if (!mongoose.Types.ObjectId.isValid(item.productId)) {
-      return res.status(400).json({ success: false, message: `Invalid product id: ${item.productId}` });
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_PRODUCT_ID",
+        message: `One of the items in your cart isn't valid: ${item.productId}`,
+      });
     }
   }
 
@@ -215,14 +205,18 @@ exports.createOrder = asyncHandler(async (req, res) => {
   for (const item of items) {
     const dbProduct = productMap.get(String(item.productId));
     if (!dbProduct) {
-      return res.status(400).json({ success: false, message: `Invalid product: ${item.productId}` });
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_PRODUCT",
+        message: `One of the items in your cart is no longer available: ${item.productId}`,
+      });
     }
     const quantity = Number(item.quantity) || 1;
-    const price = dbProduct.price; // ← DB se, frontend se nahi (PKR)
+    const price = dbProduct.price; // from DB, not from the frontend (PKR)
 
     subtotal += price * quantity;
 
-    // 🔑 No top-level product.images anymore — image lives on the
+    // No top-level product.images anymore — image lives on the
     // specific color the customer picked (colors[].image).
     const matchedColor = dbProduct.colors?.find((c) => c.color === item.color);
 
@@ -237,7 +231,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
     });
   }
 
-  // ── 2. Shipping/coupon backend se calculate karo (see TODOs above) ──
+  // ── 2. Calculate shipping/coupon on the backend (see TODOs above) ──
   const shippingFee = calculateShippingFee(subtotal);
   const { discount } = couponCode
     ? await validateCoupon(couponCode, subtotal)
@@ -245,9 +239,10 @@ exports.createOrder = asyncHandler(async (req, res) => {
 
   const totalAmount = Math.max(0, subtotal - discount) + shippingFee; // PKR
 
-  // ── 3. Duplicate-request guard (double click / network retry) — agar
-  // pichle 30 second me isi email + totalAmount + same item-count wala
-  // order ban chuka hai to usi ko wapas bhej do, dobara stock mat kaato ──
+  // ── 3. Duplicate-request guard (double click / network retry) — if an
+  // order with the same email + totalAmount + same item-count was already
+  // created in the last 30 seconds, return that one instead of decrementing
+  // stock again ──
   const thirtySecondsAgo = new Date(Date.now() - 30 * 1000);
   const existingOrder = await Order.findOne({
     email,
@@ -257,12 +252,17 @@ exports.createOrder = asyncHandler(async (req, res) => {
   }).sort({ createdAt: -1 });
 
   if (existingOrder) {
-    return res.status(200).json({ success: true, order: existingOrder, duplicate: true });
+    return res.status(200).json({
+      success: true,
+      code: "DUPLICATE_ORDER_RETURNED",
+      order: existingOrder,
+      duplicate: true,
+    });
   }
 
-  // ── 4a. COD ── stock pehle decrement karo (order create se pehle), taake
-  // out-of-stock item pura order hi block kar de, aur pichle decrements
-  // rollback ho jayein.
+  // ── 4a. COD ── decrement stock first (before creating the order), so
+  // an out-of-stock item blocks the whole order and any prior decrements
+  // are rolled back.
   if (paymentMethod === "cod" || paymentMethod === "rs") {
     const decremented = [];
 
@@ -278,6 +278,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
         await rollbackDecrements(decremented);
         return res.status(409).json({
           success: false,
+          code: "OUT_OF_STOCK",
           message: `"${item.name}"${item.size ? ` (size ${item.size})` : ""} is out of stock.`,
         });
       }
@@ -296,7 +297,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
         shippingFee,
         discount,
         totalAmount,
-        currency: "PKR", // 🔑 was missing here — now explicit on both payment paths
+        currency: "PKR", // now explicit on both payment paths
         paymentMethod: "cod",
         paymentStatus: "unpaid",
         status: "pending",
@@ -306,19 +307,27 @@ exports.createOrder = asyncHandler(async (req, res) => {
       throw orderErr; // caught by asyncHandler -> clean 500
     }
 
-    // 🔑 Order confirmed (COD) — let the customer know it went through.
+    // Order confirmed (COD) — let the customer know it went through.
     notifyOrderConfirmed(order, email);
 
-    return res.status(201).json({ success: true, order });
+    return res.status(201).json({
+      success: true,
+      code: "ORDER_CREATED",
+      order,
+    });
   }
 
-  // ── 4b. Card — PaymentIntent create + confirm (paymentMethodId frontend
-  // se tokenized aaya hota hai) ──
+  // ── 4b. Card — create + confirm PaymentIntent (paymentMethodId comes
+  // tokenized from the frontend) ──
   if (!paymentMethodId) {
-    return res.status(400).json({ success: false, message: "paymentMethodId is required for card payment." });
+    return res.status(400).json({
+      success: false,
+      code: "MISSING_PAYMENT_METHOD",
+      message: "Please provide a payment method to pay by card.",
+    });
   }
 
-  // 🔑 THE FIX: convert PKR totalAmount to USD before charging Stripe.
+  // THE FIX: convert PKR totalAmount to USD before charging Stripe.
   // Previously `totalAmount` (a PKR number) was sent to Stripe labeled as
   // "usd" — meaning a PKR 2000 order charged the card $2000 USD instead
   // of the correct ~$7.19 USD equivalent.
@@ -335,32 +344,41 @@ exports.createOrder = asyncHandler(async (req, res) => {
       receipt_email: email,
       metadata: {
         userId: String(req.userId),
-        // 🔑 store the PKR amount too, for reconciliation — Stripe's
+        // Store the PKR amount too, for reconciliation — Stripe's
         // dashboard alone won't show what the customer saw at checkout.
         pkrTotalAmount: String(totalAmount),
       },
     });
   } catch (err) {
-    return res.status(402).json({ success: false, message: err.message || "Payment failed." });
+    return res.status(402).json({
+      success: false,
+      code: "PAYMENT_FAILED",
+      message: err.message || "Your payment couldn't be processed.",
+    });
   }
 
-  // 3D Secure chahiye — order abhi mat banao, na hi stock kaato. Frontend
-  // confirmCardPayment() karega aur ye endpoint (ya /orders/confirm)
-  // dobara call hoga jab tak status "succeeded" na aa jaye.
+  // 3D Secure required — don't create the order or decrement stock yet.
+  // The frontend will call confirmCardPayment() and this endpoint (or
+  // /orders/confirm) will be called again once the status is "succeeded".
   if (paymentIntent.status === "requires_action") {
     return res.status(200).json({
       success: true,
+      code: "REQUIRES_ACTION",
       requiresAction: true,
       clientSecret: paymentIntent.client_secret,
     });
   }
 
   if (paymentIntent.status !== "succeeded") {
-    return res.status(402).json({ success: false, message: "Payment could not be completed." });
+    return res.status(402).json({
+      success: false,
+      code: "PAYMENT_NOT_COMPLETED",
+      message: "Your payment couldn't be completed.",
+    });
   }
 
-  // ── 5. Payment confirm ho gaya — SIRF ab stock decrement + order create.
-  // Agar stock kam nikla, paisay wapas (refund) turant. ──
+  // ── 5. Payment confirmed — only now decrement stock + create the order.
+  // If stock turns out to be insufficient, refund immediately. ──
   const decremented = [];
 
   for (const item of verifiedItems) {
@@ -376,7 +394,8 @@ exports.createOrder = asyncHandler(async (req, res) => {
       await safeRefund(paymentIntent.id);
       return res.status(409).json({
         success: false,
-        message: `"${item.name}"${item.size ? ` (size ${item.size})` : ""} is out of stock. Payment automatically refunded.`,
+        code: "OUT_OF_STOCK_REFUNDED",
+        message: `"${item.name}"${item.size ? ` (size ${item.size})` : ""} is out of stock. Your payment has been refunded.`,
       });
     }
 
@@ -401,24 +420,33 @@ exports.createOrder = asyncHandler(async (req, res) => {
       paidAt: new Date(),
     });
   } catch (orderErr) {
-    // Order DB me save nahi hua lekin paisay kat gaye aur stock kam ho gaya
-    // — dono wapas karo.
+    // The order failed to save to the DB but the payment was captured and
+    // stock was already decremented — both must be reversed.
     await rollbackDecrements(decremented);
     await safeRefund(paymentIntent.id);
     throw orderErr;
   }
 
-  // 🔑 Order confirmed (card, payment captured) — let the customer know.
+  // Order confirmed (card, payment captured) — let the customer know.
   notifyOrderConfirmed(order, email);
 
-  return res.status(201).json({ success: true, order });
+  return res.status(201).json({
+    success: true,
+    code: "ORDER_CREATED",
+    order,
+  });
 });
+
 // ==========================
 // Get logged-in user's own orders
 // ==========================
 exports.getOrders = asyncHandler(async (req, res) => {
   if (!req.userId) {
-    return res.status(401).json({ success: false, message: "Unauthorized" });
+    return res.status(401).json({
+      success: false,
+      code: "UNAUTHORIZED",
+      message: "Please log in to view your orders.",
+    });
   }
 
   const orders = await Order.find({ userId: req.userId }).sort({ createdAt: -1 });
@@ -613,12 +641,20 @@ exports.updateOrder = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({ success: false, message: "Invalid order ID" });
+    return res.status(400).json({
+      success: false,
+      code: "INVALID_ORDER_ID",
+      message: "This order ID doesn't look right.",
+    });
   }
 
   const order = await Order.findById(id);
   if (!order) {
-    return res.status(404).json({ success: false, message: "Order nahi mila" });
+    return res.status(404).json({
+      success: false,
+      code: "ORDER_NOT_FOUND",
+      message: "We couldn't find this order.",
+    });
   }
 
   const {
@@ -658,7 +694,12 @@ exports.updateOrder = asyncHandler(async (req, res) => {
     await updatedOrder.save();
   }
 
-  return res.status(200).json({ success: true, message: "Order successfully updated", order: updatedOrder });
+  return res.status(200).json({
+    success: true,
+    code: "ORDER_UPDATED",
+    message: "Order updated successfully.",
+    order: updatedOrder,
+  });
 });
 
 // ==========================
@@ -668,15 +709,28 @@ exports.deleteOrder = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({ success: false, message: "Invalid order ID" });
+    return res.status(400).json({
+      success: false,
+      code: "INVALID_ORDER_ID",
+      message: "This order ID doesn't look right.",
+    });
   }
 
   const order = await Order.findByIdAndDelete(id);
   if (!order) {
-    return res.status(404).json({ success: false, message: "Order nahi mila" });
+    return res.status(404).json({
+      success: false,
+      code: "ORDER_NOT_FOUND",
+      message: "We couldn't find this order.",
+    });
   }
 
-  return res.status(200).json({ success: true, message: "Order successfully deleted", id });
+  return res.status(200).json({
+    success: true,
+    code: "ORDER_DELETED",
+    message: "Order deleted successfully.",
+    id,
+  });
 });
 
 // ==========================
@@ -686,12 +740,20 @@ exports.getOrderById = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({ success: false, message: "Invalid order ID" });
+    return res.status(400).json({
+      success: false,
+      code: "INVALID_ORDER_ID",
+      message: "This order ID doesn't look right.",
+    });
   }
 
   const order = await Order.findById(id);
   if (!order) {
-    return res.status(404).json({ success: false, message: "Order nahi mila" });
+    return res.status(404).json({
+      success: false,
+      code: "ORDER_NOT_FOUND",
+      message: "We couldn't find this order.",
+    });
   }
 
   return res.status(200).json({ success: true, order });
@@ -709,7 +771,11 @@ exports.trackOrder = asyncHandler(async (req, res) => {
 
   const numericOrderNumber = Number(orderNumber);
   if (!orderNumber || Number.isNaN(numericOrderNumber)) {
-    return res.status(400).json({ success: false, message: "Valid order number is required." });
+    return res.status(400).json({
+      success: false,
+      code: "INVALID_ORDER_NUMBER",
+      message: "Please enter a valid order number.",
+    });
   }
 
   const query = { orderNumber: numericOrderNumber };
@@ -719,7 +785,11 @@ exports.trackOrder = asyncHandler(async (req, res) => {
   } else if (email) {
     query.email = email; // guest — must match the order's email
   } else {
-    return res.status(400).json({ success: false, message: "Email is required to track a guest order." });
+    return res.status(400).json({
+      success: false,
+      code: "EMAIL_REQUIRED",
+      message: "Please enter your email to track this order.",
+    });
   }
 
   const order = await Order.findOne(query).select(
@@ -727,7 +797,11 @@ exports.trackOrder = asyncHandler(async (req, res) => {
   );
 
   if (!order) {
-    return res.status(404).json({ success: false, message: "Order nahi mila. Order number aur email check karein." });
+    return res.status(404).json({
+      success: false,
+      code: "ORDER_NOT_FOUND",
+      message: "We couldn't find this order. Please check the order number and email.",
+    });
   }
 
   return res.status(200).json({ success: true, order });
@@ -741,17 +815,29 @@ exports.trackOrder = asyncHandler(async (req, res) => {
 // ==========================
 exports.cancelOrder = asyncHandler(async (req, res) => {
   if (!req.userId) {
-    return res.status(401).json({ success: false, message: "Unauthorized" });
+    return res.status(401).json({
+      success: false,
+      code: "UNAUTHORIZED",
+      message: "Please log in to cancel this order.",
+    });
   }
 
   const { id } = req.params;
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({ success: false, message: "Invalid order id" });
+    return res.status(400).json({
+      success: false,
+      code: "INVALID_ORDER_ID",
+      message: "This order ID doesn't look right.",
+    });
   }
 
   const order = await Order.findById(id);
   if (!order) {
-    return res.status(404).json({ success: false, message: "Order not found" });
+    return res.status(404).json({
+      success: false,
+      code: "ORDER_NOT_FOUND",
+      message: "We couldn't find this order.",
+    });
   }
 
   // Customers can only cancel their own orders — this is what stops
@@ -759,6 +845,7 @@ exports.cancelOrder = asyncHandler(async (req, res) => {
   if (String(order.userId) !== String(req.userId)) {
     return res.status(403).json({
       success: false,
+      code: "FORBIDDEN",
       message: "You can only cancel your own orders.",
     });
   }
@@ -766,28 +853,34 @@ exports.cancelOrder = asyncHandler(async (req, res) => {
   if (!CANCELLABLE_STATUSES.includes(order.status)) {
     return res.status(400).json({
       success: false,
+      code: "ORDER_NOT_CANCELLABLE",
       message: `This order can no longer be cancelled (current status: ${order.status}).`,
     });
   }
 
-  // ── Refund — sirf jab actually paid ho (COD/unpaid pe refund nahi hoga).
-  // Refund status abhi "pending" set hoga — final "succeeded" confirmation
-  // Stripe ke "charge.refunded" webhook se aana chahiye, is response se nahi. ──
+  // ── Refund — only when the order was actually paid (no refund for
+  // COD/unpaid orders). Refund status is set to "pending" here — final
+  // "succeeded" confirmation should come from Stripe's "charge.refunded"
+  // webhook, not from this response. ──
   if (order.paymentStatus === "paid" && order.stripePaymentIntentId) {
     try {
       const refund = await stripe.refunds.create({ payment_intent: order.stripePaymentIntentId });
       order.refundId = refund.id;
-      order.refundStatus = refund.status; // 'pending' — webhook se 'succeeded' confirm hoga
+      order.refundStatus = refund.status; // 'pending' — confirmed as 'succeeded' via webhook
     } catch (err) {
-      console.error("Refund failed:", err.message);
-      return res.status(502).json({ success: false, message: "Refund process nahi ho saka, dobara try karein." });
+      console.error("[CancelOrder] Refund failed:", err.message);
+      return res.status(502).json({
+        success: false,
+        code: "REFUND_FAILED",
+        message: "We couldn't process your refund. Please try again.",
+      });
     }
   }
 
-  // ── Stock wapis add karo — same local rollbackDecrements jo createOrder
-  // me bhi use hota hai, taake size-array aur top-level stock dono sync
-  // rahein (ek se zyada alag rollback implementations mix karna bug ki
-  // sabse badi wajah hai) ──
+  // ── Restore stock — uses the same local rollbackDecrements that
+  // createOrder also uses, so the size-array and top-level stock stay in
+  // sync (mixing multiple separate rollback implementations is the
+  // biggest source of bugs here) ──
   await rollbackDecrements(
     order.items.map((i) => ({ productId: i.productId, color: i.color, size: i.size, quantity: i.quantity }))
   );
@@ -795,5 +888,9 @@ exports.cancelOrder = asyncHandler(async (req, res) => {
   order.status = "cancelled";
   await order.save();
 
-  return res.status(200).json({ success: true, order });
+  return res.status(200).json({
+    success: true,
+    code: "ORDER_CANCELLED",
+    order,
+  });
 });

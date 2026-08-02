@@ -33,23 +33,39 @@ const recalcProductRating = async (productId) => {
 exports.createReview = async (req, res) => {
   try {
     if (!req.userId) {
-      return res.status(401).json({ success: false, message: "Login required" });
+      return res.status(401).json({
+        success: false,
+        code: "UNAUTHORIZED",
+        message: "Please log in to leave a review.",
+      });
     }
 
     const { productId, rating, title, comment } = req.body;
 
     if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ success: false, message: "Invalid product id" });
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_PRODUCT_ID",
+        message: "This product ID doesn't look right.",
+      });
     }
 
     const numericRating = Number(rating);
     if (!numericRating || numericRating < 1 || numericRating > 5) {
-      return res.status(400).json({ success: false, message: "Rating must be between 1 and 5" });
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_RATING",
+        message: "Please give a rating between 1 and 5.",
+      });
     }
 
     const product = await Product.findById(productId).select("_id");
     if (!product) {
-      return res.status(404).json({ success: false, message: "Product not found" });
+      return res.status(404).json({
+        success: false,
+        code: "PRODUCT_NOT_FOUND",
+        message: "We couldn't find this product.",
+      });
     }
 
     const images = req.files?.length ? req.files.map((f) => f.path || f.secure_url) : [];
@@ -65,17 +81,27 @@ exports.createReview = async (req, res) => {
 
     await recalcProductRating(productId);
 
-    return res.status(201).json({ success: true, review });
+    return res.status(201).json({
+      success: true,
+      code: "REVIEW_CREATED",
+      review,
+    });
   } catch (error) {
     if (error.code === 11000) {
       // Duplicate key from the unique (productId, userId) index
       return res.status(409).json({
         success: false,
-        message: "You have already reviewed this product.",
+        code: "REVIEW_ALREADY_EXISTS",
+        message: "You've already reviewed this product.",
       });
     }
-    console.error("Create Review Error:", error);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    console.error("[CreateReview] Unexpected error:", error);
+
+    return res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Couldn't submit your review. Please try again.",
+    });
   }
 };
 
@@ -105,8 +131,13 @@ exports.getFeaturedReviews = async (req, res) => {
 
     return res.status(200).json({ success: true, reviews });
   } catch (error) {
-    console.error("Get Featured Reviews Error:", error);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    console.error("[GetFeaturedReviews] Unexpected error:", error);
+
+    return res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Couldn't load featured reviews. Please try again.",
+    });
   }
 };
 
@@ -118,7 +149,11 @@ exports.getProductReviews = async (req, res) => {
     const { productId } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ success: false, message: "Invalid product id" });
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_PRODUCT_ID",
+        message: "This product ID doesn't look right.",
+      });
     }
 
     const page = Math.max(Number(req.query.page) || 1, 1);
@@ -159,8 +194,13 @@ exports.getProductReviews = async (req, res) => {
       ratingBreakdown,
     });
   } catch (error) {
-    console.error("Get Product Reviews Error:", error);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    console.error("[GetProductReviews] Unexpected error:", error);
+
+    return res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Couldn't load reviews. Please try again.",
+    });
   }
 };
 
@@ -170,7 +210,11 @@ exports.getProductReviews = async (req, res) => {
 exports.getMyReviews = async (req, res) => {
   try {
     if (!req.userId) {
-      return res.status(401).json({ success: false, message: "Login required" });
+      return res.status(401).json({
+        success: false,
+        code: "UNAUTHORIZED",
+        message: "Please log in to view your reviews.",
+      });
     }
 
     const reviews = await Review.find({ userId: req.userId })
@@ -179,8 +223,13 @@ exports.getMyReviews = async (req, res) => {
 
     return res.status(200).json({ success: true, reviews });
   } catch (error) {
-    console.error("Get My Reviews Error:", error);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    console.error("[GetMyReviews] Unexpected error:", error);
+
+    return res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Couldn't load your reviews. Please try again.",
+    });
   }
 };
 
@@ -190,22 +239,35 @@ exports.getMyReviews = async (req, res) => {
 exports.updateReview = async (req, res) => {
   try {
     if (!req.userId) {
-      return res.status(401).json({ success: false, message: "Login required" });
+      return res.status(401).json({
+        success: false,
+        code: "UNAUTHORIZED",
+        message: "Please log in to update a review.",
+      });
     }
 
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ success: false, message: "Invalid review id" });
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_REVIEW_ID",
+        message: "This review ID doesn't look right.",
+      });
     }
 
     const review = await Review.findById(id);
     if (!review) {
-      return res.status(404).json({ success: false, message: "Review not found." });
+      return res.status(404).json({
+        success: false,
+        code: "REVIEW_NOT_FOUND",
+        message: "We couldn't find this review.",
+      });
     }
 
     if (String(review.userId) !== String(req.userId)) {
       return res.status(403).json({
         success: false,
+        code: "FORBIDDEN",
         message: "You can only update your own reviews.",
       });
     }
@@ -216,7 +278,11 @@ exports.updateReview = async (req, res) => {
     if (rating !== undefined) {
       const numericRating = Number(rating);
       if (!numericRating || numericRating < 1 || numericRating > 5) {
-        return res.status(400).json({ success: false, message: "Rating must be between 1 and 5" });
+        return res.status(400).json({
+          success: false,
+          code: "INVALID_RATING",
+          message: "Please give a rating between 1 and 5.",
+        });
       }
       ratingChanged = numericRating !== review.rating;
       review.rating = numericRating;
@@ -241,10 +307,19 @@ exports.updateReview = async (req, res) => {
       await recalcProductRating(review.productId);
     }
 
-    return res.status(200).json({ success: true, review });
+    return res.status(200).json({
+      success: true,
+      code: "REVIEW_UPDATED",
+      review,
+    });
   } catch (error) {
-    console.error("Update Review Error:", error);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    console.error("[UpdateReview] Unexpected error:", error);
+
+    return res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Couldn't update your review. Please try again.",
+    });
   }
 };
 
@@ -254,22 +329,35 @@ exports.updateReview = async (req, res) => {
 exports.deleteReview = async (req, res) => {
   try {
     if (!req.userId) {
-      return res.status(401).json({ success: false, message: "Login required" });
+      return res.status(401).json({
+        success: false,
+        code: "UNAUTHORIZED",
+        message: "Please log in to delete a review.",
+      });
     }
 
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ success: false, message: "Invalid review id" });
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_REVIEW_ID",
+        message: "This review ID doesn't look right.",
+      });
     }
 
     const review = await Review.findById(id);
     if (!review) {
-      return res.status(404).json({ success: false, message: "Review not found." });
+      return res.status(404).json({
+        success: false,
+        code: "REVIEW_NOT_FOUND",
+        message: "We couldn't find this review.",
+      });
     }
 
     if (String(review.userId) !== String(req.userId)) {
       return res.status(403).json({
         success: false,
+        code: "FORBIDDEN",
         message: "You can only delete your own reviews.",
       });
     }
@@ -277,9 +365,18 @@ exports.deleteReview = async (req, res) => {
     await review.deleteOne();
     await recalcProductRating(review.productId);
 
-    return res.status(200).json({ success: true, message: "Review deleted" });
+    return res.status(200).json({
+      success: true,
+      code: "REVIEW_DELETED",
+      message: "Your review has been deleted.",
+    });
   } catch (error) {
-    console.error("Delete Review Error:", error);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    console.error("[DeleteReview] Unexpected error:", error);
+
+    return res.status(500).json({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Couldn't delete your review. Please try again.",
+    });
   }
 };
