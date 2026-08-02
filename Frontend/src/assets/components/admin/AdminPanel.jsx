@@ -1,32 +1,42 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LayoutDashboard, Package, ShoppingCart, Users, Menu, X, Home } from "lucide-react";
-import { Link } from "react-router-dom";
-import Dashboard from "./Dashboard";
-import Orders from "./orders/Orders";
-import Products from "./products/Products";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 
 const NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "products",  label: "Products",  icon: Package },
-  { id: "orders",    label: "Orders",    icon: ShoppingCart },
-  { id: "customers", label: "Customers", icon: Users },
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/admin/dashboard" },
+  { id: "products",  label: "Products",  icon: Package,        path: "/admin/products" },
+  { id: "orders",    label: "Orders",    icon: ShoppingCart,   path: "/admin/orders" },
+  { id: "customers", label: "Customers", icon: Users,          path: "/admin/customers" },
 ];
 
 const AdminPanel = () => {
-  const [activeTab,   setActiveTab]   = useState("dashboard");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  // 🔑 Logo image load hone tak dummy/skeleton UI dikhane ke liye —
-  // pehle load ke doran alt-text/cropped image dikh raha tha ("PORT-_Site...")
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => typeof window !== "undefined" && window.innerWidth >= 768
+  );
   const [logoLoaded, setLogoLoaded] = useState(false);
+  const location = useLocation();
 
-  const handleTab = (id) => {
-    setActiveTab(id);
-    if (window.innerWidth < 768) setSidebarOpen(false);
-  };
+  // Route change hote hi mobile/tablet pe sidebar guaranteed close hoga
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
+  }, [location.pathname]);
+
+  // Resize hone par bhi sahi default state maintain rahega
+  useEffect(() => {
+    const handleResize = () => {
+      setSidebarOpen(window.innerWidth >= 768);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const activeLabel =
+    NAV_ITEMS.find((n) => location.pathname.startsWith(n.path))?.label ?? "Dashboard";
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/20 z-20 md:hidden"
@@ -37,24 +47,26 @@ const AdminPanel = () => {
       <aside
         className={`
           fixed md:static z-30 h-full flex flex-col
-          ${sidebarOpen ? "w-60" : "w-0"}
+          ${sidebarOpen
+            ? "w-60 sm:w-64 md:w-60 lg:w-64"
+            : "w-0 sm:w-10 md:w-14 lg:w-16"}
           bg-white border-r border-gray-200
-          transition-all duration-300 overflow-hidden shrink-0
+          transition-[width] duration-300 ease-in-out
+          overflow-hidden shrink-0
         `}
       >
-        {/* Logo */}
-        <div className="px-5 py-4 border-b border-gray-100 flex flex-col items-start gap-1.5 shrink-0 w-full">
-          <div className="relative w-full h-16 shrink-0">
-            {/* 🔑 Dummy/skeleton placeholder — image load hote hi fade out */}
+        <div
+          className={`
+            border-b border-gray-100 flex flex-col items-start gap-1.5 shrink-0 w-full
+            ${sidebarOpen ? "px-4 sm:px-5 py-4" : "px-1 sm:px-2 md:px-3 py-4"}
+          `}
+        >
+          <div className="relative w-full h-8 sm:h-9 md:h-10 shrink-0 flex items-center justify-start">
             {!logoLoaded && (
               <div className="absolute inset-0 bg-gray-100 rounded-lg animate-pulse" />
             )}
             <img
-              className={`
-                w-full h-full object-contain object-left
-                transition-opacity duration-300
-                ${logoLoaded ? "opacity-100" : "opacity-0"}
-              `}
+              className={`max-w-full max-h-full object-contain object-left transition-opacity duration-300 ${logoLoaded ? "opacity-100" : "opacity-0"}`}
               src="https://res.cloudinary.com/dxqs4sg8j/image/upload/v1784673289/Gemini_Generated_Image_42k8yv42k8yv42k8_qlrij0.png"
               alt="Portfolio Site"
               loading="eager"
@@ -62,51 +74,54 @@ const AdminPanel = () => {
               onError={() => setLogoLoaded(true)}
             />
           </div>
-          <p className="text-xs text-gray-400 truncate w-full">Manage your store</p>
+          {sidebarOpen && (
+            <p className="text-xs text-gray-400 truncate w-full relative left-[9px]">Manage your store</p>
+          )}
         </div>
 
-        {/* 🔑 Nav ab flex-1 + overflow-y-auto hai — content zyada hone par
-            khud scroll karega, baaki sidebar (logo, footer) fixed rahenge */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
-          {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
-            <button
+        <nav
+          className={`
+            flex-1 overflow-y-auto py-4 space-y-0.5
+            ${sidebarOpen ? "px-3" : "px-1 sm:px-1.5 md:px-2"}
+          `}
+        >
+          {NAV_ITEMS.map(({ id, label, icon: Icon, path }) => (
+            <NavLink
               key={id}
-              onClick={() => handleTab(id)}
-              className={`
-                w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
-                transition-all duration-150
-                ${activeTab === id
-                  ? "bg-gray-900 text-white"
-                  : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"}
+              to={path}
+              className={({ isActive }) => `
+                w-full flex items-center gap-3 rounded-xl text-sm font-medium
+                transition-colors duration-150
+                ${sidebarOpen ? "px-3 py-2.5" : "justify-center px-2 py-2.5"}
+                ${isActive ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"}
               `}
             >
               <Icon className="w-4 h-4 shrink-0" />
-              <span className="truncate">{label}</span>
-            </button>
+              {sidebarOpen && <span className="truncate">{label}</span>}
+            </NavLink>
           ))}
         </nav>
 
-        {/* 🔑 Pehle ye absolute bottom-5 tha, jo scroll hone par nav content
-            ke upar overlap kar sakta tha. Ab normal flex flow mein hai —
-            hamesha bottom par pinned rahega, kabhi overlap nahi karega. */}
-        <div className="px-5 py-3 border-t border-gray-100 shrink-0">
-          <p className="text-xs text-gray-300 text-center">v1.0.0</p>
-        </div>
+        {sidebarOpen && (
+          <div className="px-5 py-3 border-t border-gray-100 shrink-0">
+            <p className="text-xs text-gray-300 text-center">v1.0.0</p>
+          </div>
+        )}
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3.5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+              onClick={() => setSidebarOpen((prev) => !prev)}
               className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
               aria-label="Toggle sidebar"
             >
               {sidebarOpen
-                ? <X    className="w-5 h-5 text-gray-500" />
+                ? <X className="w-5 h-5 text-gray-500" />
                 : <Menu className="w-5 h-5 text-gray-500" />}
             </button>
-            <span className="text-sm font-semibold text-gray-800 capitalize">{activeTab}</span>
+            <span className="text-sm font-semibold text-gray-800 capitalize">{activeLabel}</span>
           </div>
           <Link
             to="/"
@@ -118,18 +133,7 @@ const AdminPanel = () => {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-          {activeTab === "dashboard" && <Dashboard />}
-          {activeTab === "products"  && <Products />}
-          {activeTab === "orders"    && <Orders />}
-          {activeTab === "customers" && (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-              <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
-                <Users className="w-7 h-7 text-gray-400" />
-              </div>
-              <h3 className="text-base font-semibold text-gray-700">Customers</h3>
-              <p className="text-sm text-gray-400 mt-1">Coming soon</p>
-            </div>
-          )}
+          <Outlet />
         </main>
       </div>
     </div>
