@@ -1,8 +1,18 @@
 const ExcelJS = require("exceljs");
 const Order = require("../models/Order");
 
+// Counts an order as a "sale" if either:
+//  - it was paid (card payments), or
+//  - it was COD and has actually been delivered
+// COD orders that are still pending/processing are NOT counted yet,
+// since the customer hasn't paid and the sale isn't confirmed.
 function buildDateMatch(query) {
-  const match = { paymentStatus: "paid" };
+  const match = {
+    $or: [
+      { paymentStatus: "paid" },
+      { paymentMethod: "cod", status: "delivered" },
+    ],
+  };
 
   if (query.from || query.to) {
     match.createdAt = {};
@@ -42,9 +52,10 @@ async function computeSalesReport(query) {
     ]),
 
     // NOTE: assumes each item in the schema-less `items` array has `name`,
-    // `price`, `quantity` fields directly on it (as your invoice fallback
-    // logic already assumes). If your items instead only store a product
-    // ObjectId reference, this needs a $lookup against Product first.
+    // `price`, `quantity` fields directly on it (same assumption the
+    // invoice fallback logic already makes). If items only store a
+    // product ObjectId reference instead, this needs a $lookup against
+    // Product first.
     Order.aggregate([
       { $match: match },
       { $unwind: "$items" },
@@ -136,7 +147,6 @@ exports.exportSalesReportExcel = async (req, res) => {
 
     await workbook.xlsx.write(res);
     res.end();
-
   } catch (error) {
     console.error("[ExportSalesReportExcel] Unexpected error:", error);
 

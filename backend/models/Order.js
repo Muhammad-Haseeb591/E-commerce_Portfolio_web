@@ -1,10 +1,10 @@
 const mongoose = require("mongoose");
 
-// 🔑 UPDATED SHAPE — matches EditOrderModal.jsx exactly:
-// firstName, lastName, phone, line1, city, state, zip, country.
-// Every place that builds shippingAddress (checkout controller, admin
-// edit modal, invoice renderer) MUST use these exact field names, or
-// Mongoose will silently strip unknown fields on save.
+// Shape matches EditOrderModal.jsx exactly: firstName, lastName, phone,
+// line1, city, state, zip, country. Every place that builds
+// shippingAddress (checkout controller, admin edit modal, invoice
+// renderer) MUST use these exact field names, or Mongoose will silently
+// strip unknown fields on save.
 const shippingAddressSchema = new mongoose.Schema(
   {
     firstName: { type: String, default: "N/A" },
@@ -27,8 +27,9 @@ const orderSchema = new mongoose.Schema(
     items: [],
     totalAmount: Number,
 
-    // 🔑 Currency the order was actually placed/charged in. Set explicitly
-    // in the checkout controller — never re-derive it later from geolocation.
+    // Currency the order was actually placed/charged in. Set explicitly
+    // in the checkout controller — never re-derive it later from
+    // geolocation or IP.
     currency: {
       type: String,
       enum: ["PKR", "USD", "EUR", "GBP"],
@@ -39,9 +40,10 @@ const orderSchema = new mongoose.Schema(
     status: { type: String, default: "pending" },
 
     // ── Order Tracking ──
-    // Har baar status change ho, ek entry yahan add ho jati hai (pre-save hook se) —
-    // isse "order timeline" (Placed → Processing → Shipped → Delivered) frontend
-    // par dikhai ja sakti hai.
+    // Every time status changes, an entry is pushed here automatically
+    // (via the pre-save hook below) — so the "order timeline"
+    // (Placed → Processing → Shipped → Delivered) can be shown on the
+    // frontend without any controller having to push to it manually.
     statusHistory: [
       {
         status: { type: String, required: true },
@@ -54,11 +56,10 @@ const orderSchema = new mongoose.Schema(
     estimatedDelivery: { type: Date, default: null },
 
     // ── Stripe payment fields ──
-    // NOTE: `required: true` yahan jaan-boojh kar nahi lagaya — koi bhi
-    // purana call-site (ya future COD path) jo paymentMethod na bheje, uska
-    // Order.create()/save() validation error se crash NAHI hoga. Default
-    // "cod" isliye rakha hai kyunki purana schema is field ke bina hi COD
-    // orders bhi bana raha tha.
+    // `required: true` is deliberately NOT set here — any older call site
+    // (or a future COD path) that doesn't send paymentMethod won't crash
+    // Order.create()/save() with a validation error. Default is "cod"
+    // since the previous schema created COD orders without this field too.
     paymentMethod: {
       type: String,
       enum: ["cod", "card"],
@@ -70,13 +71,13 @@ const orderSchema = new mongoose.Schema(
       default: "unpaid",
     },
 
-    // Checkout Session flow (redirect-based) — already used in
-    // payment.controller.stripeWebhook / verifySession. Kept as-is.
+    // Checkout Session flow (redirect-based) — used by
+    // payment.controller.stripeWebhook / verifySession.
     stripeSessionId: { type: String, default: null },
 
     // PaymentIntent flow (inline card element / createPaymentMethod).
-    // Alag field isliye kyunki dono flows (session id vs intent id) ek
-    // saath maujood ho sakte hain agar dono paths kabhi use ho rahay hon.
+    // Kept as a separate field because both flows (session id vs intent
+    // id) can exist side by side if both paths are ever used.
     stripePaymentIntentId: { type: String, default: null, index: true },
 
     paidAt: { type: Date, default: null },
@@ -92,18 +93,19 @@ const orderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// 🔑 Speeds up dashboard aggregations (monthly/daily revenue grouping,
-// recent-orders sort) and the createOrder duplicate-request guard, which
+// Speeds up dashboard aggregations (monthly/daily revenue grouping,
+// recent-orders sort) and the createOrder duplicate-request guard —
 // both filter/sort on createdAt.
 orderSchema.index({ createdAt: -1 });
 
-// 🔑 Speeds up the unique-customer count in dashboard stats and any
+// Speeds up the unique-customer count in dashboard stats and any
 // per-customer order lookups.
 orderSchema.index({ email: 1 });
 
-// Mongoose 7+ async middleware ko `next` callback nahi deta — async function
-// khud Promise resolve/reject se hi kaam chala leta hai. `next` use karna
-// (jab available hi nahi) crash karta hai, isliye yahan bilkul nahi liya.
+// Mongoose 7+ async middleware doesn't take a `next` callback — the
+// async function resolves/rejects via its own Promise. Calling `next`
+// here (when it isn't passed in) would throw, so it's intentionally
+// left out.
 orderSchema.pre("validate", async function () {
   if (!this.orderNumber) {
     const lastOrder = await this.constructor
@@ -114,10 +116,11 @@ orderSchema.pre("validate", async function () {
   }
 });
 
-// Status naya ho ya change ho (create ya update dono par), automatically
-// statusHistory mein push kar do — taake koi bhi jagah se order.status update
-// ho (updateOrder controller, admin panel, webhook, etc.), timeline khud-ba-khud
-// ban jaye, alag se har jagah manually push karne ki zaroorat na pade.
+// Whenever status is set for the first time or changed (on create or
+// update), automatically push it into statusHistory — so no matter
+// where order.status gets updated (updateOrder controller, admin panel,
+// webhook, etc.), the timeline builds itself instead of needing a
+// manual push at every call site.
 orderSchema.pre("save", async function () {
   if (this.isNew || this.isModified("status")) {
     this.statusHistory.push({ status: this.status });

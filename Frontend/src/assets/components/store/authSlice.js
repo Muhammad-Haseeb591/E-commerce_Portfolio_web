@@ -138,10 +138,11 @@ const authSlice = createSlice({
   name: "auth",
   initialState: {
     user: safeParseUser(),
-    loading: false,
+    loading: false,        // login / signup / otp / password actions ke liye
+    authChecking: true,    // sirf checkAuth (session verify) ke liye — start true
     authChecked: false,
     error: null,
-    message: null, 
+    message: null,
   },
   reducers: {
     clearError: (state) => {
@@ -224,19 +225,19 @@ const authSlice = createSlice({
         localStorage.removeItem("user");
       });
 
-    // ── checkAuth ──
+    // ── checkAuth ── (session verify — apna alag flag, login button ko affect nahi karega)
     builder
       .addCase(checkAuth.pending, (state) => {
-        state.loading = true;
+        state.authChecking = true;
       })
       .addCase(checkAuth.fulfilled, (state, action) => {
-        state.loading = false;
+        state.authChecking = false;
         state.authChecked = true;
         state.user = action.payload;
         localStorage.setItem("user", JSON.stringify(action.payload));
       })
       .addCase(checkAuth.rejected, (state) => {
-        state.loading = false;
+        state.authChecking = false;
         state.authChecked = true;
         state.user = null;
         localStorage.removeItem("user");
