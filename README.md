@@ -62,16 +62,16 @@ The purpose of this project was to build a production-ready e-commerce applicati
 
 ## Key Achievements
 
-- ✔ 40+ REST APIs
-- ✔ Secure Authentication (JWT + Refresh Tokens)
-- ✔ Admin Dashboard with Analytics
-- ✔ Stripe Payment Integration
-- ✔ Google Login (OAuth)
-- ✔ Email Verification
-- ✔ Cloudinary Image Uploads
-- ✔ PDF Invoice Generation
-- ✔ Role-Based Authorization
-- ✔ Fully Responsive Design
+-  40+ REST APIs
+-  Secure Authentication (JWT + Refresh Tokens)
+-  Admin Dashboard with Analytics
+-  Stripe Payment Integration
+-  Google Login (OAuth)
+-  Email Verification
+-  Cloudinary Image Uploads
+-  PDF Invoice Generation
+-  Role-Based Authorization
+-  Fully Responsive Design
 
 ## Architecture
 
