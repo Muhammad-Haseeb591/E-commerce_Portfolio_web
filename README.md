@@ -103,7 +103,7 @@ MongoDB (Atlas)
 
 | Dashboard | Analytics | Mobile View |
 |---|---|---|
-| ![Dashboard](./docs/screenshots/dashboard.png) | ![Analytics](./docs/screenshots/analytics.png) | ![Mobile View](./docs/screenshots/mobile.png) |
+| ![Dashboard](./docs/screenshots/dashboard.png) | ![Mobile View](./docs/screenshots/mobile.png) |
 
 ## Demo Account
 
