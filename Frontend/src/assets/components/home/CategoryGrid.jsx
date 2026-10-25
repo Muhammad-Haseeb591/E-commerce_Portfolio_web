@@ -3,6 +3,7 @@ import { useCatalog } from "../hooks/useCatalog"
 import { categories } from "../data/homeData"
 import { CategoryCard } from "./CategoryCard"
 import { Reveal } from "./Reveal"
+import { cardImage } from "../../../utils/cloudinary";
 
 // 🔑 Category name → actual route path mapping. Backend category names
 // don't always match the frontend route slugs (e.g. "perfume" category
@@ -36,7 +37,7 @@ function useDerivedCategories(catalog) {
         grouped.set(slug, {
           name,
           slug,
-          image: product.displayImage || product.colors?.[0]?.image || "/placeholder.svg",
+          image: cardImage(product.displayImage || product.colors?.[0]?.image || "/placeholder.svg"),
           count: 0,
         })
       }

@@ -9,6 +9,7 @@ import {
   clearReviewError,
   resetProductReviews,
 } from "../store/reviewSlice"; // 🔧 adjust path to match your project
+import { thumbImage } from "../../../utils/cloudinary";
 
 const StarRow = ({ value, onChange, size = "text-xl" }) => {
   const stars = [1, 2, 3, 4, 5];
@@ -276,7 +277,7 @@ export default function ReviewSection({ productId, currentUserId }) {
                   {review.images.map((img, i) => (
                     <img
                       key={i}
-                      src={typeof img === "string" ? img : img.url}
+                      src={thumbImage(typeof img === "string" ? img : img.url)}
                       alt={`review-${i}`}
                       className="h-16 w-16 shrink-0 rounded-md object-cover"
                     />

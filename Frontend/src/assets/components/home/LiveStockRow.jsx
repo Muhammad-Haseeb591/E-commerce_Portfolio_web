@@ -5,6 +5,7 @@ import { useReveal } from "../hooks/useReveal"
 import { useCountUp } from "../hooks/useCountUp"
 import { CARD_3D, cx } from "../../../utils/cx"
 import { CornerFold } from "./CornerFold"
+import { cardImage } from "../../../utils/cloudinary";
 
 export function LiveStockRow({ product, index }) {
   const dispatch = useDispatch()
@@ -55,7 +56,7 @@ export function LiveStockRow({ product, index }) {
           <CornerFold variant="dark" />
           <div className="aspect-[16/10] w-full overflow-hidden">
             <img
-              src={product.image || "/placeholder.svg"}
+              src={cardImage(product.image || "/placeholder.svg")}
               alt={product.name}
               className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
             />

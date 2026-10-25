@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useEffect, useState } from "react";
 import { fetchCatalog, setFilter, setFilters, setTotalCount, selectFilteredCatalog } from "../assets/components/store/fetcherSlice";
 import { getColorHex } from "../utils/Colormap";
+import { cardImage } from "../utils/cloudinary";
 import SEO from "../assets/components/common/SEO";
 import FooterLoader from "../assets/components/layout/FooterLoader"; // 🔑 dummy import — sahi path apni project ke hisaab se lagao
 
@@ -103,7 +104,7 @@ title="Women's Collection"
                   <Link to={`/products/${product._id}`} className="overflow-hidden w-full h-full block">
                     <img
                       className="w-full h-full object-cover transition-transform duration-500 ease-in-out group-hover:scale-105"
-                      src={product.colors?.[0]?.image || product.displayImage || "/placeholder.png"}
+                      src={cardImage(product.colors?.[0]?.image || product.displayImage || "/placeholder.png")}
                       alt={product.name}
                       loading="lazy"
                       onError={(e) => (e.target.src = "/placeholder.png")}

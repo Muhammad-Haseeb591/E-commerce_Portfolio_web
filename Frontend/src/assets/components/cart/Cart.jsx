@@ -12,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { getShippingFee, getAmountLeftForFreeDelivery } from "../../../utils/shipping";
 import { getCurrencyForCountry, getAllowedPaymentMethods, formatAmount } from "../../../utils/formatCurrency";
 import SEO from "../common/SEO";
+import { thumbImage } from "../../../utils/cloudinary";
 
 const getItemId = (item) => item?._id ?? item?.id;
 const getLineKey = (item) => `${getItemId(item)}::${item.color || ""}`;
@@ -318,7 +319,7 @@ const Cart = () => {
                   const itemId = getItemId(item);
                   const lineKey = getLineKey(item);
                   const sizes = item.sizes || [];
-                  const thumb = item.image || item.images?.[0] || "";
+                  const thumb = thumbImage(item.image || item.images?.[0] || "");
 
                   return (
                     <div key={lineKey} className="border border-gray-200 rounded-lg p-2.5">

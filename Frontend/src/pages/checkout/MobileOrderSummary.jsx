@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import ProductMeta from "./Productmeta";
+import { thumbImage } from "../../utils/cloudinary";
 
 const getPid = (p) => p._id || p.productId;
 
@@ -52,7 +53,7 @@ export default function MobileOrderSummary({
             const pid = getPid(first);
             // 🔑 Array ki PEHLI image — hamesha yehi use hoti hai, chahe
             // is group ke andar kitne bhi colors/lines hon.
-            const thumb = first.images?.[0] || first.image || "";
+            const thumb = thumbImage(first.images?.[0] || first.image || "");
 
             return (
               <div key={pid} className="space-y-2">

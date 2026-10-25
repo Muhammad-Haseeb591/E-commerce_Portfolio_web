@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchFavourites } from "../assets/components/store/favouriteslice"; // ← apna actual path check karna
+import { cardImage } from "../utils/cloudinary";
 import SEO from "../assets/components/common/SEO";
 
 const Wishlist = () => {
@@ -79,7 +80,7 @@ const Wishlist = () => {
               <Link to={`/products/${product._id}`} className="overflow-hidden w-full h-full block">
                 <img
                   className="w-full h-full object-cover transition-all duration-600 ease-in-out hover:scale-105"
-                  src={product.colors?.[0]?.image}
+                  src={cardImage(product.colors?.[0]?.image)}
                   alt={product.name}
                   onError={(e) => console.log("Image broken:", e.target.src)}
                 />

@@ -1,5 +1,5 @@
 import { FaHeart, FaRegHeart } from "react-icons/fa";
-
+import { detailImage, thumbImage } from "../../../../utils/cloudinary";
 // Main product image, favourite toggle button, and (when the product has
 // multiple colors) the horizontal color-thumbnail strip below it.
 const ProductGallery = ({
@@ -21,7 +21,7 @@ const ProductGallery = ({
         {mainImage ? (
           <img
             key={mainImage}
-            src={mainImage}
+            src={detailImage(mainImage)}
             alt={productName}
             onLoad={onImageLoad}
             className={`w-full h-full object-cover transition-opacity duration-200 ${
@@ -65,7 +65,7 @@ const ProductGallery = ({
                 } ${outOfStock ? "opacity-30 grayscale cursor-not-allowed" : ""}`}
               >
                 {c.images?.[0] ? (
-                  <img src={c.images[0]} alt={c.color} className="w-full h-full object-cover" />
+                  <img src={thumbImage(c.images[0])} alt={c.color} className="w-full h-full object-cover" />
                 ) : (
                   <span className="w-full h-full flex items-center justify-center text-[10px] text-gray-400 px-1 text-center">
                     {c.color}

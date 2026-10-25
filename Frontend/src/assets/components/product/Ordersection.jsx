@@ -6,6 +6,7 @@ import {
   clearOrderError,
 } from "../store/orderSlice"; // 🔧 adjust path to match your project
 import { API_URL } from "../../../config/api";
+import { thumbImage } from "../../../utils/cloudinary";
 
 const CANCELLABLE_STATUSES = ["pending", "processing"];
 
@@ -365,7 +366,7 @@ export default function OrderSection() {
                     <div key={item._id || i} className="flex items-center gap-3">
                       {item.image && (
                         <img
-                          src={item.image}
+                          src={thumbImage(item.image)}
                           alt={item.name || "product"}
                           className="h-12 w-12 shrink-0 rounded-md object-cover"
                         />

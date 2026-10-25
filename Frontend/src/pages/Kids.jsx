@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { fetchCatalog, setFilter, setFilters, setTotalCount } from "../assets/components/store/fetcherSlice";
 import { useFilteredProducts } from "../assets/components/hooks/useFilteredProducts";
 import { getColorHex } from "../utils/Colormap";
+import { cardImage } from "../utils/cloudinary";
 import SEO from "../assets/components/common/SEO"
 const Kids = () => {
   const dispatch = useDispatch();
@@ -108,7 +109,7 @@ title="Kids' Collection"
                   <Link to={`/products/${product._id}`} className="overflow-hidden w-full h-full block">
                     <img
                       className="w-full h-full object-cover transition-transform duration-500 ease-in-out group-hover:scale-105"
-                      src={product.displayImage || product.colors?.[0]?.image}
+                      src={cardImage(product.displayImage || product.colors?.[0]?.image)}
                       alt={product.name}
                       loading="lazy"
                       onError={(e) => (e.target.src = "/placeholder.png")}

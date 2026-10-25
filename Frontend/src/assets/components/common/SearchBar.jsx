@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useSelector } from "react-redux";
+import { thumbImage } from "../../../utils/cloudinary";
 
 const MAX_RESULTS = 6;
 
 // product-level `images[]` ab schema mein nahi hai — image sirf colors[]
 // ke andar hoti hai. images[0] sirf legacy fallback ke liye rakha hai.
-const getProductThumb = (p) => p.colors?.[0]?.image || p.images?.[0] || "/placeholder.png";
+const getProductThumb = (p) => thumbImage(p.colors?.[0]?.image || p.images?.[0] || "/placeholder.png");
 
 const SearchBar = () => {
   const navigate = useNavigate();
