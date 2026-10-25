@@ -82,6 +82,7 @@ const Wishlist = () => {
                   className="w-full h-full object-cover transition-all duration-600 ease-in-out hover:scale-105"
                   src={cardImage(product.colors?.[0]?.image)}
                   alt={product.name}
+                  loading="lazy"
                   onError={(e) => console.log("Image broken:", e.target.src)}
                 />
               </Link>

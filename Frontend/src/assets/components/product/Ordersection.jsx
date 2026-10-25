@@ -368,6 +368,7 @@ export default function OrderSection() {
                         <img
                           src={thumbImage(item.image)}
                           alt={item.name || "product"}
+                          loading="lazy"
                           className="h-12 w-12 shrink-0 rounded-md object-cover"
                         />
                       )}

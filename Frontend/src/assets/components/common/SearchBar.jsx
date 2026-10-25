@@ -122,6 +122,7 @@ const SearchBar = () => {
                     <img
                       src={getProductThumb(product)}
                       alt={product.name}
+                      loading="lazy"
                       className="w-[44px] h-[44px] object-cover rounded-[6px] bg-gray-100 border border-gray-200 shrink-0"
                       onError={(e) => (e.target.src = "/placeholder.png")}
                     />

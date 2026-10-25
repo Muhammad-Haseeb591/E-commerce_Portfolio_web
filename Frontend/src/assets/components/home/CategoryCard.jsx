@@ -53,6 +53,7 @@ export function CategoryCard({ category, delay }) {
             <img
               src={category.image || FALLBACK_IMAGE}
               alt={category.name}
+              loading="lazy"
               onError={(e) => {
                 // Broken/inaccessible image URL from the catalog — swap to
                 // the inline fallback, which can never itself fail to load.

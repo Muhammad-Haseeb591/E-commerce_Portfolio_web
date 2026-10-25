@@ -279,6 +279,7 @@ export default function ReviewSection({ productId, currentUserId }) {
                       key={i}
                       src={thumbImage(typeof img === "string" ? img : img.url)}
                       alt={`review-${i}`}
+                      loading="lazy"
                       className="h-16 w-16 shrink-0 rounded-md object-cover"
                     />
                   ))}

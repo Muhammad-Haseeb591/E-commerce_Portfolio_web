@@ -58,6 +58,7 @@ export function LiveStockRow({ product, index }) {
             <img
               src={cardImage(product.image || "/placeholder.svg")}
               alt={product.name}
+              loading="lazy"
               className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
             />
           </div>

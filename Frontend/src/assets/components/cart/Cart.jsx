@@ -327,6 +327,7 @@ const Cart = () => {
                         <img
                           src={thumb}
                           alt={item.name}
+                          loading="lazy"
                           className="w-12 h-12 rounded-lg object-cover border border-gray-200 shrink-0 bg-gray-50"
                         />
                         {item.color ? (

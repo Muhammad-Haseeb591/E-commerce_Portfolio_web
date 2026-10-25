@@ -54,6 +54,7 @@ export default function OrderSummarySidebar({
                   <img
                     src={thumb}
                     alt={first.name}
+                    loading="lazy"
                     className="w-12 h-12 bg-gray-100 border border-[#333333] rounded-xl object-cover shrink-0"
                   />
                   <p className="text-sm font-medium text-[#333333] truncate flex-1 min-w-0">

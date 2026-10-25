@@ -61,6 +61,7 @@ export default function MobileOrderSummary({
                   <img
                     src={thumb}
                     alt={first.name}
+                    loading="lazy"
                     className="w-10 h-10 bg-gray-100 border border-[#333333] rounded-xl object-cover shrink-0"
                   />
                   <p className="text-sm font-medium text-[#333333] truncate flex-1 min-w-0">

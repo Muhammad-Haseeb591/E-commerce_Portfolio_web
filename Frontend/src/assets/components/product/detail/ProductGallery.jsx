@@ -65,7 +65,7 @@ const ProductGallery = ({
                 } ${outOfStock ? "opacity-30 grayscale cursor-not-allowed" : ""}`}
               >
                 {c.images?.[0] ? (
-                  <img src={thumbImage(c.images[0])} alt={c.color} className="w-full h-full object-cover" />
+                  <img src={thumbImage(c.images[0])} alt={c.color} loading="lazy" className="w-full h-full object-cover" />
                 ) : (
                   <span className="w-full h-full flex items-center justify-center text-[10px] text-gray-400 px-1 text-center">
                     {c.color}
